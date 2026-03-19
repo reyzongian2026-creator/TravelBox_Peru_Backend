@@ -36,6 +36,7 @@ import com.tuempresa.storage.users.domain.User;
 import com.tuempresa.storage.users.infrastructure.out.persistence.UserRepository;
 import com.tuempresa.storage.warehouses.application.usecase.WarehouseService;
 import com.tuempresa.storage.warehouses.domain.Warehouse;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -72,6 +73,7 @@ public class ReservationService {
     private final StoredItemEvidenceRepository storedItemEvidenceRepository;
     private final QrHandoffCaseRepository qrHandoffCaseRepository;
     private final PaymentAttemptRepository paymentAttemptRepository;
+    private final long duplicateReservationWindowSeconds;
 
     public ReservationService(
             ReservationRepository reservationRepository,
@@ -87,7 +89,8 @@ public class ReservationService {
             CheckoutRecordRepository checkoutRecordRepository,
             StoredItemEvidenceRepository storedItemEvidenceRepository,
             QrHandoffCaseRepository qrHandoffCaseRepository,
-            PaymentAttemptRepository paymentAttemptRepository
+            PaymentAttemptRepository paymentAttemptRepository,
+            @Value("${app.reservations.duplicate-window-seconds:60}") long duplicateReservationWindowSeconds
     ) {
         this.reservationRepository = reservationRepository;
         this.warehouseService = warehouseService;
@@ -103,6 +106,7 @@ public class ReservationService {
         this.storedItemEvidenceRepository = storedItemEvidenceRepository;
         this.qrHandoffCaseRepository = qrHandoffCaseRepository;
         this.paymentAttemptRepository = paymentAttemptRepository;
+        this.duplicateReservationWindowSeconds = Math.max(0, duplicateReservationWindowSeconds);
     }
 
     @Transactional
@@ -182,10 +186,25 @@ public class ReservationService {
             Boolean deliveryRequestedRaw,
             Boolean extraInsuranceRaw
     ) {
+        // Idempotency guard to block rapid duplicate reservations.
+        if (duplicateReservationWindowSeconds > 0) {
+            Instant duplicateThreshold = Instant.now().minusSeconds(duplicateReservationWindowSeconds);
+            if (reservationRepository.existsByUserIdAndWarehouseIdAndCreatedAtAfter(
+                    user.getId(),
+                    warehouseId,
+                    duplicateThreshold
+            )) {
+                throw new ApiException(
+                        HttpStatus.CONFLICT,
+                        "DUPLICATE_RESERVATION_DETECTED",
+                        "Ya has generado una reserva en esta sede hace unos segundos. Revisa tu panel de reservas o intenta nuevamente."
+                );
+            }
+        }
+
         if (!endAt.isAfter(startAt)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_DATE_RANGE", "La fecha de fin debe ser mayor a la de inicio.");
         }
-        // Bloquea la sede durante la validacion/creacion para evitar sobreventa concurrente de cupos.
         Warehouse warehouse = warehouseService.requireWarehouseForUpdate(warehouseId);
         long overlaps = reservationRepository.countOverlapping(
                 warehouse.getId(),
@@ -265,23 +284,17 @@ public class ReservationService {
                                 "El correo indicado pertenece a un usuario operativo. Usa un correo de cliente."
                         );
                     }
-                    existing.updateAdminProfile(
-                            nameParts.firstName(),
-                            nameParts.lastName(),
-                            normalizedEmail,
-                            request.customerPhone(),
-                            nationality,
-                            preferredLanguage
-                    );
-                    existing.setActive(true);
-                    existing.markEmailVerified();
+                    if (!existing.isActive()) {
+                        existing.setActive(true);
+                    }
                     return existing;
                 })
                 .orElseGet(() -> {
+                    String rawPassword = generateTemporaryCustomerPassword();
                     User customer = User.of(
                             request.customerFullName(),
                             normalizedEmail,
-                            passwordEncoder.encode(generateTemporaryCustomerPassword()),
+                            passwordEncoder.encode(rawPassword),
                             request.customerPhone(),
                             Set.of(Role.CLIENT)
                     );
@@ -296,7 +309,12 @@ public class ReservationService {
                     );
                     customer.markEmailVerified();
                     customer.setActive(true);
-                    return userRepository.save(customer);
+                    User savedCustomer = userRepository.save(customer);
+
+                    // Aquí puedes usar el customerEmailService para enviar rawPassword al nuevo usuario.
+                    // customerEmailService.sendWelcomeWithTemporaryPassword(savedCustomer, rawPassword);
+
+                    return savedCustomer;
                 });
     }
 
@@ -355,26 +373,18 @@ public class ReservationService {
     }
 
     private PaymentMethod inferPaymentMethodFromAttempt(PaymentAttempt attempt) {
-        String gatewayStatus = attempt.getGatewayStatus() == null ? "" : attempt.getGatewayStatus().trim().toLowerCase(Locale.ROOT);
         String providerReference = attempt.getProviderReference() == null ? "" : attempt.getProviderReference().trim().toLowerCase(Locale.ROOT);
-        String gatewayMessage = attempt.getGatewayMessage() == null ? "" : attempt.getGatewayMessage().trim().toLowerCase(Locale.ROOT);
 
-        String combined = providerReference + " " + gatewayStatus + " " + gatewayMessage;
-        if (combined.contains("offline-counter") || combined.contains(" counter")) {
-            return PaymentMethod.COUNTER;
-        }
-        if (combined.contains("offline-cash") || combined.contains(" cash")) {
+        if (providerReference.startsWith("off_") || providerReference.startsWith("cip_")) {
             return PaymentMethod.CASH;
         }
-        if (combined.contains("wallet")) {
-            return PaymentMethod.WALLET;
-        }
-        if (combined.contains("plin")) {
+        if (providerReference.startsWith("wal_plin")) {
             return PaymentMethod.PLIN;
         }
-        if (combined.contains("yape")) {
+        if (providerReference.startsWith("wal_yape")) {
             return PaymentMethod.YAPE;
         }
+
         return PaymentMethod.CARD;
     }
 

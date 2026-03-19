@@ -3,15 +3,7 @@ package com.tuempresa.storage.warehouses.domain;
 import com.tuempresa.storage.geo.domain.City;
 import com.tuempresa.storage.geo.domain.TouristZone;
 import com.tuempresa.storage.shared.infrastructure.persistence.AuditableEntity;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.PostLoad;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -27,6 +19,9 @@ public class Warehouse extends AuditableEntity {
     public static final BigDecimal DEFAULT_PICKUP_FEE = new BigDecimal("14.00");
     public static final BigDecimal DEFAULT_DROPOFF_FEE = new BigDecimal("14.00");
     public static final BigDecimal DEFAULT_INSURANCE_FEE = new BigDecimal("7.50");
+
+    @Version
+    private Long version;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "city_id", nullable = false)

@@ -18,9 +18,13 @@ public class ReservationExpirationScheduler {
 
     @Scheduled(fixedDelayString = "${app.reservations.expiration-check-ms:300000}")
     public void expirePendingReservations() {
-        int expired = reservationService.expirePendingPaymentsNow();
-        if (expired > 0) {
-            log.info("Expired {} pending reservations due to payment timeout.", expired);
+        try {
+            int expired = reservationService.expirePendingPaymentsNow();
+            if (expired > 0) {
+                log.info("Expired {} pending reservations due to payment timeout.", expired);
+            }
+        } catch (Exception ex) {
+            log.error("Reservation expiration scheduler failed; keeping service alive.", ex);
         }
     }
 }

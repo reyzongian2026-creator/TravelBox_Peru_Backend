@@ -82,7 +82,7 @@ public class ReactiveSecurityConfig {
                 .authorizeExchange(auth -> auth
                         .pathMatchers("/api/v1/auth/**").permitAll()
                         .pathMatchers("/api/v1/payments/webhooks/**").permitAll()
-                        .pathMatchers("/actuator/health", "/actuator/info").permitAll()
+                        .pathMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
                         .pathMatchers(HttpMethod.GET, "/images/**").permitAll()
                         .pathMatchers(HttpMethod.GET, "/api/v1/reservations/*/qr").permitAll()
                         .pathMatchers(HttpMethod.GET, "/api/v1/files/**").permitAll()

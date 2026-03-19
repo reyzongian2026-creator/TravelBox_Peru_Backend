@@ -1,17 +1,12 @@
 spring:
   main:
     web-application-type: servlet
-  datasource:
-    url: jdbc:h2:mem:travelbox_test_${random.uuid};MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;DATABASE_TO_LOWER=TRUE
-    username: sa
-    password:
-    driver-class-name: org.h2.Driver
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     show-sql: false
   flyway:
-    enabled: false
+    enabled: true
 
 app:
   security:
@@ -29,6 +24,7 @@ app:
     currency: PEN
   reservations:
     expiration-check-ms: 10000
+    duplicate-window-seconds: 0
   notifications:
     provider: mock
   auth:

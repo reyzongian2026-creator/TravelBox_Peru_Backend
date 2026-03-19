@@ -15,7 +15,7 @@ import java.util.Optional;
 
 public interface WarehouseRepository extends JpaRepository<Warehouse, Long> {
 
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Lock(LockModeType.OPTIMISTIC)
     @Query("select w from Warehouse w where w.id = :id")
     Optional<Warehouse> findByIdForUpdate(Long id);
 

@@ -14,6 +14,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.bind.support.WebExchangeBindException;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
@@ -37,6 +38,25 @@ public class ReactiveGlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public Mono<ResponseEntity<ApiErrorResponse>> handleValidationException(
             MethodArgumentNotValidException ex,
+            ServerWebExchange exchange
+    ) {
+        List<String> details = ex.getBindingResult().getFieldErrors()
+                .stream()
+                .map(this::formatFieldError)
+                .toList();
+        return Mono.just(ResponseEntity.badRequest()
+                .body(buildError(
+                        HttpStatus.BAD_REQUEST,
+                        "VALIDATION_ERROR",
+                        "El payload tiene errores de validacion.",
+                        exchange,
+                        details
+                )));
+    }
+
+    @ExceptionHandler(WebExchangeBindException.class)
+    public Mono<ResponseEntity<ApiErrorResponse>> handleWebExchangeBindException(
+            WebExchangeBindException ex,
             ServerWebExchange exchange
     ) {
         List<String> details = ex.getBindingResult().getFieldErrors()

@@ -6,6 +6,7 @@ import org.springframework.http.codec.ServerSentEvent;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 
+import java.time.Duration;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -18,12 +19,23 @@ public class NotificationTopicBroker {
         if (userId == null) {
             return Flux.empty();
         }
-        return sinkForUser(userId)
+
+        // 1. Flujo principal de notificaciones del usuario
+        Flux<ServerSentEvent<NotificationResponse>> userEvents = sinkForUser(userId)
                 .asFlux()
                 .map(notification -> ServerSentEvent.builder(notification)
                         .id(String.valueOf(notification.id()))
                         .event("notification")
-                        .build())
+                        .build());
+
+        // 2. Flujo de Heartbeat (Latido) cada 30 segundos para evitar timeouts de NGINX/AWS
+        Flux<ServerSentEvent<NotificationResponse>> keepAliveEvents = Flux.interval(Duration.ofSeconds(30))
+                .map(tick -> ServerSentEvent.<NotificationResponse>builder()
+                        .comment("keepalive")
+                        .build());
+
+        // 3. Mezclar notificaciones reales con latidos
+        return Flux.merge(userEvents, keepAliveEvents)
                 .startWith(ServerSentEvent.<NotificationResponse>builder()
                         .event("connected")
                         .build())
@@ -45,9 +57,11 @@ public class NotificationTopicBroker {
     }
 
     private Sinks.Many<NotificationResponse> sinkForUser(Long userId) {
+        // Usar onBackpressureBuffer en lugar de directBestEffort para no perder
+        // notificaciones si el cliente tiene micro-cortes de red.
         return sinksByUserId.computeIfAbsent(
                 userId,
-                ignored -> Sinks.many().multicast().directBestEffort()
+                ignored -> Sinks.many().multicast().onBackpressureBuffer()
         );
     }
 

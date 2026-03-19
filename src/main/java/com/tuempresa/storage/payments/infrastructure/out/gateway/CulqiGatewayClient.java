@@ -83,9 +83,6 @@ public class CulqiGatewayClient {
             return false;
         }
         String provided = safe(providedSignature);
-        if (webhookSecret.equals(provided)) {
-            return true;
-        }
         String normalized = provided.startsWith("sha256=") ? provided.substring("sha256=".length()) : provided;
         String expected = hmacSha256Hex(rawPayload, webhookSecret);
         return MessageDigest.isEqual(
@@ -280,11 +277,11 @@ public class CulqiGatewayClient {
 
     private boolean isApprovedStatus(String providerStatus, JsonNode response) {
         String normalized = providerStatus == null ? "" : providerStatus.toLowerCase(Locale.ROOT);
-        if (normalized.contains("exitosa")
-            || normalized.contains("successful")
-            || normalized.contains("paid")
-            || normalized.contains("captured")
-            || normalized.contains("approved")) {
+        if (normalized.equals("venta_exitosa")
+                || normalized.equals("successful")
+                || normalized.equals("paid")
+                || normalized.equals("captured")
+                || normalized.equals("approved")) {
             return true;
         }
         String paidValue = textAt(response, "paid");
