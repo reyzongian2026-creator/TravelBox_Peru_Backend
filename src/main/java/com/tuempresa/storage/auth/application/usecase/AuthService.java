@@ -41,6 +41,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
@@ -251,8 +252,15 @@ public class AuthService {
 
     @Transactional
     public void logout(LogoutRequest request) {
-        refreshTokenRepository.findByTokenAndRevokedFalse(request.refreshToken())
-                .ifPresent(token -> refreshTokenRepository.revokeAllByUserId(token.getUser().getId()));
+        String refreshTokenValue = normalize(request.refreshToken());
+        if (refreshTokenValue == null) {
+            return;
+        }
+        refreshTokenRepository.findByToken(refreshTokenValue)
+                .map(RefreshToken::getUser)
+                .map(User::getId)
+                .or(() -> resolveUserIdFromRefreshToken(refreshTokenValue))
+                .ifPresent(refreshTokenRepository::revokeAllByUserId);
     }
 
     @Transactional
@@ -656,6 +664,18 @@ public class AuthService {
     private String normalizeEmail(String value) {
         String normalized = normalize(value);
         return normalized == null ? null : normalized.toLowerCase(Locale.ROOT);
+    }
+
+    private Optional<Long> resolveUserIdFromRefreshToken(String refreshTokenValue) {
+        try {
+            String subject = normalizeEmail(jwtTokenProvider.extractSubject(refreshTokenValue));
+            if (subject == null) {
+                return Optional.empty();
+            }
+            return userRepository.findByEmailIgnoreCase(subject).map(User::getId);
+        } catch (Exception ignored) {
+            return Optional.empty();
+        }
     }
 
     private String buildFacebookFallbackEmail(String uid) {

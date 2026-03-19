@@ -71,6 +71,14 @@ public class WarehouseImageService {
     }
 
     private byte[] renderGeneratedImage(Warehouse warehouse) {
+        try {
+            return renderGeneratedImageInternal(warehouse, true);
+        } catch (RuntimeException ignored) {
+            return renderGeneratedImageInternal(warehouse, false);
+        }
+    }
+
+    private byte[] renderGeneratedImageInternal(Warehouse warehouse, boolean drawText) {
         final int width = 1200;
         final int height = 720;
         BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
@@ -78,7 +86,9 @@ public class WarehouseImageService {
         try {
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            if (drawText) {
+                g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            }
 
             String cityName = safeCityName(warehouse);
             String warehouseName = safeWarehouseName(warehouse);
@@ -90,9 +100,9 @@ public class WarehouseImageService {
             g.fillRect(0, 0, width, height);
 
             paintSceneBackground(g, width, height, palette, sceneType);
-            paintWarehouseFacade(g, width, height, palette, warehouseName);
+            paintWarehouseFacade(g, width, height, palette, warehouseName, drawText);
             paintForeground(g, width, height, palette, sceneType);
-            paintOverlay(g, width, height, palette, warehouseName, cityName, zoneName);
+            paintOverlay(g, width, height, palette, warehouseName, cityName, zoneName, drawText);
         } finally {
             g.dispose();
         }
@@ -163,7 +173,8 @@ public class WarehouseImageService {
             int width,
             int height,
             ScenePalette palette,
-            String warehouseName
+            String warehouseName,
+            boolean drawText
     ) {
         int cardX = 140;
         int cardY = 180;
@@ -183,9 +194,16 @@ public class WarehouseImageService {
         g.setColor(palette.accent());
         g.fillRoundRect(cardX + 46, cardY + 52, 300, 86, 26, 26);
 
-        g.setColor(Color.WHITE);
-        g.setFont(new Font("SansSerif", Font.BOLD, 38));
-        g.drawString(trimLabel(warehouseName, 22), cardX + 74, cardY + 106);
+        if (drawText) {
+            g.setColor(Color.WHITE);
+            g.setFont(new Font("SansSerif", Font.BOLD, 38));
+            g.drawString(trimLabel(warehouseName, 22), cardX + 74, cardY + 106);
+        } else {
+            g.setColor(new Color(255, 255, 255, 210));
+            g.fillRoundRect(cardX + 74, cardY + 82, 236, 14, 8, 8);
+            g.fillRoundRect(cardX + 74, cardY + 106, 182, 12, 8, 8);
+            g.fillRoundRect(cardX + 266, cardY + 106, 44, 12, 8, 8);
+        }
 
         g.setColor(new Color(230, 238, 246));
         for (int row = 0; row < 2; row++) {
@@ -244,25 +262,39 @@ public class WarehouseImageService {
             ScenePalette palette,
             String warehouseName,
             String cityName,
-            String zoneName
+            String zoneName,
+            boolean drawText
     ) {
         g.setComposite(AlphaComposite.SrcOver);
         g.setColor(new Color(8, 14, 24, 158));
         g.fillRoundRect(64, height - 126, width - 128, 78, 28, 28);
 
-        g.setColor(Color.WHITE);
-        g.setFont(new Font("SansSerif", Font.BOLD, 32));
-        g.drawString(trimLabel(warehouseName, 34), 102, height - 78);
+        if (drawText) {
+            g.setColor(Color.WHITE);
+            g.setFont(new Font("SansSerif", Font.BOLD, 32));
+            g.drawString(trimLabel(warehouseName, 34), 102, height - 78);
 
-        g.setColor(new Color(221, 232, 240));
-        g.setFont(new Font("SansSerif", Font.PLAIN, 22));
-        g.drawString(cityName + "  |  " + trimLabel(zoneName, 26), 104, height - 48);
+            g.setColor(new Color(221, 232, 240));
+            g.setFont(new Font("SansSerif", Font.PLAIN, 22));
+            g.drawString(cityName + "  |  " + trimLabel(zoneName, 26), 104, height - 48);
+
+            g.setColor(new Color(palette.accent().getRed(), palette.accent().getGreen(), palette.accent().getBlue(), 186));
+            g.fillRoundRect(width - 278, height - 108, 178, 40, 16, 16);
+            g.setColor(Color.WHITE);
+            g.setFont(new Font("SansSerif", Font.BOLD, 20));
+            g.drawString("TravelBox", width - 232, height - 82);
+            return;
+        }
+
+        g.setColor(new Color(255, 255, 255, 214));
+        g.fillRoundRect(102, height - 90, 304, 14, 8, 8);
+        g.setColor(new Color(221, 232, 240, 205));
+        g.fillRoundRect(102, height - 64, 236, 10, 8, 8);
 
         g.setColor(new Color(palette.accent().getRed(), palette.accent().getGreen(), palette.accent().getBlue(), 186));
         g.fillRoundRect(width - 278, height - 108, 178, 40, 16, 16);
-        g.setColor(Color.WHITE);
-        g.setFont(new Font("SansSerif", Font.BOLD, 20));
-        g.drawString("TravelBox Peru", width - 250, height - 82);
+        g.setColor(new Color(255, 255, 255, 222));
+        g.fillRoundRect(width - 254, height - 90, 130, 12, 8, 8);
     }
 
     private SceneType sceneTypeFor(String cityName) {

@@ -2,6 +2,7 @@ package com.tuempresa.storage.auth.infrastructure.in.web;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tuempresa.storage.auth.infrastructure.out.persistence.RefreshTokenRepository;
 import com.tuempresa.storage.firebase.application.FirebaseAdminService;
 import com.tuempresa.storage.firebase.application.FirebaseClientIdentity;
 import com.tuempresa.storage.users.domain.AuthProvider;
@@ -41,6 +42,9 @@ class AuthControllerIntegrationTest {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private RefreshTokenRepository refreshTokenRepository;
+
     @MockitoBean
     private FirebaseAdminService firebaseAdminService;
 
@@ -72,6 +76,58 @@ class AuthControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accessToken").isNotEmpty())
                 .andExpect(jsonPath("$.refreshToken").isNotEmpty());
+    }
+
+    @Test
+    void shouldLogoutAllSessionsEvenWhenProvidedRefreshTokenIsAlreadyRevoked() throws Exception {
+        MvcResult loginResult = perform(mockMvc, post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email":"admin@travelbox.pe",
+                                  "password":"Admin123!"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode loginJson = objectMapper.readTree(loginResult.getResponse().getContentAsString());
+        String firstRefreshToken = loginJson.get("refreshToken").asText();
+
+        MvcResult firstRefreshResult = perform(mockMvc, post("/api/v1/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "refreshToken":"%s"
+                                }
+                                """.formatted(firstRefreshToken)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode firstRefreshJson = objectMapper.readTree(firstRefreshResult.getResponse().getContentAsString());
+        String activeRefreshToken = firstRefreshJson.get("refreshToken").asText();
+
+        assertThat(refreshTokenRepository.findByTokenAndRevokedFalse(activeRefreshToken)).isPresent();
+
+        perform(mockMvc, post("/api/v1/auth/logout")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "refreshToken":"%s"
+                                }
+                                """.formatted(firstRefreshToken)))
+                .andExpect(status().isNoContent());
+
+        assertThat(refreshTokenRepository.findByTokenAndRevokedFalse(activeRefreshToken)).isEmpty();
+
+        perform(mockMvc, post("/api/v1/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "refreshToken":"%s"
+                                }
+                                """.formatted(activeRefreshToken)))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
