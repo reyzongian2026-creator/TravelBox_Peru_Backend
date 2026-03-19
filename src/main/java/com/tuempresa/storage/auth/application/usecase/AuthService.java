@@ -209,14 +209,18 @@ public class AuthService {
         }
 
         String normalizedEmail = normalizeEmail(identity.email());
+        if (normalizedEmail == null && expectedProvider == AuthProvider.FIREBASE_FACEBOOK) {
+            normalizedEmail = buildFacebookFallbackEmail(identity.uid());
+        }
         if (normalizedEmail == null) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "FIREBASE_EMAIL_REQUIRED", "Firebase no devolvio un correo valido.");
         }
+        final String resolvedEmail = normalizedEmail;
 
         User user = userRepository.findByFirebaseUid(identity.uid())
-                .or(() -> userRepository.findByEmailIgnoreCase(normalizedEmail))
+                .or(() -> userRepository.findByEmailIgnoreCase(resolvedEmail))
                 .map(existing -> updateFirebaseClient(existing, identity))
-                .orElseGet(() -> createFirebaseClient(identity, normalizedEmail, request));
+                .orElseGet(() -> createFirebaseClient(identity, resolvedEmail, request));
 
         firebaseAdminService.mirrorClientProfile(user);
 
@@ -652,6 +656,18 @@ public class AuthService {
     private String normalizeEmail(String value) {
         String normalized = normalize(value);
         return normalized == null ? null : normalized.toLowerCase(Locale.ROOT);
+    }
+
+    private String buildFacebookFallbackEmail(String uid) {
+        String normalizedUid = normalize(uid);
+        if (normalizedUid == null) {
+            return null;
+        }
+        String safe = normalizedUid.replaceAll("[^a-zA-Z0-9._-]", "").toLowerCase(Locale.ROOT);
+        if (safe.isEmpty()) {
+            return null;
+        }
+        return "fb-" + safe + "@facebook.local";
     }
 
     private String normalizePreferredLanguage(String value) {
