@@ -47,6 +47,7 @@ import java.util.Set;
 public class InventoryService {
 
     public static final String LUGGAGE_PHOTO_EVIDENCE_TYPE = "CHECKIN_BAG_PHOTO";
+    public static final String CLIENT_HANDOFF_PHOTO_EVIDENCE_TYPE = "CLIENT_HANDOFF_PHOTO";
     private static final String LATE_PICKUP_REFERENCE_PREFIX = "OFFLINE-COUNTER-LATE-";
 
     private final CheckinRecordRepository checkinRecordRepository;
@@ -322,7 +323,7 @@ public class InventoryService {
     public InventoryActionResponse addEvidence(EvidenceRequest request, AuthUserPrincipal principal) {
         Reservation reservation = reservationService.requireReservation(request.reservationId());
         assertEvidencePermission(reservation, principal);
-        assertGenericEvidenceTypeAllowed(request.type());
+        assertEvidenceTypeAllowed(request.type(), reservation, principal);
 
         User actor = loadUser(principal.getId());
         String evidenceUrl = publicUrlService.absolute(request.url());
@@ -353,7 +354,6 @@ public class InventoryService {
             MultipartFile file,
             AuthUserPrincipal principal
     ) {
-        assertGenericEvidenceTypeAllowed(type);
         String fileUrl = localFileStorageService.saveEvidenceImage(file);
         return addEvidence(
                 new EvidenceRequest(
@@ -364,6 +364,27 @@ public class InventoryService {
                 ),
                 principal
         );
+    }
+
+    @Transactional(readOnly = true)
+    public boolean hasClientHandoffPhoto(Long reservationId) {
+        if (reservationId == null) {
+            return false;
+        }
+        return storedItemEvidenceRepository.existsByReservationIdAndTypeIgnoreCase(
+                reservationId,
+                CLIENT_HANDOFF_PHOTO_EVIDENCE_TYPE
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public int countLuggagePhotos(Long reservationId) {
+        if (reservationId == null) {
+            return 0;
+        }
+        return storedItemEvidenceRepository
+                .findByReservationIdAndTypeOrderByCreatedAtAsc(reservationId, LUGGAGE_PHOTO_EVIDENCE_TYPE)
+                .size();
     }
 
     private void saveBaggagePhotos(
@@ -402,7 +423,7 @@ public class InventoryService {
         storedItemEvidenceRepository.saveAll(evidences);
     }
 
-    private void assertGenericEvidenceTypeAllowed(String type) {
+    private void assertEvidenceTypeAllowed(String type, Reservation reservation, AuthUserPrincipal principal) {
         String normalized = type == null ? "" : type.trim().toUpperCase();
         if (LUGGAGE_PHOTO_EVIDENCE_TYPE.equals(normalized)) {
             throw new ApiException(
@@ -410,6 +431,23 @@ public class InventoryService {
                     "LUGGAGE_PHOTO_MUTATION_FORBIDDEN",
                     "Las fotos del equipaje solo pueden registrarse durante el ingreso al almacen."
             );
+        }
+        if (CLIENT_HANDOFF_PHOTO_EVIDENCE_TYPE.equals(normalized)) {
+            if (!reservation.belongsTo(principal.getId())) {
+                throw new ApiException(
+                        HttpStatus.FORBIDDEN,
+                        "CLIENT_HANDOFF_PHOTO_CLIENT_ONLY",
+                        "La foto inicial del equipaje solo puede registrarla el cliente titular de la reserva."
+                );
+            }
+            if (reservation.getStatus() != ReservationStatus.CONFIRMED
+                    && reservation.getStatus() != ReservationStatus.CHECKIN_PENDING) {
+                throw new ApiException(
+                        HttpStatus.CONFLICT,
+                        "CLIENT_HANDOFF_PHOTO_OUT_OF_FLOW",
+                        "La foto inicial del equipaje solo puede registrarse antes del ingreso a almacen."
+                );
+            }
         }
     }
 

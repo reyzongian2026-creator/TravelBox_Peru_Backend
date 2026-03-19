@@ -760,10 +760,18 @@ public class ReservationService {
         QrHandoffCase handoff = qrHandoffCaseRepository.findByReservationId(reservation.getId()).orElse(null);
         CheckinRecord checkin = checkinRecordRepository.findFirstByReservationIdOrderByCreatedAtDesc(reservation.getId()).orElse(null);
         CheckoutRecord checkout = checkoutRecordRepository.findFirstByReservationIdOrderByCreatedAtDesc(reservation.getId()).orElse(null);
-        List<StoredItemEvidence> luggagePhotos = storedItemEvidenceRepository.findByReservationIdAndTypeOrderByCreatedAtAsc(
+        List<StoredItemEvidence> warehouseLuggagePhotos = storedItemEvidenceRepository.findByReservationIdAndTypeOrderByCreatedAtAsc(
                 reservation.getId(),
                 InventoryService.LUGGAGE_PHOTO_EVIDENCE_TYPE
         );
+        List<StoredItemEvidence> clientHandoffPhotos = storedItemEvidenceRepository.findByReservationIdAndTypeOrderByCreatedAtAsc(
+                reservation.getId(),
+                InventoryService.CLIENT_HANDOFF_PHOTO_EVIDENCE_TYPE
+        );
+        List<StoredItemEvidence> luggagePhotos = new java.util.ArrayList<>(warehouseLuggagePhotos.size() + clientHandoffPhotos.size());
+        luggagePhotos.addAll(clientHandoffPhotos);
+        luggagePhotos.addAll(warehouseLuggagePhotos);
+        luggagePhotos.sort(java.util.Comparator.comparing(StoredItemEvidence::getCreatedAt, java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder())));
         boolean canViewBagTag = canViewBagTag(viewer, reservation);
         boolean canViewPickupPin = canViewPickupPin(viewer, reservation);
         boolean canViewLuggagePhotos = canViewLuggagePhotos(viewer, reservation);
@@ -779,9 +787,9 @@ public class ReservationService {
                 canViewPickupPin,
                 canViewPickupPin && handoff != null ? handoff.getPickupPinPreview() : null,
                 canViewLuggagePhotos,
-                !luggagePhotos.isEmpty() || isLuggageRegistrationClosed(reservation),
+                !warehouseLuggagePhotos.isEmpty() || isLuggageRegistrationClosed(reservation),
                 expectedLuggagePhotos,
-                luggagePhotos.size(),
+                warehouseLuggagePhotos.size(),
                 checkin == null ? null : checkin.getCreatedAt(),
                 checkout == null ? null : checkout.getCreatedAt(),
                 canViewLuggagePhotos
@@ -793,6 +801,7 @@ public class ReservationService {
     private ReservationLuggagePhotoResponse toLuggagePhotoResponse(StoredItemEvidence evidence) {
         return new ReservationLuggagePhotoResponse(
                 evidence.getId(),
+                evidence.getType(),
                 evidence.getBagUnitIndex(),
                 evidence.getUrl(),
                 evidence.getCreatedAt(),
@@ -827,6 +836,10 @@ public class ReservationService {
         if (reservation.belongsTo(viewer.getId())) {
             return true;
         }
+        if (warehouseAccessService.isCourier(viewer)
+                && warehouseAccessService.canAccessWarehouse(viewer, reservation.getWarehouse().getId())) {
+            return true;
+        }
         return warehouseAccessService.isOperatorOrCitySupervisor(viewer)
                 && warehouseAccessService.canAccessWarehouse(viewer, reservation.getWarehouse().getId());
     }
@@ -836,6 +849,9 @@ public class ReservationService {
             return false;
         }
         if (warehouseAccessService.isAdmin(viewer)) {
+            return true;
+        }
+        if (reservation.belongsTo(viewer.getId())) {
             return true;
         }
         if (warehouseAccessService.isOperatorOrCitySupervisor(viewer) || warehouseAccessService.isCourier(viewer)) {

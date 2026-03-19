@@ -123,6 +123,14 @@ public class OpsQrHandoffService {
     public OpsQrCaseResponse tagLuggage(Long reservationId, Integer bagUnits, AuthUserPrincipal principal) {
         assertPrivileged(principal);
         Reservation reservation = requireReservation(reservationId);
+        if (reservation.getStatus() != ReservationStatus.CONFIRMED
+                && reservation.getStatus() != ReservationStatus.CHECKIN_PENDING) {
+            throw api(
+                    HttpStatus.CONFLICT,
+                    "BAG_TAG_NOT_ALLOWED",
+                    "El ID de maleta solo puede generarse antes del ingreso a almacen."
+            );
+        }
         QrHandoffCase handoff = loadOrCreateCase(reservation, reservation.getUser().getPreferredLanguage());
         String bagTagId = handoff.getBagTagId() == null || handoff.getBagTagId().isBlank()
                 ? generateBagTag(reservation.getQrCode())
@@ -144,30 +152,11 @@ public class OpsQrHandoffService {
     @Transactional
     public OpsQrCaseResponse markStored(Long reservationId, String notes, AuthUserPrincipal principal) {
         assertPrivileged(principal);
-        Reservation reservation = requireReservation(reservationId);
-        QrHandoffCase handoff = loadOrCreateCase(reservation, reservation.getUser().getPreferredLanguage());
-        if (reservation.getStatus() == ReservationStatus.CONFIRMED || reservation.getStatus() == ReservationStatus.CHECKIN_PENDING) {
-            inventoryService.checkin(new CheckinRequest(reservationId, notesOrDefault(notes, "Ingreso a almacen validado por QR.")), principal);
-        } else if (reservation.getStatus() != ReservationStatus.STORED) {
-            throw api(HttpStatus.CONFLICT, "STORE_NOT_ALLOWED", "La reserva no puede registrarse en almacen en su estado actual.");
-        }
-        handoff.markStoredAtWarehouse();
-        qrCaseRepository.save(handoff);
-        notifyPrivilegedUsers(
-                "RESERVATION_STORED",
-                "Ingreso confirmado en almacen",
-                "La reserva " + reservation.getQrCode() + " ya fue registrada en almacen.",
-                Map.of("reservationId", reservation.getId())
+        throw api(
+                HttpStatus.CONFLICT,
+                "STORE_WITH_PHOTOS_REQUIRED",
+                "Debes registrar en almacen usando fotos por bulto en /store-with-photos."
         );
-        emitRealtimeSync(
-                reservation,
-                "OPS_QR_STORED_SYNC",
-                Map.of(
-                        "reservationId", reservation.getId(),
-                        "route", OpsWorkflowConstants.OPS_QR_ROUTE
-                )
-        );
-        return toCaseResponse(handoff, principal, null);
     }
 
     @Transactional
@@ -199,6 +188,13 @@ public class OpsQrHandoffService {
                     "La reserva no puede registrarse en almacen en su estado actual."
             );
         }
+        if (reservation.isPickupRequested() && !inventoryService.hasClientHandoffPhoto(reservationId)) {
+            throw api(
+                    HttpStatus.CONFLICT,
+                    "CLIENT_HANDOFF_PHOTO_REQUIRED",
+                    "Falta la foto inicial del equipaje tomada por el cliente antes del ingreso a almacen."
+            );
+        }
         inventoryService.checkinWithBaggagePhotos(
                 new CheckinRequest(reservationId, notesOrDefault(notes, "Ingreso a almacen con fotos por bulto.")),
                 bagPhotos,
@@ -228,6 +224,18 @@ public class OpsQrHandoffService {
         assertPrivileged(principal);
         Reservation reservation = requireReservation(reservationId);
         QrHandoffCase handoff = loadOrCreateCase(reservation, reservation.getUser().getPreferredLanguage());
+        if (handoff.getBagTagId() == null || handoff.getBagTagId().isBlank()) {
+            throw api(HttpStatus.CONFLICT, "BAG_TAG_REQUIRED", "Primero debes generar el ID de maleta antes de emitir PIN.");
+        }
+        int expectedPhotos = Math.max(1, handoff.getBagUnits());
+        int registeredPhotos = inventoryService.countLuggagePhotos(reservationId);
+        if (registeredPhotos < expectedPhotos) {
+            throw api(
+                    HttpStatus.CONFLICT,
+                    "LUGGAGE_PHOTOS_REQUIRED",
+                    "Aun faltan fotos del equipaje en almacen: " + registeredPhotos + "/" + expectedPhotos + "."
+            );
+        }
         if (reservation.getStatus() == ReservationStatus.STORED) {
             inventoryService.checkout(new CheckoutRequest(reservationId, notesOrDefault(notes, "Lista para recojo con PIN.")), principal);
         } else if (reservation.getStatus() != ReservationStatus.READY_FOR_PICKUP) {
@@ -649,6 +657,14 @@ public class OpsQrHandoffService {
         if (warehouseAccessService.isAdmin(principal)) {
             return true;
         }
+        if (reservation.belongsTo(principal.getId())) {
+            return true;
+        }
+        if (warehouseAccessService.isCourier(principal)
+                && isAssignedCourierForReservation(reservation, principal)
+                && warehouseAccessService.canAccessWarehouse(principal, reservation.getWarehouse().getId())) {
+            return true;
+        }
         return warehouseAccessService.isOperatorOrCitySupervisor(principal)
                 && warehouseAccessService.canAccessWarehouse(principal, reservation.getWarehouse().getId());
     }
@@ -698,10 +714,7 @@ public class OpsQrHandoffService {
             return;
         }
         if (allowCourier && principal.roleNames().contains(Role.COURIER.name())) {
-            DeliveryOrder order = deliveryOrderRepository.findFirstByReservationIdOrderByCreatedAtDesc(reservation.getId()).orElse(null);
-            if (order != null
-                    && order.getAssignedCourier() != null
-                    && order.getAssignedCourier().getId().equals(principal.getId())
+            if (isAssignedCourierForReservation(reservation, principal)
                     && warehouseAccessService.canAccessWarehouse(principal, reservation.getWarehouse().getId())) {
                 return;
             }
@@ -712,6 +725,13 @@ public class OpsQrHandoffService {
     private boolean hasAnyRole(AuthUserPrincipal principal, Set<Role> roles) {
         for (Role role : roles) if (principal.roleNames().contains(role.name())) return true;
         return false;
+    }
+
+    private boolean isAssignedCourierForReservation(Reservation reservation, AuthUserPrincipal principal) {
+        DeliveryOrder order = deliveryOrderRepository.findFirstByReservationIdOrderByCreatedAtDesc(reservation.getId()).orElse(null);
+        return order != null
+                && order.getAssignedCourier() != null
+                && order.getAssignedCourier().getId().equals(principal.getId());
     }
 
     private List<User> scopedOpsAudience(Reservation reservation) {

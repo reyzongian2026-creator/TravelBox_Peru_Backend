@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Base64;
 import java.util.Locale;
 
 @Service
@@ -74,7 +75,11 @@ public class WarehouseImageService {
         try {
             return renderGeneratedImageInternal(warehouse, true);
         } catch (RuntimeException ignored) {
-            return renderGeneratedImageInternal(warehouse, false);
+            try {
+                return renderGeneratedImageInternal(warehouse, false);
+            } catch (RuntimeException ignoredAgain) {
+                return minimalFallbackPng();
+            }
         }
     }
 
@@ -402,6 +407,12 @@ public class WarehouseImageService {
         } catch (Exception ignored) {
         }
         return "Servicio seguro";
+    }
+
+    private byte[] minimalFallbackPng() {
+        return Base64.getDecoder().decode(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9frN8AAAAASUVORK5CYII="
+        );
     }
 
     public record WarehouseImageContent(byte[] bytes, MediaType mediaType) {
