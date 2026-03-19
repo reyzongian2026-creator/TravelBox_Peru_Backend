@@ -2,6 +2,10 @@ package com.tuempresa.storage.ops.infrastructure.in.web;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tuempresa.storage.ops.application.usecase.OpsQrHandoffService;
+import com.tuempresa.storage.shared.infrastructure.security.AuthUserPrincipal;
+import com.tuempresa.storage.users.domain.User;
+import com.tuempresa.storage.users.infrastructure.out.persistence.UserRepository;
 import com.tuempresa.storage.warehouses.domain.Warehouse;
 import com.tuempresa.storage.warehouses.infrastructure.out.persistence.WarehouseRepository;
 import org.junit.jupiter.api.Test;
@@ -9,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -17,6 +22,8 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
 import static com.tuempresa.storage.support.MockMvcReactiveSupport.perform;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -35,6 +42,12 @@ class OpsQrHandoffWorkflowIntegrationTest {
 
     @Autowired
     private WarehouseRepository warehouseRepository;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private OpsQrHandoffService opsQrHandoffService;
 
     @Test
     void shouldBlockDeliveryValidationStepsWhenOrderIsNotRespected() throws Exception {
@@ -151,6 +164,81 @@ class OpsQrHandoffWorkflowIntegrationTest {
                                 """))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("PICKUP_FLOW_REQUIRED"));
+    }
+
+    @Test
+    void shouldExposePickupPinAndSharedLuggagePhotosToClientAfterPickupFlow() throws Exception {
+        String clientToken = loginAndGetAccessToken("client@travelbox.pe", "Client123!");
+        String operatorToken = loginAndGetAccessToken("operator@travelbox.pe", "Operator123!");
+        Warehouse warehouse = warehouseForScopedOps();
+
+        long reservationId = createAndConfirmReservation(clientToken, warehouse.getId(), true, false);
+
+        MockMultipartFile clientHandoff = new MockMultipartFile(
+                "file",
+                "client-handoff.png",
+                MediaType.IMAGE_PNG_VALUE,
+                "client-handoff-evidence".getBytes()
+        );
+
+        perform(mockMvc, multipart("/api/v1/inventory/evidences/upload")
+                        .file(clientHandoff)
+                        .header("Authorization", "Bearer " + clientToken)
+                        .param("reservationId", String.valueOf(reservationId))
+                        .param("type", "CLIENT_HANDOFF_PHOTO")
+                        .param("observation", "Foto inicial del cliente"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.action").value("EVIDENCE_REGISTERED"));
+
+        perform(mockMvc, post("/api/v1/ops/qr-handoff/reservations/{reservationId}/tag", reservationId)
+                        .header("Authorization", "Bearer " + operatorToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "bagUnits": 1
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.bagTagId").isNotEmpty());
+
+        MockMultipartFile warehousePhoto = new MockMultipartFile(
+                "files",
+                "warehouse-bag-1.png",
+                MediaType.IMAGE_PNG_VALUE,
+                "warehouse-bag-evidence".getBytes()
+        );
+        User operator = userRepository.findByEmailIgnoreCase("operator@travelbox.pe").orElseThrow();
+        opsQrHandoffService.markStoredWithPhotos(
+                reservationId,
+                "Ingreso con fotos por bulto",
+                java.util.List.of(warehousePhoto),
+                AuthUserPrincipal.from(operator)
+        );
+
+        perform(mockMvc, post("/api/v1/ops/qr-handoff/reservations/{reservationId}/ready-for-pickup", reservationId)
+                        .header("Authorization", "Bearer " + operatorToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "notes": "Listo para recojo"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.pickupPinPreview").isNotEmpty());
+
+        perform(mockMvc, get("/api/v1/reservations/{id}", reservationId)
+                        .header("Authorization", "Bearer " + clientToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("READY_FOR_PICKUP"))
+                .andExpect(jsonPath("$.operationalDetail.pickupPinGenerated").value(true))
+                .andExpect(jsonPath("$.operationalDetail.pickupPinVisible").value(true))
+                .andExpect(jsonPath("$.operationalDetail.pickupPin").isNotEmpty())
+                .andExpect(jsonPath("$.operationalDetail.canViewLuggagePhotos").value(true))
+                .andExpect(jsonPath("$.operationalDetail.expectedLuggagePhotos").value(1))
+                .andExpect(jsonPath("$.operationalDetail.storedLuggagePhotos").value(1))
+                .andExpect(jsonPath("$.operationalDetail.luggagePhotos.length()").value(2))
+                .andExpect(jsonPath("$.operationalDetail.luggagePhotos[0].type").value("CLIENT_HANDOFF_PHOTO"))
+                .andExpect(jsonPath("$.operationalDetail.luggagePhotos[1].type").value("CHECKIN_BAG_PHOTO"));
     }
 
     private void moveReservationToOutForDelivery(String clientToken, String operatorToken, long reservationId) throws Exception {
