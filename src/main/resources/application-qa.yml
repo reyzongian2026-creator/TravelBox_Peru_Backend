@@ -1,0 +1,67 @@
+spring:
+  config:
+    activate:
+      on-profile: qa
+  cloud:
+    azure:
+      credential:
+        client-id: ${AZURE_CLIENT_ID:}
+        client-secret: ${AZURE_CLIENT_SECRET:}
+      profile:
+        tenant-id: ${AZURE_TENANT_ID:}
+      keyvault:
+        secret:
+          # QA permite ambos modos:
+          # - true: Key Vault runtime
+          # - false: fallback por variables de entorno
+          property-source-enabled: ${AZURE_KEYVAULT_ENABLED:false}
+          property-sources:
+            - endpoint: ${AZURE_KEYVAULT_ENDPOINT:https://kvtravelboxpe.vault.azure.net/}
+  datasource:
+    url: "${tbx-back-db-url:${DB_URL:jdbc:postgresql://localhost:5432/travelbox_qa}}"
+    username: "${tbx-back-db-username:${DB_USERNAME:travelbox}}"
+    password: "${tbx-back-db-password:${DB_PASSWORD:travelbox}}"
+  mail:
+    host: ${tbx-back-smtp-host:${APP_SMTP_HOST:smtp-relay.brevo.com}}
+    port: ${tbx-back-smtp-port:${APP_SMTP_PORT:587}}
+    username: ${tbx-back-smtp-username:${APP_SMTP_USERNAME:}}
+    password: ${tbx-back-smtp-password:${APP_SMTP_PASSWORD:}}
+    properties:
+      mail:
+        smtp:
+          auth: ${tbx-back-smtp-auth:${APP_SMTP_AUTH:true}}
+          starttls:
+            enable: ${tbx-back-smtp-starttls:${APP_SMTP_STARTTLS:true}}
+
+app:
+  security:
+    jwt:
+      secret: ${tbx-back-jwt-secret:${APP_JWT_SECRET:qa-local-jwt-change-me}}
+  translation:
+    provider: ${APP_TRANSLATION_PROVIDER:local}
+    allow-fallback: ${APP_TRANSLATION_ALLOW_FALLBACK:true}
+    google:
+      api-key: ${tbx-back-translation-google-api-key:${APP_TRANSLATION_GOOGLE_API_KEY:}}
+  email:
+    provider: ${tbx-back-email-provider:${APP_EMAIL_PROVIDER:smtp}}
+    from-address: ${tbx-back-email-from-address:${APP_EMAIL_FROM_ADDRESS:${tbx-back-smtp-username:${APP_SMTP_USERNAME:}}}}
+    queue:
+      enabled: ${tbx-back-email-queue-enabled:${APP_EMAIL_QUEUE_ENABLED:false}}
+  auth:
+    email-provider: ${tbx-back-auth-email-provider:${APP_AUTH_EMAIL_PROVIDER:${tbx-back-email-provider:${APP_EMAIL_PROVIDER:smtp}}}}
+  routing:
+    provider: ${APP_ROUTING_PROVIDER:mock}
+    allow-mock-fallback: ${APP_ROUTING_ALLOW_MOCK_FALLBACK:true}
+    google:
+      api-key: ${tbx-back-routing-google-api-key:${APP_ROUTING_GOOGLE_API_KEY:}}
+  notifications:
+    provider: ${APP_NOTIFICATION_PROVIDER:mock}
+  payments:
+    provider: ${APP_PAYMENT_PROVIDER:culqi}
+    allow-mock-confirmation: ${APP_PAYMENTS_ALLOW_MOCK_CONFIRMATION:true}
+  firebase:
+    enabled: ${tbx-back-firebase-enabled:${APP_FIREBASE_ENABLED:true}}
+    project-id: ${tbx-back-firebase-project-id:${APP_FIREBASE_PROJECT_ID:}}
+    storage-bucket: ${tbx-back-firebase-storage-bucket:${APP_FIREBASE_STORAGE_BUCKET:}}
+    service-account-file: ${APP_FIREBASE_SERVICE_ACCOUNT_FILE:}
+    service-account-json: '${tbx-back-firebase-sa-json:${APP_FIREBASE_SERVICE_ACCOUNT_JSON:}}'

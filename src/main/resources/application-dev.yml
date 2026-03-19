@@ -1,0 +1,9 @@
+spring:
+  jpa:
+    show-sql: false
+
+app:
+  auth:
+    expose-code-preview: true
+  routing:
+    provider: google

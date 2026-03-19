@@ -1,0 +1,56 @@
+spring:
+  config:
+    activate:
+      on-profile: prod
+  cloud:
+    azure:
+      credential:
+        client-id: ${AZURE_CLIENT_ID:}
+        client-secret: ${AZURE_CLIENT_SECRET:}
+      profile:
+        tenant-id: ${AZURE_TENANT_ID:}
+      keyvault:
+        secret:
+          property-source-enabled: ${AZURE_KEYVAULT_ENABLED:true}
+          property-sources:
+            - endpoint: ${AZURE_KEYVAULT_ENDPOINT:https://kvtravelboxpe.vault.azure.net/}
+  datasource:
+    url: "${tbx-back-db-url:}"
+    username: "${tbx-back-db-username:}"
+    password: "${tbx-back-db-password:}"
+  mail:
+    host: ${tbx-back-smtp-host:}
+    port: ${tbx-back-smtp-port:587}
+    username: ${tbx-back-smtp-username:}
+    password: ${tbx-back-smtp-password:}
+    properties:
+      mail:
+        smtp:
+          auth: ${tbx-back-smtp-auth:true}
+          starttls:
+            enable: ${tbx-back-smtp-starttls:true}
+
+app:
+  security:
+    jwt:
+      secret: ${tbx-back-jwt-secret:}
+  translation:
+    provider: ${APP_TRANSLATION_PROVIDER:google}
+    allow-fallback: ${APP_TRANSLATION_ALLOW_FALLBACK:true}
+    google:
+      api-key: ${tbx-back-translation-google-api-key:}
+  email:
+    provider: ${tbx-back-email-provider:smtp}
+    from-address: ${tbx-back-email-from-address:${tbx-back-smtp-username:}}
+    queue:
+      enabled: ${tbx-back-email-queue-enabled:true}
+  auth:
+    email-provider: ${tbx-back-auth-email-provider:${tbx-back-email-provider:smtp}}
+  routing:
+    google:
+      api-key: ${tbx-back-routing-google-api-key:}
+  firebase:
+    enabled: ${tbx-back-firebase-enabled:true}
+    project-id: ${tbx-back-firebase-project-id:}
+    storage-bucket: ${tbx-back-firebase-storage-bucket:}
+    service-account-json: '${tbx-back-firebase-sa-json:}'

@@ -1,0 +1,73 @@
+openapi: 3.0.3
+info:
+  title: TravelBox Peru Storage API
+  version: 1.1.0
+  description: API MVP para almacenamiento turistico con flujo de reservas y pagos.
+servers:
+  - url: http://localhost:8080
+paths:
+  /api/v1/auth/login:
+    post:
+      summary: Login
+  /api/v1/geo/cities:
+    get:
+      summary: Listar ciudades
+  /api/v1/geo/search:
+    get:
+      summary: Sugerencias de busqueda
+  /api/v1/warehouses/search:
+    get:
+      summary: Buscar almacenes
+  /api/v1/warehouses/nearby:
+    get:
+      summary: Almacenes cercanos por GPS
+  /api/v1/reservations:
+    post:
+      summary: Crear reserva
+    get:
+      summary: Listar reservas
+  /api/v1/reservations/page:
+    get:
+      summary: Listado paginado de reservas
+  /api/v1/reservations/{id}/qr:
+    get:
+      summary: Obtener QR PNG de reserva
+  /api/v1/payments/intents:
+    post:
+      summary: Crear intento de pago
+  /api/v1/payments/confirm:
+    post:
+      summary: Confirmar pago
+  /api/v1/payments/status:
+    get:
+      summary: Consultar estado de pago
+  /api/v1/payments/history:
+    get:
+      summary: Historial paginado de pagos
+  /api/v1/payments/cash/pending:
+    get:
+      summary: Pagos en caja pendientes
+  /api/v1/payments/cash/{paymentIntentId}/approve:
+    post:
+      summary: Aprobar pago en caja
+  /api/v1/payments/cash/{paymentIntentId}/reject:
+    post:
+      summary: Rechazar pago en caja
+  /api/v1/payments/webhooks/culqi:
+    post:
+      summary: Webhook Culqi
+  /api/v1/notifications/my:
+    get:
+      summary: Notificaciones del usuario autenticado
+  /api/v1/inventory/checkin:
+    post:
+      summary: Check-in operativo
+  /api/v1/inventory/checkout:
+    post:
+      summary: Check-out operativo
+  /api/v1/incidents:
+    post:
+      summary: Abrir incidencia
+  /api/v1/admin/dashboard:
+    get:
+      summary: Dashboard admin

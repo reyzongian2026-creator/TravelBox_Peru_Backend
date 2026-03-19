@@ -1,0 +1,48 @@
+spring:
+  config:
+    activate:
+      on-profile: local
+  cloud:
+    azure:
+      keyvault:
+        secret:
+          property-source-enabled: false
+  datasource:
+    url: "jdbc:postgresql://34.151.246.247:5432/travelbox?sslmode=require"
+    username: "travelbox"
+    password: "${DB_PASSWORD:travelbox}"
+  mail:
+    host: "smtp-relay.brevo.com"
+    port: 587
+    username: "${APP_SMTP_USERNAME:}"
+    password: "${APP_SMTP_PASSWORD:}"
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+app:
+  security:
+    jwt:
+      secret: "${APP_JWT_SECRET:local-dev-jwt-change-me}"
+  translation:
+    provider: "local"
+    allow-fallback: true
+  email:
+    provider: "smtp"
+    from-address: "t9frrvvq8j@privaterelay.appleid.com"
+    queue:
+      enabled: false
+  auth:
+    email-provider: "smtp"
+  routing:
+    google:
+      api-key: "${APP_ROUTING_GOOGLE_API_KEY:}"
+  firebase:
+    enabled: true
+    project-id: "travelboxperu-1b6f5"
+    storage-bucket: "travelboxperu-1b6f5.firebasestorage.app"
+    service-account-file: "${APP_FIREBASE_SERVICE_ACCOUNT_FILE:}"
+    service-account-json: '${APP_FIREBASE_SERVICE_ACCOUNT_JSON:}'
