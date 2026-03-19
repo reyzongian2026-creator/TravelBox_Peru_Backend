@@ -252,7 +252,7 @@ public class AuthService {
     @Transactional
     public void logout(LogoutRequest request) {
         refreshTokenRepository.findByTokenAndRevokedFalse(request.refreshToken())
-                .ifPresent(RefreshToken::revoke);
+                .ifPresent(token -> refreshTokenRepository.revokeAllByUserId(token.getUser().getId()));
     }
 
     @Transactional

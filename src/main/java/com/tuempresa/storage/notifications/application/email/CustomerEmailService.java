@@ -33,7 +33,7 @@ public class CustomerEmailService {
 
     public CustomerEmailService(
             EmailOutboxService emailOutboxService,
-            @Value("${app.frontend-base-url:http://localhost:5173}") String frontendBaseUrl,
+            @Value("${app.frontend-base-url:}") String frontendBaseUrl,
             @Value("${app.email.brand-name:TravelBox Peru}") String brandName
     ) {
         this.emailOutboxService = emailOutboxService;

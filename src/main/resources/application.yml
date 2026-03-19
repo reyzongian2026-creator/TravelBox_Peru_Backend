@@ -145,7 +145,7 @@ app:
   inventory:
     office-pickup-late-grace-minutes: ${APP_INVENTORY_OFFICE_PICKUP_LATE_GRACE_MINUTES:30}
   public-base-url: ${APP_PUBLIC_BASE_URL:}
-  frontend-base-url: ${APP_FRONTEND_BASE_URL:http://localhost:5173}
+  frontend-base-url: ${APP_FRONTEND_BASE_URL:}
   email:
     # Prioridad: Key Vault (tbx-*) -> env local heredada (APP_EMAIL_*/APP_SMTP_*).
     provider: ${tbx-back-email-provider:${APP_EMAIL_PROVIDER:smtp}}
