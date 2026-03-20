@@ -37,6 +37,7 @@ app:
   translation:
     provider: ${APP_TRANSLATION_PROVIDER:google}
     allow-fallback: ${APP_TRANSLATION_ALLOW_FALLBACK:true}
+    cache-seconds: ${APP_TRANSLATION_CACHE_SECONDS:43200}
     google:
       api-key: ${tbx-back-translation-google-api-key:}
   email:

@@ -1,5 +1,6 @@
 package com.tuempresa.storage.incidents.application.usecase;
 
+import com.tuempresa.storage.ops.application.usecase.OpsMessageTranslationService;
 import com.tuempresa.storage.incidents.application.dto.CreateIncidentRequest;
 import com.tuempresa.storage.incidents.application.dto.IncidentResponse;
 import com.tuempresa.storage.incidents.application.dto.IncidentSummaryResponse;
@@ -35,19 +36,22 @@ public class IncidentService {
     private final UserRepository userRepository;
     private final WarehouseAccessService warehouseAccessService;
     private final NotificationService notificationService;
+    private final OpsMessageTranslationService opsMessageTranslationService;
 
     public IncidentService(
             IncidentRepository incidentRepository,
             ReservationService reservationService,
             UserRepository userRepository,
             WarehouseAccessService warehouseAccessService,
-            NotificationService notificationService
+            NotificationService notificationService,
+            OpsMessageTranslationService opsMessageTranslationService
     ) {
         this.incidentRepository = incidentRepository;
         this.reservationService = reservationService;
         this.userRepository = userRepository;
         this.warehouseAccessService = warehouseAccessService;
         this.notificationService = notificationService;
+        this.opsMessageTranslationService = opsMessageTranslationService;
     }
 
     @Transactional(readOnly = true)
@@ -58,6 +62,8 @@ public class IncidentService {
         boolean warehouseScoped = scopedSupport || scopedOps;
         Set<Long> scopedWarehouseIds = warehouseScoped ? warehouseAccessService.assignedWarehouseIds(principal) : Set.of();
         String normalizedQuery = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
+        User viewer = loadUser(principal.getId());
+        boolean internalViewer = hasPrivilegedRole(principal);
 
         return incidentRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt"))
                 .stream()
@@ -67,7 +73,7 @@ public class IncidentService {
                         || incident.getOpenedBy().getId().equals(principal.getId()))
                 .filter(incident -> status == null || incident.getStatus() == status)
                 .filter(incident -> normalizedQuery.isEmpty() || matchesQuery(incident, normalizedQuery))
-                .map(this::toSummary)
+                .map(incident -> toSummary(incident, viewer, internalViewer))
                 .toList();
     }
 
@@ -104,7 +110,7 @@ public class IncidentService {
                 "Nueva incidencia en sede",
                 "Se registro una incidencia para la reserva " + reservation.getQrCode() + "."
         );
-        return toResponse(incident);
+        return toResponse(incident, opener, hasPrivilegedRole(principal));
     }
 
     @Transactional
@@ -137,7 +143,7 @@ public class IncidentService {
                 "Incidencia resuelta",
                 "La incidencia de la reserva " + reservation.getQrCode() + " fue resuelta."
         );
-        return toResponse(incident);
+        return toResponse(incident, resolver, hasPrivilegedRole(principal));
     }
 
     private User loadUser(Long userId) {
@@ -145,13 +151,27 @@ public class IncidentService {
                 .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "AUTH_INVALID", "Usuario inválido."));
     }
 
-    private IncidentResponse toResponse(Incident incident) {
+    private IncidentResponse toResponse(Incident incident, User viewer, boolean internalViewer) {
+        Reservation reservation = incident.getReservation();
+        User customer = reservation.getUser();
         return new IncidentResponse(
                 incident.getId(),
-                incident.getReservation().getId(),
+                reservation.getId(),
                 incident.getStatus(),
-                incident.getDescription(),
-                incident.getResolution(),
+                translateIncidentTextForViewer(
+                        incident.getDescription(),
+                        incident.getOpenedBy(),
+                        customer,
+                        viewer,
+                        internalViewer
+                ),
+                translateIncidentTextForViewer(
+                        incident.getResolution(),
+                        incident.getResolvedBy(),
+                        customer,
+                        viewer,
+                        internalViewer
+                ),
                 incident.getOpenedBy().getId(),
                 incident.getResolvedBy() != null ? incident.getResolvedBy().getId() : null,
                 incident.getResolvedAt(),
@@ -159,7 +179,7 @@ public class IncidentService {
         );
     }
 
-    private IncidentSummaryResponse toSummary(Incident incident) {
+    private IncidentSummaryResponse toSummary(Incident incident, User viewer, boolean internalViewer) {
         Reservation reservation = incident.getReservation();
         User openedBy = incident.getOpenedBy();
         User customer = reservation.getUser();
@@ -181,8 +201,20 @@ public class IncidentService {
                 buildWhatsappUrl(customerPhone, reservation.getId()),
                 buildCallUrl(customerPhone),
                 incident.getStatus(),
-                incident.getDescription(),
-                incident.getResolution(),
+                translateIncidentTextForViewer(
+                        incident.getDescription(),
+                        openedBy,
+                        customer,
+                        viewer,
+                        internalViewer
+                ),
+                translateIncidentTextForViewer(
+                        incident.getResolution(),
+                        incident.getResolvedBy(),
+                        customer,
+                        viewer,
+                        internalViewer
+                ),
                 incident.getCreatedAt(),
                 incident.getResolvedAt()
         );
@@ -215,6 +247,46 @@ public class IncidentService {
         return value != null && value.toLowerCase(Locale.ROOT).contains(query);
     }
 
+    private String translateIncidentTextForViewer(
+            String text,
+            User author,
+            User customer,
+            User viewer,
+            boolean internalViewer
+    ) {
+        if (text == null || text.isBlank()) {
+            return text;
+        }
+        String sourceLanguage = normalizeLanguage(author == null ? null : author.getPreferredLanguage());
+        String targetLanguage = internalViewer
+                ? "es"
+                : preferredLanguageOrDefault(
+                viewer == null ? null : viewer.getPreferredLanguage(),
+                customer == null ? null : customer.getPreferredLanguage()
+        );
+        return opsMessageTranslationService.translate(text, sourceLanguage, targetLanguage);
+    }
+
+    private String preferredLanguageOrDefault(String preferredLanguage, String fallbackLanguage) {
+        String normalized = normalizeLanguage(preferredLanguage);
+        if (normalized != null) {
+            return normalized;
+        }
+        String fallback = normalizeLanguage(fallbackLanguage);
+        return fallback == null ? "es" : fallback;
+    }
+
+    private String normalizeLanguage(String rawLanguage) {
+        if (rawLanguage == null || rawLanguage.isBlank()) {
+            return null;
+        }
+        String normalized = rawLanguage.trim().toLowerCase(Locale.ROOT);
+        if (normalized.length() <= 2) {
+            return normalized;
+        }
+        return normalized.substring(0, 2);
+    }
+
     private String buildWhatsappUrl(String phone, Long reservationId) {
         String normalized = normalizePhoneForLink(phone);
         if (normalized == null) {
@@ -245,11 +317,15 @@ public class IncidentService {
             String title,
             String message
     ) {
+        User customer = incident.getReservation().getUser();
+        String customerLanguage = preferredLanguageOrDefault(customer.getPreferredLanguage(), "es");
+        String localizedTitle = opsMessageTranslationService.translateFromSpanish(title, customerLanguage);
+        String localizedMessage = opsMessageTranslationService.translateFromSpanish(message, customerLanguage);
         notificationService.notifyUser(
-                incident.getReservation().getUser().getId(),
+                customer.getId(),
                 type,
-                title,
-                message,
+                localizedTitle,
+                localizedMessage,
                 java.util.Map.of(
                         "incidentId", incident.getId(),
                         "reservationId", incident.getReservation().getId(),

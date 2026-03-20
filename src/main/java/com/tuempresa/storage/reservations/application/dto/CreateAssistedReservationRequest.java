@@ -5,6 +5,7 @@ import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 import java.time.Instant;
@@ -27,10 +28,18 @@ public record CreateAssistedReservationRequest(
         @Size(max = 160, message = "El correo del cliente no puede exceder 160 caracteres.")
         String customerEmail,
         @NotBlank(message = "Debes ingresar telefono del cliente.")
+        @Pattern(
+                regexp = "^\\+[1-9]\\d{6,14}$",
+                message = "El telefono del cliente debe estar en formato internacional E.164."
+        )
         @Size(max = 30, message = "El telefono del cliente no puede exceder 30 caracteres.")
         String customerPhone,
         @Size(max = 80, message = "La nacionalidad no puede exceder 80 caracteres.")
         String customerNationality,
+        @Pattern(
+                regexp = "^(?i)(es|en|de|fr|it|pt)$",
+                message = "Idioma de cliente no soportado."
+        )
         @Size(max = 10, message = "El idioma preferido no puede exceder 10 caracteres.")
         String customerPreferredLanguage
 ) {

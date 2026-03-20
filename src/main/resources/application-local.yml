@@ -30,6 +30,7 @@ app:
   translation:
     provider: "local"
     allow-fallback: true
+    cache-seconds: 21600
   email:
     provider: "smtp"
     from-address: "t9frrvvq8j@privaterelay.appleid.com"

@@ -40,6 +40,7 @@ app:
   translation:
     provider: ${APP_TRANSLATION_PROVIDER:local}
     allow-fallback: ${APP_TRANSLATION_ALLOW_FALLBACK:true}
+    cache-seconds: ${APP_TRANSLATION_CACHE_SECONDS:21600}
     google:
       api-key: ${tbx-back-translation-google-api-key:${APP_TRANSLATION_GOOGLE_API_KEY:}}
   email:

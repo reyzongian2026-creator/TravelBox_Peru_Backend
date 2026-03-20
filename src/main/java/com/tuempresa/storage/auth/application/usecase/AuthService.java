@@ -677,7 +677,6 @@ public class AuthService {
             return Optional.empty();
         }
     }
-
     private String buildFacebookFallbackEmail(String uid) {
         String normalizedUid = normalize(uid);
         if (normalizedUid == null) {

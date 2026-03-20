@@ -14,10 +14,13 @@ import org.springframework.web.client.RestClientException;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 @Service
 public class OpsMessageTranslationService {
 
+    private static final int MAX_CACHE_ENTRIES = 2048;
     private static final Logger log = LoggerFactory.getLogger(OpsMessageTranslationService.class);
 
     private static final Map<String, Map<String, String>> LOCAL_DICTIONARY = buildLocalDictionary();
@@ -27,6 +30,8 @@ public class OpsMessageTranslationService {
     private final boolean allowFallback;
     private final String googleApiKey;
     private final String googleModel;
+    private final long cacheSeconds;
+    private final ConcurrentMap<String, CacheEntry> translationCache = new ConcurrentHashMap<>();
 
     public OpsMessageTranslationService(
             RestClient.Builder restClientBuilder,
@@ -34,28 +39,44 @@ public class OpsMessageTranslationService {
             @Value("${app.translation.allow-fallback:true}") boolean allowFallback,
             @Value("${app.translation.google.base-url:https://translation.googleapis.com}") String googleBaseUrl,
             @Value("${app.translation.google.api-key:}") String googleApiKey,
-            @Value("${app.translation.google.model:nmt}") String googleModel
+            @Value("${app.translation.google.model:nmt}") String googleModel,
+            @Value("${app.translation.cache-seconds:21600}") long cacheSeconds
     ) {
         this.googleTranslationClient = restClientBuilder.baseUrl(googleBaseUrl).build();
         this.provider = provider == null ? "local" : provider.trim().toLowerCase(Locale.ROOT);
         this.allowFallback = allowFallback;
         this.googleApiKey = googleApiKey == null ? "" : googleApiKey.trim();
         this.googleModel = StringUtils.hasText(googleModel) ? googleModel.trim() : "nmt";
+        this.cacheSeconds = Math.max(60L, cacheSeconds);
     }
 
     public String translateFromSpanish(String messageInSpanish, String targetLanguage) {
-        String source = messageInSpanish == null ? "" : messageInSpanish.trim();
+        return translate(messageInSpanish, "es", targetLanguage);
+    }
+
+    public String translateToSpanish(String message, String sourceLanguage) {
+        return translate(message, sourceLanguage, "es");
+    }
+
+    public String translate(String message, String sourceLanguage, String targetLanguage) {
+        String source = message == null ? "" : message.trim();
         if (source.isEmpty()) {
             return "";
         }
-        String language = normalizeLanguage(targetLanguage);
-        if ("es".equals(language)) {
+        String fromLanguage = normalizeLanguage(sourceLanguage);
+        String toLanguage = normalizeLanguage(targetLanguage);
+        if (fromLanguage.equals(toLanguage)) {
             return source;
+        }
+        String cacheKey = buildCacheKey(source, fromLanguage, toLanguage);
+        String cached = readCache(cacheKey);
+        if (cached != null) {
+            return cached;
         }
 
         String translated = null;
         if (isGoogleProvider(provider)) {
-            translated = translateUsingGoogle(source, language);
+            translated = translateUsingGoogle(source, fromLanguage, toLanguage);
             if (!StringUtils.hasText(translated) && !allowFallback) {
                 throw new ApiException(
                         HttpStatus.SERVICE_UNAVAILABLE,
@@ -65,13 +86,16 @@ public class OpsMessageTranslationService {
             }
         }
 
-        if (StringUtils.hasText(translated)) {
-            return translated.trim();
+        String resolved = StringUtils.hasText(translated)
+                ? translated.trim()
+                : translateUsingLocalFallback(source, fromLanguage, toLanguage);
+        if (StringUtils.hasText(resolved)) {
+            writeCache(cacheKey, resolved);
         }
-        return translateUsingLocalFallback(source, language);
+        return resolved;
     }
 
-    private String translateUsingGoogle(String messageInSpanish, String targetLanguage) {
+    private String translateUsingGoogle(String message, String sourceLanguage, String targetLanguage) {
         if (!StringUtils.hasText(googleApiKey)) {
             log.warn("Traduccion Google omitida: app.translation.google.api-key vacio.");
             return null;
@@ -83,8 +107,8 @@ public class OpsMessageTranslationService {
                             .queryParam("key", googleApiKey)
                             .build())
                     .body(Map.of(
-                            "q", messageInSpanish,
-                            "source", "es",
+                            "q", message,
+                            "source", sourceLanguage,
                             "target", targetLanguage,
                             "format", "text",
                             "model", googleModel
@@ -106,13 +130,45 @@ public class OpsMessageTranslationService {
         }
     }
 
-    private String translateUsingLocalFallback(String messageInSpanish, String targetLanguage) {
-        String normalizedMessage = normalizeSentence(messageInSpanish);
-        Map<String, String> dictionaryByLanguage = LOCAL_DICTIONARY.get(targetLanguage);
-        if (dictionaryByLanguage != null && dictionaryByLanguage.containsKey(normalizedMessage)) {
-            return dictionaryByLanguage.get(normalizedMessage);
+    private String translateUsingLocalFallback(String message, String sourceLanguage, String targetLanguage) {
+        String normalizedMessage = normalizeSentence(message);
+        if ("es".equals(sourceLanguage)) {
+            Map<String, String> dictionaryByLanguage = LOCAL_DICTIONARY.get(targetLanguage);
+            if (dictionaryByLanguage != null && dictionaryByLanguage.containsKey(normalizedMessage)) {
+                return dictionaryByLanguage.get(normalizedMessage);
+            }
+            return "[" + targetLanguage.toUpperCase(Locale.ROOT) + "] " + message.trim();
         }
-        return "[" + targetLanguage.toUpperCase(Locale.ROOT) + "] " + messageInSpanish.trim();
+
+        if ("es".equals(targetLanguage)) {
+            String reverseMatch = reverseLookupToSpanish(sourceLanguage, normalizedMessage);
+            return reverseMatch != null ? reverseMatch : "[ES] " + message.trim();
+        }
+
+        String translatedToSpanish = reverseLookupToSpanish(sourceLanguage, normalizedMessage);
+        if (translatedToSpanish != null) {
+            Map<String, String> dictionaryByLanguage = LOCAL_DICTIONARY.get(targetLanguage);
+            if (dictionaryByLanguage != null) {
+                String translatedFromSpanish = dictionaryByLanguage.get(normalizeSentence(translatedToSpanish));
+                if (StringUtils.hasText(translatedFromSpanish)) {
+                    return translatedFromSpanish;
+                }
+            }
+        }
+        return "[" + targetLanguage.toUpperCase(Locale.ROOT) + "] " + message.trim();
+    }
+
+    private String reverseLookupToSpanish(String sourceLanguage, String normalizedMessage) {
+        Map<String, String> dictionaryByLanguage = LOCAL_DICTIONARY.get(sourceLanguage);
+        if (dictionaryByLanguage == null || dictionaryByLanguage.isEmpty()) {
+            return null;
+        }
+        for (Map.Entry<String, String> entry : dictionaryByLanguage.entrySet()) {
+            if (normalizeSentence(entry.getValue()).equals(normalizedMessage)) {
+                return entry.getKey();
+            }
+        }
+        return null;
     }
 
     private String normalizeLanguage(String rawLanguage) {
@@ -155,6 +211,60 @@ public class OpsMessageTranslationService {
             case "google", "google-translate", "google_translate", "gcp" -> true;
             default -> false;
         };
+    }
+
+    private String buildCacheKey(String source, String sourceLanguage, String targetLanguage) {
+        return sourceLanguage + "->" + targetLanguage + "|" + normalizeSentence(source);
+    }
+
+    private String readCache(String key) {
+        CacheEntry entry = translationCache.get(key);
+        if (entry == null) {
+            return null;
+        }
+        if (entry.expiresAtEpochSeconds < (System.currentTimeMillis() / 1000L)) {
+            translationCache.remove(key, entry);
+            return null;
+        }
+        return entry.translation;
+    }
+
+    private void writeCache(String key, String value) {
+        if (!StringUtils.hasText(key) || !StringUtils.hasText(value)) {
+            return;
+        }
+        if (translationCache.size() >= MAX_CACHE_ENTRIES) {
+            pruneCache();
+        }
+        long expiresAtEpochSeconds = (System.currentTimeMillis() / 1000L) + cacheSeconds;
+        translationCache.put(key, new CacheEntry(value, expiresAtEpochSeconds));
+    }
+
+    private void pruneCache() {
+        long nowEpochSeconds = System.currentTimeMillis() / 1000L;
+        translationCache.entrySet().removeIf(entry -> entry.getValue().expiresAtEpochSeconds < nowEpochSeconds);
+        if (translationCache.size() < MAX_CACHE_ENTRIES) {
+            return;
+        }
+        int dropCount = translationCache.size() - MAX_CACHE_ENTRIES + 128;
+        int removed = 0;
+        for (String key : translationCache.keySet()) {
+            translationCache.remove(key);
+            removed++;
+            if (removed >= dropCount) {
+                break;
+            }
+        }
+    }
+
+    private static final class CacheEntry {
+        private final String translation;
+        private final long expiresAtEpochSeconds;
+
+        private CacheEntry(String translation, long expiresAtEpochSeconds) {
+            this.translation = translation;
+            this.expiresAtEpochSeconds = expiresAtEpochSeconds;
+        }
     }
 
     private static Map<String, Map<String, String>> buildLocalDictionary() {

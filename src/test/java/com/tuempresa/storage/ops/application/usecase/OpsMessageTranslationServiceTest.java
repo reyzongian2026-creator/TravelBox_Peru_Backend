@@ -15,7 +15,8 @@ class OpsMessageTranslationServiceTest {
                 true,
                 "https://translation.googleapis.com",
                 "",
-                "nmt"
+                "nmt",
+                3600
         );
 
         String translated = service.translateFromSpanish(
@@ -37,11 +38,35 @@ class OpsMessageTranslationServiceTest {
                 true,
                 "https://translation.googleapis.com",
                 "",
-                "nmt"
+                "nmt",
+                3600
         );
 
         String translated = service.translateFromSpanish("Mensaje personalizado", "de");
 
         assertEquals("[DE] Mensaje personalizado", translated);
+    }
+
+    @Test
+    void shouldTranslateKnownEnglishSentenceBackToSpanishWithLocalFallback() {
+        OpsMessageTranslationService service = new OpsMessageTranslationService(
+                RestClient.builder(),
+                "local",
+                true,
+                "https://translation.googleapis.com",
+                "",
+                "nmt",
+                3600
+        );
+
+        String translated = service.translateToSpanish(
+                "Hello, please show your QR to validate your reservation and luggage.",
+                "en"
+        );
+
+        assertEquals(
+                "hola, por favor presenta tu qr para validar tu reserva y maleta.",
+                translated.toLowerCase()
+        );
     }
 }
