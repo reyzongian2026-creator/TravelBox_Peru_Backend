@@ -9,6 +9,7 @@ import com.tuempresa.storage.shared.domain.exception.ApiException;
 import com.tuempresa.storage.shared.infrastructure.web.PagedResponse;
 import com.tuempresa.storage.shared.infrastructure.web.PublicUrlService;
 import com.tuempresa.storage.warehouses.application.dto.AdminWarehouseRequest;
+import com.tuempresa.storage.warehouses.application.dto.WarehousePagedResponse;
 import com.tuempresa.storage.warehouses.application.dto.WarehouseRegistryResponse;
 import com.tuempresa.storage.warehouses.application.dto.WarehouseResponse;
 import com.tuempresa.storage.warehouses.domain.Warehouse;
@@ -89,6 +90,36 @@ public class WarehouseService {
         Page<WarehouseRegistryResponse> mapped = warehouseRepository
                 .searchAdminPage(cityId, normalize(query), active, pageRequest)
                 .map(this::toRegistryResponse);
+        return PagedResponse.from(mapped);
+    }
+
+    @Transactional(readOnly = true)
+    public PagedResponse<WarehousePagedResponse> pagePage(
+            int page,
+            int size,
+            Long cityId,
+            String query,
+            Boolean active
+    ) {
+        PageRequest pageRequest = PageRequest.of(
+                Math.max(page, 0),
+                clampSize(size),
+                Sort.by(Sort.Direction.DESC, "createdAt")
+        );
+        Page<Warehouse> warehousePage = warehouseRepository
+                .searchAdminPage(cityId, normalize(query), active, pageRequest);
+        
+        Page<WarehousePagedResponse> mapped = warehousePage.map(warehouse ->
+                new WarehousePagedResponse(
+                        warehouse.getId(),
+                        warehouse.getName(),
+                        warehouse.getCity() != null ? warehouse.getCity().getName() : null,
+                        warehouse.isActive(),
+                        warehouse.getPhotoPath(),
+                        warehouse.getCapacity(),
+                        warehouse.getCreatedAt()
+                )
+        );
         return PagedResponse.from(mapped);
     }
 

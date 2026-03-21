@@ -11,6 +11,7 @@ import org.springframework.data.repository.query.Param;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 public interface ReservationRepository extends JpaRepository<Reservation, Long> {
@@ -49,6 +50,16 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
     List<Reservation> findByStatusAndExpiresAtBefore(ReservationStatus status, Instant threshold);
 
     List<Reservation> findByStartAtBetweenOrderByStartAtAsc(Instant startAt, Instant endAt);
+
+    @Query("""
+            select r from Reservation r
+            where r.createdAt between :startAt and :endAt
+            order by r.createdAt desc
+            """)
+    List<Reservation> findByCreatedAtBetweenOrderByCreatedAtDesc(
+            @Param("startAt") Instant startAt,
+            @Param("endAt") Instant endAt
+    );
 
     long countByStatusNotIn(Collection<ReservationStatus> statuses);
 
@@ -139,5 +150,35 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
     List<Reservation> findActiveReservationsForSurchargeProcessing(
             @Param("activeStatuses") Collection<ReservationStatus> activeStatuses,
             @Param("now") Instant now
+    );
+
+    @Query(nativeQuery = true, value = """
+            SELECT COUNT(*) as count,
+                   SUM(CASE WHEN status = 'COMPLETED' THEN 1 ELSE 0 END) as completed,
+                   SUM(CASE WHEN status = 'CANCELLED' THEN 1 ELSE 0 END) as cancelled,
+                   COUNT(DISTINCT user_id) as unique_clients
+            FROM reservations
+            WHERE created_at BETWEEN :startAt AND :endAt
+            """)
+    Map<String, Object> getReservationSummary(
+            @Param("startAt") Instant startAt,
+            @Param("endAt") Instant endAt
+    );
+
+    @Query(nativeQuery = true, value = """
+            SELECT w.id, w.name as warehouse_name, COUNT(*) as interaction_count,
+                   SUM(CASE WHEN r.status = 'COMPLETED' THEN 1 ELSE 0 END) as completed_count,
+                   SUM(CASE WHEN r.status = 'CANCELLED' THEN 1 ELSE 0 END) as cancelled_count
+            FROM reservations r
+            JOIN warehouses w ON r.warehouse_id = w.id
+            WHERE r.created_at BETWEEN :startAt AND :endAt
+            GROUP BY w.id, w.name
+            ORDER BY interaction_count DESC
+            LIMIT :limit
+            """)
+    List<Map<String, Object>> getWarehouseRanking(
+            @Param("startAt") Instant startAt,
+            @Param("endAt") Instant endAt,
+            @Param("limit") int limit
     );
 }

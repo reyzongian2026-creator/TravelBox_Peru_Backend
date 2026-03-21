@@ -10,6 +10,9 @@ import com.tuempresa.storage.payments.domain.PaymentAttempt;
 import com.tuempresa.storage.payments.domain.PaymentStatus;
 import com.tuempresa.storage.payments.infrastructure.out.persistence.PaymentAttemptRepository;
 import com.tuempresa.storage.reports.application.dto.AdminDashboardResponse;
+import com.tuempresa.storage.reports.application.dto.AdminDashboardSummaryResponse;
+import com.tuempresa.storage.reports.application.dto.AdminRankingsResponse;
+import com.tuempresa.storage.reports.application.dto.AdminTrendsResponse;
 import com.tuempresa.storage.reports.application.dto.DashboardPeriod;
 import com.tuempresa.storage.reservations.domain.Reservation;
 import com.tuempresa.storage.reservations.domain.ReservationStatus;
@@ -54,7 +57,7 @@ public class AdminDashboardService {
     private final PaymentAttemptRepository paymentAttemptRepository;
     private final DeliveryOrderRepository deliveryOrderRepository;
 
-    private final Map<String, CacheEntry> cache = new ConcurrentHashMap<>();
+    private final Map<String, Object> cache = new ConcurrentHashMap<>();
 
     public AdminDashboardService(
             UserRepository userRepository,
@@ -77,7 +80,7 @@ public class AdminDashboardService {
         DashboardPeriod period = DashboardPeriod.from(rawPeriod);
         String cacheKey = "dashboard_" + period.code();
         
-        CacheEntry cached = cache.get(cacheKey);
+        CacheEntry<AdminDashboardResponse> cached = (CacheEntry<AdminDashboardResponse>) cache.get(cacheKey);
         if (cached != null && !cached.isExpired()) {
             log.debug("Dashboard cache hit for period: {}", period.code());
             return cached.response;
@@ -85,8 +88,256 @@ public class AdminDashboardService {
 
         log.debug("Building dashboard for period: {}", period.code());
         AdminDashboardResponse response = buildDashboard(period);
-        cache.put(cacheKey, new CacheEntry(response));
+        cache.put(cacheKey, new CacheEntry<>(response));
         
+        return response;
+    }
+
+    @Transactional(readOnly = true)
+    public AdminDashboardSummaryResponse buildSummary(String rawPeriod) {
+        DashboardPeriod period = DashboardPeriod.from(rawPeriod);
+        String cacheKey = "dashboard_summary_" + period.code();
+        
+        CacheEntry<AdminDashboardSummaryResponse> cached = (CacheEntry<AdminDashboardSummaryResponse>) cache.get(cacheKey);
+        if (cached != null && !cached.isExpired()) {
+            log.debug("Summary cache hit for period: {}", period.code());
+            return cached.response;
+        }
+
+        log.debug("Building summary for period: {}", period.code());
+        Instant now = Instant.now();
+        Instant periodStartAt = period.startAt(now, REPORT_ZONE);
+
+        // Use optimized queries without loading full reservations
+        List<Reservation> periodReservations = reservationRepository
+                .findByCreatedAtBetweenOrderByCreatedAtDesc(periodStartAt, now);
+        Set<Long> periodReservationIds = periodReservations.stream()
+                .map(Reservation::getId)
+                .collect(Collectors.toSet());
+
+        List<PaymentAttempt> periodConfirmedPayments = periodReservationIds.isEmpty()
+                ? List.of()
+                : paymentAttemptRepository.findByReservationIdInAndStatusOrderByCreatedAtDesc(
+                        periodReservationIds,
+                        PaymentStatus.CONFIRMED
+                );
+        List<Incident> periodIncidents = periodReservationIds.isEmpty()
+                ? List.of()
+                : incidentRepository.findByReservationIdIn(periodReservationIds);
+        List<Incident> periodOpenIncidents = periodReservationIds.isEmpty()
+                ? List.of()
+                : incidentRepository.findByReservationIdInAndStatus(periodReservationIds, IncidentStatus.OPEN);
+
+        long totalUsers = userRepository.count();
+        long totalWarehouses = warehouseRepository.count();
+        long activeReservations = reservationRepository.countByStatusNotIn(INACTIVE_RESERVATION_STATUSES);
+        long openIncidents = incidentRepository.countByStatus(IncidentStatus.OPEN);
+        BigDecimal confirmedPayments = paymentAttemptRepository.sumAmountByStatus(PaymentStatus.CONFIRMED);
+        if (confirmedPayments == null) {
+            confirmedPayments = BigDecimal.ZERO;
+        }
+
+        Map<Long, BigDecimal> confirmedRevenueByReservation = resolveConfirmedRevenueByReservation(periodConfirmedPayments);
+        Map<Long, Long> incidentCountByReservation = periodIncidents.stream()
+                .filter(incident -> incident.getReservation() != null)
+                .collect(Collectors.groupingBy(incident -> incident.getReservation().getId(), Collectors.counting()));
+        Map<Long, Long> openIncidentCountByReservation = periodOpenIncidents.stream()
+                .filter(incident -> incident.getReservation() != null)
+                .collect(Collectors.groupingBy(incident -> incident.getReservation().getId(), Collectors.counting()));
+
+        long completedReservations = periodReservations.stream()
+                .filter(reservation -> reservation.getStatus() == ReservationStatus.COMPLETED)
+                .count();
+        long cancelledReservations = periodReservations.stream()
+                .filter(reservation -> reservation.getStatus() == ReservationStatus.CANCELLED)
+                .count();
+        long incidentReservations = periodReservations.stream()
+                .filter(reservation -> incidentCountByReservation.getOrDefault(reservation.getId(), 0L) > 0
+                        || reservation.getStatus() == ReservationStatus.INCIDENT)
+                .count();
+        long pendingPaymentReservations = periodReservations.stream()
+                .filter(reservation -> reservation.getStatus() == ReservationStatus.PENDING_PAYMENT)
+                .count();
+        long activeReservationsInPeriod = periodReservations.stream()
+                .filter(this::isActiveReservation)
+                .count();
+        long uniqueClients = periodReservations.stream()
+                .map(reservation -> reservation.getUser().getId())
+                .distinct()
+                .count();
+        long openIncidentsInPeriod = periodReservations.stream()
+                .mapToLong(reservation -> openIncidentCountByReservation.getOrDefault(reservation.getId(), 0L))
+                .sum();
+
+        BigDecimal confirmedRevenueInPeriod = periodReservations.stream()
+                .map(reservation -> confirmedRevenueByReservation.getOrDefault(reservation.getId(), BigDecimal.ZERO))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        long paidReservations = periodReservations.stream()
+                .filter(reservation -> confirmedRevenueByReservation.getOrDefault(reservation.getId(), BigDecimal.ZERO)
+                        .compareTo(BigDecimal.ZERO) > 0)
+                .count();
+        BigDecimal averageTicket = paidReservations == 0
+                ? BigDecimal.ZERO
+                : confirmedRevenueInPeriod.divide(BigDecimal.valueOf(paidReservations), 2, RoundingMode.HALF_UP);
+
+        AdminDashboardSummaryResponse response = new AdminDashboardSummaryResponse(
+                period.code(),
+                period.label(),
+                now,
+                new AdminDashboardSummaryResponse.Summary(
+                        periodReservations.size(),
+                        activeReservationsInPeriod,
+                        completedReservations,
+                        cancelledReservations,
+                        incidentReservations,
+                        pendingPaymentReservations,
+                        uniqueClients,
+                        openIncidentsInPeriod,
+                        confirmedRevenueInPeriod,
+                        averageTicket,
+                        ratio(completedReservations, periodReservations.size()),
+                        ratio(cancelledReservations, periodReservations.size())
+                ),
+                totalUsers,
+                totalWarehouses,
+                activeReservations,
+                openIncidents,
+                confirmedPayments
+        );
+
+        cache.put(cacheKey, new CacheEntry<>(response));
+        return response;
+    }
+
+    @Transactional(readOnly = true)
+    public AdminRankingsResponse buildRankings(String rawPeriod, int limit) {
+        DashboardPeriod period = DashboardPeriod.from(rawPeriod);
+        String cacheKey = "dashboard_rankings_" + period.code() + "_" + limit;
+        
+        CacheEntry<AdminRankingsResponse> cached = (CacheEntry<AdminRankingsResponse>) cache.get(cacheKey);
+        if (cached != null && !cached.isExpired()) {
+            log.debug("Rankings cache hit for period: {}", period.code());
+            return cached.response;
+        }
+
+        log.debug("Building rankings for period: {} with limit: {}", period.code(), limit);
+        Instant now = Instant.now();
+        Instant periodStartAt = period.startAt(now, REPORT_ZONE);
+
+        // Get rankings with database optimization
+        List<Reservation> periodReservations = reservationRepository
+                .findByCreatedAtBetweenOrderByCreatedAtDesc(periodStartAt, now);
+        Set<Long> periodReservationIds = periodReservations.stream()
+                .map(Reservation::getId)
+                .collect(Collectors.toSet());
+
+        List<DeliveryOrder> periodDeliveries = deliveryOrderRepository
+                .findByUpdatedAtBetweenOrderByUpdatedAtDesc(periodStartAt, now);
+
+        List<PaymentAttempt> periodConfirmedPayments = periodReservationIds.isEmpty()
+                ? List.of()
+                : paymentAttemptRepository.findByReservationIdInAndStatusOrderByCreatedAtDesc(
+                        periodReservationIds,
+                        PaymentStatus.CONFIRMED
+                );
+        List<Incident> periodIncidents = periodReservationIds.isEmpty()
+                ? List.of()
+                : incidentRepository.findByReservationIdIn(periodReservationIds);
+
+        Map<Long, BigDecimal> confirmedRevenueByReservation = resolveConfirmedRevenueByReservation(periodConfirmedPayments);
+        Map<Long, Long> incidentCountByReservation = periodIncidents.stream()
+                .filter(incident -> incident.getReservation() != null)
+                .collect(Collectors.groupingBy(incident -> incident.getReservation().getId(), Collectors.counting()));
+
+        // Build warehouse ranking
+        List<AdminRankingsResponse.RankingItem> warehouseRanking = buildWarehouseRankingItems(
+                periodReservations,
+                confirmedRevenueByReservation,
+                incidentCountByReservation,
+                limit
+        );
+
+        // Build city ranking
+        List<AdminRankingsResponse.RankingItem> cityRanking = buildCityRankingItems(
+                periodReservations,
+                confirmedRevenueByReservation,
+                incidentCountByReservation,
+                limit
+        );
+
+        // Build courier ranking
+        List<AdminRankingsResponse.RankingItem> courierRanking = buildCourierRankingItems(
+                periodDeliveries,
+                limit
+        );
+
+        // Build operator ranking
+        List<AdminRankingsResponse.RankingItem> operatorRanking = buildOperatorRankingItems(
+                periodDeliveries,
+                limit
+        );
+
+        AdminRankingsResponse response = new AdminRankingsResponse(
+                period.code(),
+                period.label(),
+                now,
+                warehouseRanking,
+                cityRanking,
+                courierRanking,
+                operatorRanking
+        );
+
+        cache.put(cacheKey, new CacheEntry<>(response));
+        return response;
+    }
+
+    @Transactional(readOnly = true)
+    public AdminTrendsResponse buildTrends(String rawPeriod) {
+        DashboardPeriod period = DashboardPeriod.from(rawPeriod);
+        String cacheKey = "dashboard_trends_" + period.code();
+        
+        CacheEntry<AdminTrendsResponse> cached = (CacheEntry<AdminTrendsResponse>) cache.get(cacheKey);
+        if (cached != null && !cached.isExpired()) {
+            log.debug("Trends cache hit for period: {}", period.code());
+            return cached.response;
+        }
+
+        log.debug("Building trends for period: {}", period.code());
+        Instant now = Instant.now();
+        Instant periodStartAt = period.startAt(now, REPORT_ZONE);
+
+        List<Reservation> periodReservations = reservationRepository
+                .findByCreatedAtBetweenOrderByCreatedAtDesc(periodStartAt, now);
+        Set<Long> periodReservationIds = periodReservations.stream()
+                .map(Reservation::getId)
+                .collect(Collectors.toSet());
+
+        List<PaymentAttempt> periodConfirmedPayments = periodReservationIds.isEmpty()
+                ? List.of()
+                : paymentAttemptRepository.findByReservationIdInAndStatusOrderByCreatedAtDesc(
+                        periodReservationIds,
+                        PaymentStatus.CONFIRMED
+                );
+        List<Incident> periodIncidents = periodReservationIds.isEmpty()
+                ? List.of()
+                : incidentRepository.findByReservationIdIn(periodReservationIds);
+
+        Map<Long, BigDecimal> confirmedRevenueByReservation = resolveConfirmedRevenueByReservation(periodConfirmedPayments);
+        Map<Long, Long> incidentCountByReservation = periodIncidents.stream()
+                .filter(incident -> incident.getReservation() != null)
+                .collect(Collectors.groupingBy(incident -> incident.getReservation().getId(), Collectors.counting()));
+
+        List<AdminTrendsResponse.TrendPoint> trends = buildTrendItems(period, periodReservations, confirmedRevenueByReservation, incidentCountByReservation);
+
+        AdminTrendsResponse response = new AdminTrendsResponse(
+                period.code(),
+                period.label(),
+                now,
+                trends,
+                List.of()
+        );
+
+        cache.put(cacheKey, new CacheEntry<>(response));
         return response;
     }
 
@@ -598,13 +849,312 @@ public class AdminDashboardService {
         }
     }
 
+    private List<AdminRankingsResponse.RankingItem> buildWarehouseRankingItems(
+            List<Reservation> reservations,
+            Map<Long, BigDecimal> confirmedRevenueByReservation,
+            Map<Long, Long> incidentCountByReservation,
+            int limit
+    ) {
+        Map<Long, WarehouseAccumulator> accumulators = new HashMap<>();
+        for (Reservation reservation : reservations) {
+            Long warehouseId = reservation.getWarehouse().getId();
+            WarehouseAccumulator accumulator = accumulators.computeIfAbsent(
+                    warehouseId,
+                    ignored -> new WarehouseAccumulator(
+                            warehouseId,
+                            reservation.getWarehouse().getName(),
+                            reservation.getWarehouse().getCity().getName(),
+                            reservation.getWarehouse().getZone() != null ? reservation.getWarehouse().getZone().getName() : "-"
+                    )
+            );
+            accumulator.interactionCount += 1;
+            if (reservation.getStatus() == ReservationStatus.COMPLETED) {
+                accumulator.completedReservations += 1;
+            }
+            if (reservation.getStatus() == ReservationStatus.CANCELLED) {
+                accumulator.cancelledReservations += 1;
+            }
+            accumulator.incidentCount += incidentCountByReservation.getOrDefault(reservation.getId(), 0L);
+            accumulator.confirmedRevenue = accumulator.confirmedRevenue.add(
+                    confirmedRevenueByReservation.getOrDefault(reservation.getId(), BigDecimal.ZERO)
+            );
+        }
+        
+        List<AdminDashboardResponse.WarehousePerformance> sorted = accumulators.values().stream()
+                .map(WarehouseAccumulator::toResponse)
+                .sorted(Comparator
+                        .comparingLong(AdminDashboardResponse.WarehousePerformance::interactionCount).reversed()
+                        .thenComparing(AdminDashboardResponse.WarehousePerformance::confirmedRevenue, Comparator.reverseOrder())
+                        .thenComparing(AdminDashboardResponse.WarehousePerformance::warehouseName))
+                .limit(limit)
+                .toList();
+        
+        long totalInteractions = sorted.stream().mapToLong(AdminDashboardResponse.WarehousePerformance::interactionCount).sum();
+        
+        int rank = 1;
+        List<AdminRankingsResponse.RankingItem> result = new java.util.ArrayList<>();
+        for (AdminDashboardResponse.WarehousePerformance item : sorted) {
+            double percentage = totalInteractions > 0 ? (item.interactionCount() * 100.0 / totalInteractions) : 0;
+            result.add(new AdminRankingsResponse.RankingItem(
+                    rank++,
+                    String.valueOf(item.warehouseId()),
+                    item.warehouseName(),
+                    item.interactionCount(),
+                    percentage
+            ));
+        }
+        return result;
+    }
+
+    private List<AdminRankingsResponse.RankingItem> buildCityRankingItems(
+            List<Reservation> reservations,
+            Map<Long, BigDecimal> confirmedRevenueByReservation,
+            Map<Long, Long> incidentCountByReservation,
+            int limit
+    ) {
+        Map<String, CityAccumulator> accumulators = new HashMap<>();
+        for (Reservation reservation : reservations) {
+            String cityName = reservation.getWarehouse().getCity().getName();
+            CityAccumulator accumulator = accumulators.computeIfAbsent(cityName, CityAccumulator::new);
+            accumulator.interactionCount += 1;
+            if (reservation.getStatus() == ReservationStatus.COMPLETED) {
+                accumulator.completedReservations += 1;
+            }
+            accumulator.incidentCount += incidentCountByReservation.getOrDefault(reservation.getId(), 0L);
+            accumulator.confirmedRevenue = accumulator.confirmedRevenue.add(
+                    confirmedRevenueByReservation.getOrDefault(reservation.getId(), BigDecimal.ZERO)
+            );
+        }
+        
+        List<AdminDashboardResponse.CityPerformance> sorted = accumulators.values().stream()
+                .map(CityAccumulator::toResponse)
+                .sorted(Comparator
+                        .comparingLong(AdminDashboardResponse.CityPerformance::interactionCount).reversed()
+                        .thenComparing(AdminDashboardResponse.CityPerformance::confirmedRevenue, Comparator.reverseOrder())
+                        .thenComparing(AdminDashboardResponse.CityPerformance::city))
+                .limit(limit)
+                .toList();
+        
+        long totalInteractions = sorted.stream().mapToLong(AdminDashboardResponse.CityPerformance::interactionCount).sum();
+        
+        int rank = 1;
+        List<AdminRankingsResponse.RankingItem> result = new java.util.ArrayList<>();
+        for (AdminDashboardResponse.CityPerformance item : sorted) {
+            double percentage = totalInteractions > 0 ? (item.interactionCount() * 100.0 / totalInteractions) : 0;
+            result.add(new AdminRankingsResponse.RankingItem(
+                    rank++,
+                    item.city(),
+                    item.city(),
+                    item.interactionCount(),
+                    percentage
+            ));
+        }
+        return result;
+    }
+
+    private List<AdminRankingsResponse.RankingItem> buildCourierRankingItems(
+            List<DeliveryOrder> deliveries,
+            int limit
+    ) {
+        Map<Long, UserOperationalAccumulator> accumulators = new HashMap<>();
+        for (DeliveryOrder delivery : deliveries) {
+            User courier = delivery.getAssignedCourier();
+            if (courier == null || !courier.getRoles().contains(Role.COURIER)) {
+                continue;
+            }
+            UserOperationalAccumulator accumulator = accumulators.computeIfAbsent(
+                    courier.getId(),
+                    ignored -> new UserOperationalAccumulator(courier.getId(), courier.getFullName(), courier.getEmail())
+            );
+            accumulator.deliveryAssignedCount += 1;
+            if (delivery.getStatus() == DeliveryStatus.DELIVERED) {
+                accumulator.deliveryCompletedCount += 1;
+            }
+            if (ACTIVE_DELIVERY_STATUSES.contains(delivery.getStatus())) {
+                accumulator.activeDeliveryCount += 1;
+            }
+        }
+        
+        List<AdminDashboardResponse.OperationalUserPerformance> sorted = accumulators.values().stream()
+                .map(UserOperationalAccumulator::toResponse)
+                .sorted(Comparator
+                        .comparingLong(AdminDashboardResponse.OperationalUserPerformance::deliveryCompletedCount).reversed()
+                        .thenComparingLong(AdminDashboardResponse.OperationalUserPerformance::activeDeliveryCount).reversed()
+                        .thenComparing(AdminDashboardResponse.OperationalUserPerformance::fullName))
+                .limit(limit)
+                .toList();
+        
+        long totalDeliveries = sorted.stream().mapToLong(AdminDashboardResponse.OperationalUserPerformance::deliveryCompletedCount).sum();
+        
+        int rank = 1;
+        List<AdminRankingsResponse.RankingItem> result = new java.util.ArrayList<>();
+        for (AdminDashboardResponse.OperationalUserPerformance item : sorted) {
+            double percentage = totalDeliveries > 0 ? (item.deliveryCompletedCount() * 100.0 / totalDeliveries) : 0;
+            result.add(new AdminRankingsResponse.RankingItem(
+                    rank++,
+                    String.valueOf(item.userId()),
+                    item.fullName(),
+                    item.deliveryCompletedCount(),
+                    percentage
+            ));
+        }
+        return result;
+    }
+
+    private List<AdminRankingsResponse.RankingItem> buildOperatorRankingItems(
+            List<DeliveryOrder> deliveries,
+            int limit
+    ) {
+        Map<String, User> usersByEmail = userRepository.findActiveByAnyRole(Set.of(Role.OPERATOR)).stream()
+                .filter(user -> user.getEmail() != null)
+                .collect(Collectors.toMap(
+                        user -> user.getEmail().trim().toLowerCase(Locale.ROOT),
+                        Function.identity(),
+                        (left, right) -> left
+                ));
+        Map<Long, UserOperationalAccumulator> accumulators = new HashMap<>();
+        for (DeliveryOrder delivery : deliveries) {
+            String createdBy = delivery.getCreatedBy();
+            if (createdBy == null || createdBy.isBlank()) {
+                continue;
+            }
+            User operator = usersByEmail.get(createdBy.trim().toLowerCase(Locale.ROOT));
+            if (operator == null || !operator.getRoles().contains(Role.OPERATOR)) {
+                continue;
+            }
+            UserOperationalAccumulator accumulator = accumulators.computeIfAbsent(
+                    operator.getId(),
+                    ignored -> new UserOperationalAccumulator(operator.getId(), operator.getFullName(), operator.getEmail())
+            );
+            accumulator.deliveryCreatedCount += 1;
+            if (ACTIVE_DELIVERY_STATUSES.contains(delivery.getStatus())) {
+                accumulator.activeDeliveryCount += 1;
+            }
+            if (delivery.getAssignedCourier() != null) {
+                accumulator.deliveryAssignedCount += 1;
+            }
+            if (delivery.getStatus() == DeliveryStatus.DELIVERED) {
+                accumulator.deliveryCompletedCount += 1;
+            }
+        }
+        
+        List<AdminDashboardResponse.OperationalUserPerformance> sorted = accumulators.values().stream()
+                .map(UserOperationalAccumulator::toResponse)
+                .sorted(Comparator
+                        .comparingLong(AdminDashboardResponse.OperationalUserPerformance::deliveryCreatedCount).reversed()
+                        .thenComparingLong(AdminDashboardResponse.OperationalUserPerformance::deliveryCompletedCount).reversed()
+                        .thenComparing(AdminDashboardResponse.OperationalUserPerformance::fullName))
+                .limit(limit)
+                .toList();
+        
+        long totalCreated = sorted.stream().mapToLong(AdminDashboardResponse.OperationalUserPerformance::deliveryCreatedCount).sum();
+        
+        int rank = 1;
+        List<AdminRankingsResponse.RankingItem> result = new java.util.ArrayList<>();
+        for (AdminDashboardResponse.OperationalUserPerformance item : sorted) {
+            double percentage = totalCreated > 0 ? (item.deliveryCreatedCount() * 100.0 / totalCreated) : 0;
+            result.add(new AdminRankingsResponse.RankingItem(
+                    rank++,
+                    String.valueOf(item.userId()),
+                    item.fullName(),
+                    item.deliveryCreatedCount(),
+                    percentage
+            ));
+        }
+        return result;
+    }
+
+    private List<AdminTrendsResponse.TrendPoint> buildTrendItems(
+            DashboardPeriod period,
+            List<Reservation> reservations,
+            Map<Long, BigDecimal> confirmedRevenueByReservation,
+            Map<Long, Long> incidentCountByReservation
+    ) {
+        return switch (period) {
+            case WEEK, MONTH -> buildDailyTrendItems(period, reservations, confirmedRevenueByReservation, incidentCountByReservation);
+            case YEAR -> buildMonthlyTrendItems(period, reservations, confirmedRevenueByReservation, incidentCountByReservation);
+        };
+    }
+
+    private List<AdminTrendsResponse.TrendPoint> buildDailyTrendItems(
+            DashboardPeriod period,
+            List<Reservation> reservations,
+            Map<Long, BigDecimal> confirmedRevenueByReservation,
+            Map<Long, Long> incidentCountByReservation
+    ) {
+        LocalDate endDate = LocalDate.now(REPORT_ZONE);
+        int days = period == DashboardPeriod.WEEK ? 7 : 30;
+        Map<LocalDate, TrendAccumulator> buckets = new LinkedHashMap<>();
+        for (int index = days - 1; index >= 0; index--) {
+            LocalDate date = endDate.minusDays(index);
+            buckets.put(date, new TrendAccumulator(period.trendLabel(date)));
+        }
+
+        for (Reservation reservation : reservations) {
+            LocalDate bucketDate = reservation.getStartAt().atZone(REPORT_ZONE).toLocalDate();
+            TrendAccumulator accumulator = buckets.get(bucketDate);
+            if (accumulator == null) {
+                continue;
+            }
+            accumulator.reservations += 1;
+            accumulator.incidents += incidentCountByReservation.getOrDefault(reservation.getId(), 0L);
+            accumulator.confirmedRevenue = accumulator.confirmedRevenue.add(
+                    confirmedRevenueByReservation.getOrDefault(reservation.getId(), BigDecimal.ZERO)
+            );
+        }
+
+        return buckets.values().stream()
+                .map(acc -> new AdminTrendsResponse.TrendPoint(acc.label, acc.reservations, acc.incidents, acc.confirmedRevenue))
+                .toList();
+    }
+
+    private List<AdminTrendsResponse.TrendPoint> buildMonthlyTrendItems(
+            DashboardPeriod period,
+            List<Reservation> reservations,
+            Map<Long, BigDecimal> confirmedRevenueByReservation,
+            Map<Long, Long> incidentCountByReservation
+    ) {
+        YearMonth currentMonth = YearMonth.now(REPORT_ZONE);
+        Map<YearMonth, TrendAccumulator> buckets = new LinkedHashMap<>();
+        for (int index = 11; index >= 0; index--) {
+            YearMonth month = currentMonth.minusMonths(index);
+            buckets.put(month, new TrendAccumulator(period.trendLabel(month.atDay(1))));
+        }
+
+        for (Reservation reservation : reservations) {
+            YearMonth bucketMonth = YearMonth.from(reservation.getStartAt().atZone(REPORT_ZONE));
+            TrendAccumulator accumulator = buckets.get(bucketMonth);
+            if (accumulator == null) {
+                continue;
+            }
+            accumulator.reservations += 1;
+            accumulator.incidents += incidentCountByReservation.getOrDefault(reservation.getId(), 0L);
+            accumulator.confirmedRevenue = accumulator.confirmedRevenue.add(
+                    confirmedRevenueByReservation.getOrDefault(reservation.getId(), BigDecimal.ZERO)
+            );
+        }
+
+        return buckets.values().stream()
+                .map(acc -> new AdminTrendsResponse.TrendPoint(acc.label, acc.reservations, acc.incidents, acc.confirmedRevenue))
+                .toList();
+    }
+
     public void invalidateCache() {
         cache.clear();
         log.info("Dashboard cache invalidated");
     }
 
     public void invalidateCache(String period) {
-        cache.remove("dashboard_" + period);
+        String dashboardKey = "dashboard_" + period;
+        String summaryKey = "dashboard_summary_" + period;
+        String trendsKey = "dashboard_trends_" + period;
+        
+        cache.remove(dashboardKey);
+        cache.remove(summaryKey);
+        cache.remove(trendsKey);
+        
+        cache.entrySet().removeIf(entry -> entry.getKey().startsWith("dashboard_rankings_" + period));
+        
         log.info("Dashboard cache invalidated for period: {}", period);
     }
 
@@ -612,11 +1162,11 @@ public class AdminDashboardService {
         return cache.size();
     }
 
-    private static class CacheEntry {
-        final AdminDashboardResponse response;
+    private static class CacheEntry<T> {
+        final T response;
         final long timestamp;
 
-        CacheEntry(AdminDashboardResponse response) {
+        CacheEntry(T response) {
             this.response = response;
             this.timestamp = System.currentTimeMillis();
         }

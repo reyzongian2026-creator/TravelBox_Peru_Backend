@@ -6,8 +6,11 @@ import com.tuempresa.storage.auth.infrastructure.out.persistence.RefreshTokenRep
 import com.tuempresa.storage.firebase.application.FirebaseAdminService;
 import com.tuempresa.storage.shared.domain.exception.ApiException;
 import com.tuempresa.storage.shared.infrastructure.security.AuthUserPrincipal;
+import com.tuempresa.storage.shared.infrastructure.web.PagedResponse;
+import com.tuempresa.storage.users.application.dto.AdminUserPagedResponse;
 import com.tuempresa.storage.users.application.dto.AdminUserResponse;
 import com.tuempresa.storage.users.application.dto.AdminUserSummaryResponse;
+import com.tuempresa.storage.users.application.dto.BulkOperationResponse;
 import com.tuempresa.storage.users.application.dto.CreateAdminUserRequest;
 import com.tuempresa.storage.users.application.dto.UpdateAdminUserRequest;
 import com.tuempresa.storage.users.application.dto.UpdateUserActiveRequest;
@@ -21,12 +24,17 @@ import com.tuempresa.storage.users.infrastructure.out.persistence.UserRepository
 import com.tuempresa.storage.warehouses.domain.Warehouse;
 import com.tuempresa.storage.warehouses.infrastructure.out.persistence.WarehouseRepository;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -63,6 +71,7 @@ public class AdminUserService {
     private final WarehouseRepository warehouseRepository;
     private final PasswordEncoder passwordEncoder;
     private final FirebaseAdminService firebaseAdminService;
+    private final com.tuempresa.storage.shared.application.usecase.AuditLogService auditLogService;
 
     public AdminUserService(
             UserRepository userRepository,
@@ -70,7 +79,8 @@ public class AdminUserService {
             RefreshTokenRepository refreshTokenRepository,
             WarehouseRepository warehouseRepository,
             PasswordEncoder passwordEncoder,
-            FirebaseAdminService firebaseAdminService
+            FirebaseAdminService firebaseAdminService,
+            com.tuempresa.storage.shared.application.usecase.AuditLogService auditLogService
     ) {
         this.userRepository = userRepository;
         this.deliveryOrderRepository = deliveryOrderRepository;
@@ -78,6 +88,7 @@ public class AdminUserService {
         this.warehouseRepository = warehouseRepository;
         this.passwordEncoder = passwordEncoder;
         this.firebaseAdminService = firebaseAdminService;
+        this.auditLogService = auditLogService;
     }
 
     @Transactional(readOnly = true)
@@ -111,6 +122,54 @@ public class AdminUserService {
         return usersToReturn.stream()
                 .map(user -> toResponse(user, metrics))
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public PagedResponse<AdminUserPagedResponse> listPage(
+            String query,
+            Role role,
+            int page,
+            int size
+    ) {
+        String normalizedQuery = normalizeQuery(query);
+        PageRequest pageRequest = PageRequest.of(
+                Math.max(page, 0),
+                Math.min(size, 100),
+                Sort.by(Sort.Direction.DESC, "createdAt")
+        );
+        Page<User> userPage = userRepository.searchAdminPage(
+                normalizedQuery == null ? "" : normalizedQuery,
+                role,
+                pageRequest
+        );
+
+        List<AdminUserPagedResponse> content = userPage.getContent().stream()
+                .map(user -> new AdminUserPagedResponse(
+                        user.getId(),
+                        user.getFullName(),
+                        user.getEmail(),
+                        user.getRoles().stream()
+                                .map(Role::name)
+                                .sorted()
+                                .collect(Collectors.joining(",")),
+                        user.isActive(),
+                        user.getWarehouseAssignments().stream()
+                                .map(Warehouse::getId)
+                                .sorted()
+                                .toList(),
+                        user.getCreatedAt()
+                ))
+                .toList();
+
+        return new PagedResponse<>(
+                content,
+                userPage.getNumber(),
+                userPage.getSize(),
+                userPage.getTotalElements(),
+                userPage.getTotalPages(),
+                userPage.hasNext(),
+                userPage.hasPrevious()
+        );
     }
 
     @Transactional(readOnly = true)
@@ -326,9 +385,146 @@ public class AdminUserService {
     }
 
     @Transactional
+    public BulkOperationResponse bulkDelete(Set<Long> ids, AuthUserPrincipal principal) {
+        int processed = ids.size();
+        int succeeded = 0;
+        int failed = 0;
+        List<String> errors = new ArrayList<>();
+        for (Long id : ids) {
+            try {
+                delete(id, principal);
+                succeeded++;
+            } catch (Exception e) {
+                failed++;
+                errors.add("ID " + id + ": " + e.getMessage());
+            }
+        }
+        if (failed > 0) {
+            return BulkOperationResponse.partial(processed, succeeded, failed, "Eliminacion bulk");
+        }
+        return BulkOperationResponse.success(processed, "Eliminacion bulk");
+    }
+
+    @Transactional
+    public BulkOperationResponse bulkUpdateActive(Set<Long> ids, boolean active, AuthUserPrincipal principal) {
+        int processed = ids.size();
+        int succeeded = 0;
+        int failed = 0;
+        List<String> errors = new ArrayList<>();
+        for (Long id : ids) {
+            try {
+                User user = userRepository.findById(id).orElseThrow(() -> 
+                        new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "Usuario no encontrado: " + id));
+                if (!active && user.getRoles().contains(Role.ADMIN)) {
+                    throw new ApiException(
+                            HttpStatus.BAD_REQUEST,
+                            "ADMIN_USER_CANNOT_BE_DISABLED",
+                            "Un usuario ADMIN no puede quedar inactivo: " + id
+                    );
+                }
+                user.setActive(active);
+                userRepository.save(user);
+                syncFirebase(user, null);
+                succeeded++;
+            } catch (Exception e) {
+                failed++;
+                errors.add("ID " + id + ": " + e.getMessage());
+            }
+        }
+        if (failed > 0) {
+            return BulkOperationResponse.partial(processed, succeeded, failed, "Actualizacion bulk de estado");
+        }
+        return BulkOperationResponse.success(processed, "Actualizacion bulk de estado");
+    }
+
+    @Transactional
+    public BulkOperationResponse bulkUpdateRoles(Set<Long> ids, Set<Role> roles, Set<Long> warehouseIds, AuthUserPrincipal principal) {
+        int processed = ids.size();
+        int succeeded = 0;
+        int failed = 0;
+        List<String> errors = new ArrayList<>();
+        for (Long id : ids) {
+            try {
+                User user = userRepository.findById(id).orElseThrow(() -> 
+                        new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "Usuario no encontrado: " + id));
+                validateCourierPlate(roles, null);
+                validateAdminCannotBeDisabled(roles, null);
+                user.updateRoles(roles);
+                if (roles == null || !roles.contains(Role.COURIER)) {
+                    user.updateVehiclePlate(null);
+                }
+                user.updateWarehouseAssignments(resolveWarehouseAssignments(roles, warehouseIds));
+                userRepository.save(user);
+                syncFirebase(user, null);
+                succeeded++;
+            } catch (Exception e) {
+                failed++;
+                errors.add("ID " + id + ": " + e.getMessage());
+            }
+        }
+        if (failed > 0) {
+            return BulkOperationResponse.partial(processed, succeeded, failed, "Actualizacion bulk de roles");
+        }
+        return BulkOperationResponse.success(processed, "Actualizacion bulk de roles");
+    }
+
+    @Transactional
     public String uploadDocumentPhoto(MultipartFile file) {
         return firebaseAdminService.uploadPublicImage(file, "documents", "dni-");
     }
+
+    @Transactional(readOnly = true)
+    public List<UserExportRow> exportUsers(String query, Role role) {
+        List<User> users = findFilteredUsers(query, role);
+        UserMetrics metrics = buildMetricsForUsers(users);
+        return users.stream()
+                .map(user -> toExportRow(user, metrics))
+                .toList();
+    }
+
+    private UserExportRow toExportRow(User user, UserMetrics metrics) {
+        String roles = user.getRoles().stream()
+                .map(Role::name)
+                .sorted()
+                .collect(Collectors.joining(";"));
+        String warehouses = user.getWarehouseAssignments().stream()
+                .map(Warehouse::getName)
+                .sorted()
+                .collect(Collectors.joining(";"));
+        long assignedCount = metrics.assignedCountByUserId().getOrDefault(user.getId(), 0L);
+        long completedCount = metrics.completedCountByUserId().getOrDefault(user.getId(), 0L);
+        return new UserExportRow(
+                user.getId(),
+                user.getFullName(),
+                user.getEmail(),
+                user.getPhone(),
+                user.getNationality(),
+                roles,
+                warehouses,
+                user.isActive(),
+                user.isEmailVerified(),
+                user.isProfileCompleted(),
+                assignedCount,
+                completedCount,
+                user.getCreatedAt()
+        );
+    }
+
+    public record UserExportRow(
+            Long id,
+            String fullName,
+            String email,
+            String phone,
+            String nationality,
+            String roles,
+            String warehouses,
+            boolean active,
+            boolean emailVerified,
+            boolean profileCompleted,
+            long assignedDeliveries,
+            long completedDeliveries,
+            Instant createdAt
+    ) {}
 
     private User syncFirebase(User user, String rawPassword) {
         String firebaseUid = firebaseAdminService.syncUserAccount(user, rawPassword);

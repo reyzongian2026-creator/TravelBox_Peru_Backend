@@ -2,6 +2,8 @@ package com.tuempresa.storage.users.infrastructure.out.persistence;
 
 import com.tuempresa.storage.users.domain.User;
 import com.tuempresa.storage.users.domain.Role;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -46,4 +48,19 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @EntityGraph(attributePaths = {"roles", "warehouseAssignments"})
     @Query("select distinct u from User u")
     List<User> findAllWithRolesAndWarehouseAssignments();
+
+    @EntityGraph(attributePaths = {"roles", "warehouseAssignments"})
+    @Query("""
+            select distinct u from User u
+            where (:query = '' or lower(u.fullName) like concat('%', lower(:query), '%')
+                   or lower(u.email) like concat('%', lower(:query), '%')
+                   or lower(u.phone) like concat('%', lower(:query), '%'))
+              and (:roleFilter is null or :roleFilter member of u.roles)
+            order by u.createdAt desc
+            """)
+    Page<User> searchAdminPage(
+            @Param("query") String query,
+            @Param("roleFilter") Role role,
+            Pageable pageable
+    );
 }

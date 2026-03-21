@@ -4,6 +4,7 @@ import com.tuempresa.storage.shared.infrastructure.reactive.ReactiveBlockingExec
 import com.tuempresa.storage.shared.infrastructure.reactive.ReactiveMultipartAdapter;
 import com.tuempresa.storage.shared.infrastructure.web.PagedResponse;
 import com.tuempresa.storage.warehouses.application.dto.AdminWarehouseRequest;
+import com.tuempresa.storage.warehouses.application.dto.WarehousePagedResponse;
 import com.tuempresa.storage.warehouses.application.dto.WarehouseRegistryResponse;
 import com.tuempresa.storage.warehouses.application.dto.WarehouseResponse;
 import com.tuempresa.storage.warehouses.application.usecase.WarehouseService;
@@ -52,6 +53,17 @@ public class AdminWarehouseController {
             @RequestParam(required = false) Boolean active
     ) {
         return reactiveBlockingExecutor.call(() -> warehouseService.searchAdmin(cityId, query, active));
+    }
+
+    @GetMapping("/page")
+    public Mono<PagedResponse<WarehousePagedResponse>> listPage(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size,
+            @RequestParam(required = false) Long cityId,
+            @RequestParam(required = false) String query,
+            @RequestParam(required = false) Boolean active
+    ) {
+        return reactiveBlockingExecutor.call(() -> warehouseService.pagePage(page, size, cityId, query, active));
     }
 
     @GetMapping({"/registry", "/registros"})

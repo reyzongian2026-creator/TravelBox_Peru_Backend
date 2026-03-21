@@ -19,6 +19,7 @@ import com.tuempresa.storage.reservations.application.dto.CancelReservationReque
 import com.tuempresa.storage.reservations.application.dto.CreateAssistedReservationRequest;
 import com.tuempresa.storage.reservations.application.dto.CreateReservationRequest;
 import com.tuempresa.storage.reservations.application.dto.ReservationLuggagePhotoResponse;
+import com.tuempresa.storage.reservations.application.dto.RevenueReportResponse;
 import com.tuempresa.storage.reservations.application.dto.ReservationOperationalDetailResponse;
 import com.tuempresa.storage.reservations.application.dto.ReservationResponse;
 import com.tuempresa.storage.reservations.domain.Reservation;
@@ -49,12 +50,17 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class ReservationService {
@@ -518,6 +524,92 @@ public class ReservationService {
             notificationService.notifyReservationExpired(reservation.getUser().getId(), reservation.getId(), reservation.getQrCode());
         });
         return expiring.size();
+    }
+
+    @Transactional(readOnly = true)
+    public List<Reservation> exportReservations() {
+        return reservationRepository.findAllByOrderByCreatedAtDesc();
+    }
+
+    @Transactional(readOnly = true)
+    public RevenueReportResponse generateRevenueReport(Instant startDate, Instant endDate) {
+        List<Reservation> reservations = reservationRepository.findByCreatedAtBetweenOrderByCreatedAtDesc(startDate, endDate);
+        
+        List<Reservation> paidReservations = reservations.stream()
+                .filter(r -> r.getStatus() == ReservationStatus.CONFIRMED || 
+                            r.getStatus() == ReservationStatus.CHECKIN_PENDING ||
+                            r.getStatus() == ReservationStatus.STORED ||
+                            r.getStatus() == ReservationStatus.READY_FOR_PICKUP ||
+                            r.getStatus() == ReservationStatus.OUT_FOR_DELIVERY ||
+                            r.getStatus() == ReservationStatus.COMPLETED)
+                .toList();
+
+        BigDecimal totalRevenue = paidReservations.stream()
+                .map(Reservation::getTotalPrice)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal avgValue = paidReservations.isEmpty() 
+                ? BigDecimal.ZERO 
+                : totalRevenue.divide(BigDecimal.valueOf(paidReservations.size()), 2, RoundingMode.HALF_UP);
+
+        Map<Long, List<Reservation>> byWarehouse = paidReservations.stream()
+                .collect(Collectors.groupingBy(r -> r.getWarehouse().getId()));
+
+        List<RevenueReportResponse.RevenueByWarehouse> byWarehouseList = byWarehouse.entrySet().stream()
+                .map(entry -> {
+                    Warehouse w = entry.getValue().get(0).getWarehouse();
+                    BigDecimal wRevenue = entry.getValue().stream()
+                            .map(Reservation::getTotalPrice)
+                            .filter(Objects::nonNull)
+                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+                    return new RevenueReportResponse.RevenueByWarehouse(w.getId(), w.getName(), wRevenue, entry.getValue().size());
+                })
+                .sorted((a, b) -> b.revenue().compareTo(a.revenue()))
+                .toList();
+
+        Map<String, List<Reservation>> byCity = paidReservations.stream()
+                .collect(Collectors.groupingBy(r -> r.getWarehouse().getCity().getName()));
+
+        List<RevenueReportResponse.RevenueByCity> byCityList = byCity.entrySet().stream()
+                .map(entry -> {
+                    BigDecimal cRevenue = entry.getValue().stream()
+                            .map(Reservation::getTotalPrice)
+                            .filter(Objects::nonNull)
+                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+                    return new RevenueReportResponse.RevenueByCity(entry.getKey(), cRevenue, entry.getValue().size());
+                })
+                .sorted((a, b) -> b.revenue().compareTo(a.revenue()))
+                .toList();
+
+        DateTimeFormatter dayFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(ZoneId.systemDefault());
+        Map<String, List<Reservation>> byDay = paidReservations.stream()
+                .collect(Collectors.groupingBy(r -> dayFormatter.format(r.getCreatedAt())));
+
+        List<RevenueReportResponse.RevenueByDay> byDayList = byDay.entrySet().stream()
+                .map(entry -> {
+                    BigDecimal dRevenue = entry.getValue().stream()
+                            .map(Reservation::getTotalPrice)
+                            .filter(Objects::nonNull)
+                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+                    return new RevenueReportResponse.RevenueByDay(entry.getKey(), dRevenue, entry.getValue().size());
+                })
+                .sorted(Comparator.comparing(RevenueReportResponse.RevenueByDay::date))
+                .toList();
+
+        String periodLabel = "Desde " + dayFormatter.format(startDate) + " hasta " + dayFormatter.format(endDate);
+
+        return new RevenueReportResponse(
+                totalRevenue,
+                paidReservations.size(),
+                avgValue,
+                startDate,
+                endDate,
+                periodLabel,
+                byWarehouseList,
+                byCityList,
+                byDayList
+        );
     }
 
     private Reservation loadReservation(Long id) {

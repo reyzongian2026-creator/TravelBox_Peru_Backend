@@ -1,5 +1,6 @@
 package com.tuempresa.storage.reservations.application.usecase;
 
+import com.tuempresa.storage.reservations.application.dto.AdminRatingResponse;
 import com.tuempresa.storage.reservations.application.dto.CreateRatingRequest;
 import com.tuempresa.storage.reservations.application.dto.RatingResponse;
 import com.tuempresa.storage.reservations.application.dto.WarehouseRatingSummary;
@@ -185,6 +186,52 @@ public class RatingService {
         return ratingRepository.findByReservationId(reservationId)
                 .map(RatingResponse::from)
                 .orElse(null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<AdminRatingResponse> getAllRatings() {
+        return ratingRepository.findAll().stream()
+                .map(AdminRatingResponse::from)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public AdminRatingResponse updateRating(Long ratingId, Integer stars, String comment) {
+        Rating rating = ratingRepository.findById(ratingId)
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.NOT_FOUND,
+                        "RATING_NOT_FOUND",
+                        "Rating not found with id: " + ratingId
+                ));
+        
+        if (stars != null && (stars < 1 || stars > 5)) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_STARS",
+                    "Stars must be between 1 and 5"
+            );
+        }
+        
+        if (stars != null) {
+            rating.updateStars(stars);
+        }
+        if (comment != null) {
+            rating.updateComment(comment);
+        }
+        
+        rating = ratingRepository.save(rating);
+        return AdminRatingResponse.from(rating);
+    }
+
+    @Transactional
+    public void deleteRating(Long ratingId) {
+        Rating rating = ratingRepository.findById(ratingId)
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.NOT_FOUND,
+                        "RATING_NOT_FOUND",
+                        "Rating not found with id: " + ratingId
+                ));
+        ratingRepository.delete(rating);
     }
 
     private User userFromPrincipal(AuthUserPrincipal principal) {

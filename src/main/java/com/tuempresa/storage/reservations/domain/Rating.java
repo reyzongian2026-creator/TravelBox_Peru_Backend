@@ -118,4 +118,13 @@ public class Rating extends AuditableEntity {
     public RatingType getType() {
         return type;
     }
+
+    public void updateStars(int stars) {
+        validateStars(stars);
+        this.stars = stars;
+    }
+
+    public void updateComment(String comment) {
+        this.comment = comment != null ? comment.trim() : null;
+    }
 }
