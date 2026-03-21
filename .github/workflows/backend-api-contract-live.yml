@@ -1,0 +1,62 @@
+name: Backend API Contract Live
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "src/**"
+      - "tools/live_api_contract_check.sh"
+      - ".github/workflows/backend-api-contract-live.yml"
+
+jobs:
+  api-contract-live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate required live secrets
+        env:
+          LIVE_API_BASE_URL: ${{ secrets.LIVE_API_BASE_URL }}
+          E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL }}
+          E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+          E2E_CLIENT_EMAIL: ${{ secrets.E2E_CLIENT_EMAIL }}
+          E2E_CLIENT_PASSWORD: ${{ secrets.E2E_CLIENT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          assert_real_secret() {
+            local key="$1"
+            local value="$2"
+            local normalized="${value,,}"
+            normalized="${normalized// /}"
+            [[ -n "$value" ]] || (echo "Missing secret ${key}" && exit 1)
+            case "$normalized" in
+              changeme|change-me|replace-me|replace_me|placeholder|dummy|todo|tbd|__pending_meta__)
+                echo "Secret ${key} still looks like a placeholder" >&2
+                exit 1
+                ;;
+            esac
+          }
+          assert_real_secret "LIVE_API_BASE_URL" "${LIVE_API_BASE_URL}"
+          assert_real_secret "E2E_ADMIN_EMAIL" "${E2E_ADMIN_EMAIL}"
+          assert_real_secret "E2E_ADMIN_PASSWORD" "${E2E_ADMIN_PASSWORD}"
+          assert_real_secret "E2E_CLIENT_EMAIL" "${E2E_CLIENT_EMAIL}"
+          assert_real_secret "E2E_CLIENT_PASSWORD" "${E2E_CLIENT_PASSWORD}"
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Run live API contract checks
+        env:
+          LIVE_API_BASE_URL: ${{ secrets.LIVE_API_BASE_URL }}
+          E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL }}
+          E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+          E2E_CLIENT_EMAIL: ${{ secrets.E2E_CLIENT_EMAIL }}
+          E2E_CLIENT_PASSWORD: ${{ secrets.E2E_CLIENT_PASSWORD }}
+        run: |
+          chmod +x tools/live_api_contract_check.sh
+          tools/live_api_contract_check.sh
