@@ -15,6 +15,7 @@ import com.tuempresa.storage.reservations.domain.ReservationStatus;
 import com.tuempresa.storage.shared.domain.exception.ApiException;
 import com.tuempresa.storage.shared.infrastructure.security.AuthUserPrincipal;
 import com.tuempresa.storage.shared.infrastructure.security.WarehouseAccessService;
+import com.tuempresa.storage.shared.infrastructure.web.PagedResponse;
 import com.tuempresa.storage.users.domain.Role;
 import com.tuempresa.storage.users.domain.User;
 import com.tuempresa.storage.users.infrastructure.out.persistence.UserRepository;
@@ -30,6 +31,8 @@ import java.util.Set;
 
 @Service
 public class IncidentService {
+
+    private static final int MAX_PAGE_SIZE = 100;
 
     private final IncidentRepository incidentRepository;
     private final ReservationService reservationService;
@@ -56,12 +59,77 @@ public class IncidentService {
 
     @Transactional(readOnly = true)
     public List<IncidentSummaryResponse> list(AuthUserPrincipal principal, IncidentStatus status, String query) {
+        return list(principal, status, query, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<IncidentSummaryResponse> list(
+            AuthUserPrincipal principal,
+            IncidentStatus status,
+            String query,
+            Long reservationId
+    ) {
+        return listFiltered(principal, status, query, reservationId);
+    }
+
+    @Transactional(readOnly = true)
+    public PagedResponse<IncidentSummaryResponse> listPage(
+            AuthUserPrincipal principal,
+            int page,
+            int size,
+            IncidentStatus status,
+            String query,
+            Long reservationId
+    ) {
+        int safePage = Math.max(page, 0);
+        int safeSize = clampSize(size);
+        List<IncidentSummaryResponse> filtered = listFiltered(principal, status, query, reservationId);
+
+        long totalElements = filtered.size();
+        int totalPages = totalElements == 0
+                ? 0
+                : (int) Math.ceil(totalElements / (double) safeSize);
+        int fromIndex = safePage * safeSize;
+        if (fromIndex >= filtered.size()) {
+            return new PagedResponse<>(
+                    List.of(),
+                    safePage,
+                    safeSize,
+                    totalElements,
+                    totalPages,
+                    false,
+                    safePage > 0 && totalPages > 0
+            );
+        }
+
+        int toIndex = Math.min(fromIndex + safeSize, filtered.size());
+        List<IncidentSummaryResponse> pageItems = filtered.subList(fromIndex, toIndex);
+        boolean hasNext = toIndex < filtered.size();
+        boolean hasPrevious = safePage > 0;
+        return new PagedResponse<>(
+                pageItems,
+                safePage,
+                safeSize,
+                totalElements,
+                totalPages,
+                hasNext,
+                hasPrevious
+        );
+    }
+
+    private List<IncidentSummaryResponse> listFiltered(
+            AuthUserPrincipal principal,
+            IncidentStatus status,
+            String query,
+            Long reservationId
+    ) {
         boolean admin = warehouseAccessService.isAdmin(principal);
         boolean scopedSupport = warehouseAccessService.isSupport(principal);
         boolean scopedOps = warehouseAccessService.isOperatorOrCitySupervisor(principal);
         boolean warehouseScoped = scopedSupport || scopedOps;
         Set<Long> scopedWarehouseIds = warehouseScoped ? warehouseAccessService.assignedWarehouseIds(principal) : Set.of();
         String normalizedQuery = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
+        Long normalizedReservationId = reservationId != null && reservationId > 0 ? reservationId : null;
         User viewer = loadUser(principal.getId());
         boolean internalViewer = hasPrivilegedRole(principal);
 
@@ -71,10 +139,19 @@ public class IncidentService {
                         || (warehouseScoped && scopedWarehouseIds.contains(incident.getReservation().getWarehouse().getId()))
                         || incident.getReservation().belongsTo(principal.getId())
                         || incident.getOpenedBy().getId().equals(principal.getId()))
+                .filter(incident -> normalizedReservationId == null
+                        || incident.getReservation().getId().equals(normalizedReservationId))
                 .filter(incident -> status == null || incident.getStatus() == status)
                 .filter(incident -> normalizedQuery.isEmpty() || matchesQuery(incident, normalizedQuery))
                 .map(incident -> toSummary(incident, viewer, internalViewer))
                 .toList();
+    }
+
+    private int clampSize(int requestedSize) {
+        if (requestedSize <= 0) {
+            return 20;
+        }
+        return Math.min(requestedSize, MAX_PAGE_SIZE);
     }
 
     @Transactional

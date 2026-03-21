@@ -53,6 +53,7 @@ public class NotificationService {
     public void notifyReservationCreated(
             Long userId,
             Long reservationId,
+            String qrCode,
             String warehouseName,
             Instant startAt,
             Instant endAt,
@@ -62,7 +63,7 @@ public class NotificationService {
                 userId,
                 "RESERVATION_CREATED",
                 "Reserva creada",
-                "Tu reserva " + reservationId + " fue creada y esta pendiente de pago.",
+                "Tu reserva " + qrCode + " fue creada y esta pendiente de pago.",
                 Map.of(
                         "reservationId", reservationId,
                         "warehouseName", warehouseName,
@@ -74,12 +75,12 @@ public class NotificationService {
     }
 
     @Transactional
-    public void notifyPaymentConfirmed(Long userId, Long reservationId, String paymentMethod) {
+    public void notifyPaymentConfirmed(Long userId, Long reservationId, String qrCode, String paymentMethod) {
         notifyUser(
                 userId,
                 "PAYMENT_CONFIRMED",
                 "Pago confirmado",
-                "Tu pago de la reserva " + reservationId + " fue confirmado.",
+                "Tu pago de la reserva " + qrCode + " fue confirmado.",
                 Map.of(
                         "reservationId", reservationId,
                         "paymentMethod", paymentMethod
@@ -88,23 +89,23 @@ public class NotificationService {
     }
 
     @Transactional
-    public void notifyPaymentPendingCashValidation(Long userId, Long reservationId) {
+    public void notifyPaymentPendingCashValidation(Long userId, Long reservationId, String qrCode) {
         notifyUser(
                 userId,
                 "PAYMENT_PENDING_CASH_VALIDATION",
                 "Pago en caja pendiente",
-                "Tu reserva " + reservationId + " quedo pendiente de validacion por operador.",
+                "Tu reserva " + qrCode + " quedo pendiente de validacion por operador.",
                 Map.of("reservationId", reservationId)
         );
     }
 
     @Transactional
-    public void notifyPaymentRejected(Long userId, Long reservationId, String reason) {
+    public void notifyPaymentRejected(Long userId, Long reservationId, String qrCode, String reason) {
         notifyUser(
                 userId,
                 "PAYMENT_REJECTED",
                 "Pago rechazado",
-                "Tu pago de la reserva " + reservationId + " fue rechazado.",
+                "Tu pago de la reserva " + qrCode + " fue rechazado.",
                 Map.of(
                         "reservationId", reservationId,
                         "reason", reason != null ? reason : ""
@@ -113,12 +114,12 @@ public class NotificationService {
     }
 
     @Transactional
-    public void notifyReservationExpired(Long userId, Long reservationId) {
+    public void notifyReservationExpired(Long userId, Long reservationId, String qrCode) {
         notifyUser(
                 userId,
                 "RESERVATION_EXPIRED",
                 "Reserva expirada",
-                "La reserva " + reservationId + " expiro por falta de pago.",
+                "La reserva " + qrCode + " expiro por falta de pago.",
                 Map.of("reservationId", reservationId)
         );
     }

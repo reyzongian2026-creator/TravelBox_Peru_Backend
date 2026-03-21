@@ -255,6 +255,7 @@ public class ReservationService {
         notificationService.notifyReservationCreated(
                 saved.getUser().getId(),
                 saved.getId(),
+                saved.getQrCode(),
                 saved.getWarehouse().getName(),
                 saved.getStartAt(),
                 saved.getEndAt(),
@@ -339,7 +340,7 @@ public class ReservationService {
                 reservation.getUser().getId(),
                 "RESERVATION_CANCELLED",
                 "Reserva cancelada",
-                "La reserva " + reservation.getId() + " fue cancelada.",
+                "La reserva " + reservation.getQrCode() + " fue cancelada.",
                 Map.of(
                         "reservationId", reservation.getId(),
                         "reason", request.reason() != null ? request.reason() : ""
@@ -349,7 +350,7 @@ public class ReservationService {
                 reservation,
                 "RESERVATION_CANCELLED_FOR_WAREHOUSE",
                 "Reserva cancelada en tu sede",
-                "La reserva " + reservation.getId() + " fue cancelada en " + reservation.getWarehouse().getName() + "."
+                "La reserva " + reservation.getQrCode() + " fue cancelada en " + reservation.getWarehouse().getName() + "."
         );
         return toResponse(reservation);
     }
@@ -475,6 +476,7 @@ public class ReservationService {
         notificationService.notifyPaymentConfirmed(
                 reservation.getUser().getId(),
                 reservation.getId(),
+                reservation.getQrCode(),
                 resolvedPaymentMethod
         );
         customerEmailService.sendPaymentConfirmed(reservation.getUser(), reservation, resolvedPaymentMethod);
@@ -513,7 +515,7 @@ public class ReservationService {
         );
         expiring.forEach(reservation -> {
             reservation.expire();
-            notificationService.notifyReservationExpired(reservation.getUser().getId(), reservation.getId());
+            notificationService.notifyReservationExpired(reservation.getUser().getId(), reservation.getId(), reservation.getQrCode());
         });
         return expiring.size();
     }

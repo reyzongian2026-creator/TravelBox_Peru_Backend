@@ -8,6 +8,7 @@ import com.tuempresa.storage.incidents.application.usecase.IncidentService;
 import com.tuempresa.storage.incidents.domain.IncidentStatus;
 import com.tuempresa.storage.shared.infrastructure.reactive.ReactiveBlockingExecutor;
 import com.tuempresa.storage.shared.infrastructure.security.SecurityUtils;
+import com.tuempresa.storage.shared.infrastructure.web.PagedResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -45,11 +46,28 @@ public class IncidentController {
     @PreAuthorize("isAuthenticated()")
     public Mono<ResponseEntity<List<IncidentSummaryResponse>>> list(
             @RequestParam(required = false) IncidentStatus status,
-            @RequestParam(required = false) String query
+            @RequestParam(required = false) String query,
+            @RequestParam(required = false) Long reservationId
     ) {
         return securityUtils.currentUserOrThrowReactive()
                 .flatMap(currentUser -> reactiveBlockingExecutor.call(
-                        () -> incidentService.list(currentUser, status, query)
+                        () -> incidentService.list(currentUser, status, query, reservationId)
+                ))
+                .map(ResponseEntity::ok);
+    }
+
+    @GetMapping("/page")
+    @PreAuthorize("isAuthenticated()")
+    public Mono<ResponseEntity<PagedResponse<IncidentSummaryResponse>>> page(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) IncidentStatus status,
+            @RequestParam(required = false) String query,
+            @RequestParam(required = false) Long reservationId
+    ) {
+        return securityUtils.currentUserOrThrowReactive()
+                .flatMap(currentUser -> reactiveBlockingExecutor.call(
+                        () -> incidentService.listPage(currentUser, page, size, status, query, reservationId)
                 ))
                 .map(ResponseEntity::ok);
     }

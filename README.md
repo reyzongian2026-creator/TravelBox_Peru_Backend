@@ -42,6 +42,19 @@ Backend para plataforma de almacenamiento turistico, construido en Java 21 + Spr
 - `reports/admin`: dashboard
 - `ops/qr-handoff`: escaneo QR, tagging de maleta, PIN presencial, aprobaciones de delivery
 
+## Actualizacion 2026-03 (homologacion)
+
+- Incidencias:
+  - nuevo endpoint paginado `GET /api/v1/incidents/page`
+  - filtros por `status`, `query` y `reservationId`
+  - orden latest-first para carga mas rapida en frontend
+- Pagos:
+  - `GET /api/v1/payments/history` soporta filtro opcional `status`
+  - repositorio y servicio actualizados para paginado y filtrado server-side
+- Realtime:
+  - el backend mantiene stream SSE por usuario para refresco operativo sin recarga manual
+  - contratos homologados con frontend para vistas admin/operator/support/client
+
 ## Endpoints principales
 
 - `POST /api/v1/auth/login`
@@ -75,7 +88,7 @@ Backend para plataforma de almacenamiento turistico, construido en Java 21 + Spr
 - `POST /api/v1/payments/checkout` (alias frontend)
 - `POST /api/v1/payments/process` (alias)
 - `GET /api/v1/payments/status`
-- `GET /api/v1/payments/history`
+- `GET /api/v1/payments/history` (admite `status=...`)
 - `GET /api/v1/payments/cash/pending`
 - `POST /api/v1/payments/cash/{paymentIntentId}/approve`
 - `POST /api/v1/payments/cash/{paymentIntentId}/reject`
@@ -93,6 +106,8 @@ Backend para plataforma de almacenamiento turistico, construido en Java 21 + Spr
 - `POST /api/v1/inventory/evidences/upload`
 - `GET /api/v1/files/{category}/{filename}`
 - `POST /api/v1/delivery-orders`
+- `GET /api/v1/incidents`
+- `GET /api/v1/incidents/page`
 - `POST /api/v1/incidents`
 - `PATCH /api/v1/incidents/{id}/resolve`
 - `POST /api/v1/ops/qr-handoff/scan`

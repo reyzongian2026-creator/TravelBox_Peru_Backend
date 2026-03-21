@@ -40,6 +40,14 @@ public interface PaymentAttemptRepository extends JpaRepository<PaymentAttempt, 
 
     Page<PaymentAttempt> findByReservationUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
 
+    Page<PaymentAttempt> findByStatusOrderByCreatedAtDesc(PaymentStatus status, Pageable pageable);
+
+    Page<PaymentAttempt> findByReservationUserIdAndStatusOrderByCreatedAtDesc(
+            Long userId,
+            PaymentStatus status,
+            Pageable pageable
+    );
+
     @Query("""
             select p from PaymentAttempt p
             where p.status = :status

@@ -138,7 +138,10 @@ public class PaymentService {
             String ref = normalizeRef(attempt, request.providerReference(), method.label());
             attempt.fail(ref);
             attempt.registerGatewayOutcome("DECLINED", "Pago rechazado por solicitud del cliente.");
-            notificationService.notifyPaymentRejected(attempt.getReservation().getUser().getId(), attempt.getReservation().getId(), "Rechazado por cliente");
+            for (User user : userRepository.findActiveByAnyRoleAndWarehouseId(Set.of(Role.OPERATOR, Role.CITY_SUPERVISOR), attempt.getReservation().getWarehouse().getId())) {
+            notificationService.emitSilentRealtimeEvent(user.getId(), "PAYMENT_SYNC", java.util.Map.of("reservationId", attempt.getReservation().getId()));
+        }
+        notificationService.notifyPaymentRejected(attempt.getReservation().getUser().getId(), attempt.getReservation().getId(), attempt.getReservation().getQrCode(), "Rechazado por cliente");
             return toIntentResponse(attempt, providerLabel(attempt), method.label(), "DECLINED", "Pago rechazado.", null);
         }
 
@@ -199,12 +202,31 @@ public class PaymentService {
 
     @Transactional(readOnly = true)
     public PagedResponse<PaymentHistoryItemResponse> history(AuthUserPrincipal principal, int page, int size) {
+        return history(principal, page, size, null);
+    }
+
+    @Transactional(readOnly = true)
+    public PagedResponse<PaymentHistoryItemResponse> history(
+            AuthUserPrincipal principal,
+            int page,
+            int size,
+            PaymentStatus status
+    ) {
         PageRequest pageable = PageRequest.of(Math.max(page, 0), clampSize(size), Sort.by(Sort.Direction.DESC, "createdAt"));
         Page<PaymentHistoryItemResponse> mapped;
         if (hasPrivilegedRole(principal)) {
-            mapped = paymentAttemptRepository.findAllByOrderByCreatedAtDesc(pageable).map(this::toHistory);
+            mapped = (status == null
+                    ? paymentAttemptRepository.findAllByOrderByCreatedAtDesc(pageable)
+                    : paymentAttemptRepository.findByStatusOrderByCreatedAtDesc(status, pageable))
+                    .map(this::toHistory);
         } else {
-            mapped = paymentAttemptRepository.findByReservationUserIdOrderByCreatedAtDesc(principal.getId(), pageable).map(this::toHistory);
+            mapped = (status == null
+                    ? paymentAttemptRepository.findByReservationUserIdOrderByCreatedAtDesc(principal.getId(), pageable)
+                    : paymentAttemptRepository.findByReservationUserIdAndStatusOrderByCreatedAtDesc(
+                    principal.getId(),
+                    status,
+                    pageable
+            )).map(this::toHistory);
         }
         return PagedResponse.from(mapped);
     }
@@ -255,7 +277,10 @@ public class PaymentService {
         String message = defaultReason(reason, "Pago en caja rechazado por operador.");
         attempt.fail(ref);
         attempt.registerGatewayOutcome("OFFLINE_REJECTED_BY_OPERATOR", message);
-        notificationService.notifyPaymentRejected(attempt.getReservation().getUser().getId(), attempt.getReservation().getId(), message);
+        for (User user : userRepository.findActiveByAnyRoleAndWarehouseId(Set.of(Role.OPERATOR, Role.CITY_SUPERVISOR), attempt.getReservation().getWarehouse().getId())) {
+            notificationService.emitSilentRealtimeEvent(user.getId(), "PAYMENT_SYNC", java.util.Map.of("reservationId", attempt.getReservation().getId()));
+        }
+        notificationService.notifyPaymentRejected(attempt.getReservation().getUser().getId(), attempt.getReservation().getId(), attempt.getReservation().getQrCode(), message);
         return toIntentResponse(attempt, "OFFLINE", method.label(), "OFFLINE_REJECTED_BY_OPERATOR", message, null);
     }
 
@@ -499,6 +524,7 @@ public class PaymentService {
                 notificationService.notifyPaymentRejected(
                         attempt.getReservation().getUser().getId(),
                         reservationId,
+                        attempt.getReservation().getQrCode(),
                         providerMessage
                 );
                 event.markProcessed(paymentIntentId, reservationId);
@@ -557,6 +583,7 @@ public class PaymentService {
             notificationService.notifyPaymentRejected(
                     attempt.getReservation().getUser().getId(),
                     attempt.getReservation().getId(),
+                    attempt.getReservation().getQrCode(),
                     "Pago en caja rechazado."
             );
             return toIntentResponse(attempt, "OFFLINE", method.label(), "OFFLINE_REJECTED", "Pago rechazado.", null);
@@ -580,7 +607,8 @@ public class PaymentService {
         attempt.registerGatewayOutcome("WAITING_OFFLINE_VALIDATION", "Pago en caja pendiente de validacion por operador.");
         notificationService.notifyPaymentPendingCashValidation(
                 attempt.getReservation().getUser().getId(),
-                attempt.getReservation().getId()
+                attempt.getReservation().getId(),
+                attempt.getReservation().getQrCode()
         );
         notifyOperationalCashPending(attempt);
         Map<String, Object> nextAction = new LinkedHashMap<>();
@@ -617,7 +645,7 @@ public class PaymentService {
                     user.getId(),
                     "PAYMENT_PENDING_CASH_VALIDATION_FOR_WAREHOUSE",
                     "Pago en caja pendiente",
-                    "Hay un pago en caja pendiente de validacion para la reserva " + reservationId + ".",
+                    "Hay un pago en caja pendiente de validacion para la reserva " + reservation.getQrCode() + ".",
                     Map.of(
                             "reservationId", reservationId,
                             "paymentIntentId", paymentIntentId,
@@ -640,7 +668,7 @@ public class PaymentService {
                     user.getId(),
                     "PAYMENT_PENDING_CASH_VALIDATION_FOR_WAREHOUSE",
                     "Pago en caja pendiente",
-                    "Hay un pago en caja pendiente de validacion para la reserva " + reservationId + ".",
+                    "Hay un pago en caja pendiente de validacion para la reserva " + reservation.getQrCode() + ".",
                     Map.of(
                             "reservationId", reservationId,
                             "paymentIntentId", paymentIntentId,
@@ -660,7 +688,7 @@ public class PaymentService {
                     user.getId(),
                     "PAYMENT_PENDING_CASH_VALIDATION_FOR_WAREHOUSE",
                     "Pago en caja pendiente",
-                    "Hay un pago en caja pendiente de validacion para la reserva " + reservationId + ".",
+                    "Hay un pago en caja pendiente de validacion para la reserva " + reservation.getQrCode() + ".",
                     Map.of(
                             "reservationId", reservationId,
                             "paymentIntentId", paymentIntentId,
@@ -742,6 +770,7 @@ public class PaymentService {
         notificationService.notifyPaymentRejected(
                 attempt.getReservation().getUser().getId(),
                 attempt.getReservation().getId(),
+                attempt.getReservation().getQrCode(),
                 firstNonBlank(result.message(), "Pago rechazado por pasarela.")
         );
         return toIntentResponse(

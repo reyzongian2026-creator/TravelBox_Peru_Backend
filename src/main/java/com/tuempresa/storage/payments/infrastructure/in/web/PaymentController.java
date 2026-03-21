@@ -10,6 +10,7 @@ import com.tuempresa.storage.payments.application.dto.RefundPaymentRequest;
 import com.tuempresa.storage.payments.application.dto.PaymentStatusResponse;
 import com.tuempresa.storage.payments.application.dto.PaymentWebhookResponse;
 import com.tuempresa.storage.payments.application.usecase.PaymentService;
+import com.tuempresa.storage.payments.domain.PaymentStatus;
 import com.tuempresa.storage.shared.infrastructure.reactive.ReactiveBlockingExecutor;
 import com.tuempresa.storage.shared.infrastructure.security.SecurityUtils;
 import com.tuempresa.storage.shared.infrastructure.web.PagedResponse;
@@ -77,11 +78,12 @@ public class PaymentController {
     @GetMapping("/history")
     public Mono<ResponseEntity<PagedResponse<PaymentHistoryItemResponse>>> history(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) PaymentStatus status
     ) {
         return securityUtils.currentUserOrThrowReactive()
                 .flatMap(currentUser -> reactiveBlockingExecutor.call(
-                        () -> paymentService.history(currentUser, page, size)
+                        () -> paymentService.history(currentUser, page, size, status)
                 ))
                 .map(ResponseEntity::ok);
     }
