@@ -87,6 +87,7 @@ public class ReactiveSecurityConfig {
                         .pathMatchers(HttpMethod.GET, "/api/v1/reservations/*/qr").permitAll()
                         .pathMatchers(HttpMethod.GET, "/api/v1/files/**").permitAll()
                         .pathMatchers(HttpMethod.GET, "/api/v1/geo/**", "/api/v1/warehouses/**").permitAll()
+                        .pathMatchers("/ws", "/ws/**").permitAll()
                         .anyExchange().authenticated()
                 )
                 .addFilterAt(reactiveAuthRateLimitWebFilter, SecurityWebFiltersOrder.FIRST)
@@ -109,7 +110,16 @@ public class ReactiveSecurityConfig {
         config.setExposedHeaders(List.of("Authorization", "X-Correlation-Id", "Retry-After"));
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);
+
+        CorsConfiguration wsConfig = new CorsConfiguration();
+        wsConfig.setAllowedOriginPatterns(List.of("*"));
+        wsConfig.setAllowedMethods(List.of("GET", "POST", "OPTIONS"));
+        wsConfig.setAllowedHeaders(List.of("*"));
+        wsConfig.setAllowCredentials(false);
+        wsConfig.setMaxAge(3600L);
+
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/ws/**", wsConfig);
         source.registerCorsConfiguration("/**", config);
         return source;
     }

@@ -18,6 +18,8 @@ import com.tuempresa.storage.users.domain.Role;
 import com.tuempresa.storage.users.domain.User;
 import com.tuempresa.storage.users.infrastructure.out.persistence.UserRepository;
 import com.tuempresa.storage.warehouses.infrastructure.out.persistence.WarehouseRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,13 +36,16 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
 public class AdminDashboardService {
 
+    private static final Logger log = LoggerFactory.getLogger(AdminDashboardService.class);
     private static final ZoneId REPORT_ZONE = ZoneId.of("America/Lima");
+    private static final long CACHE_TTL_MS = 5 * 60 * 1000;
 
     private final UserRepository userRepository;
     private final WarehouseRepository warehouseRepository;
@@ -48,6 +53,8 @@ public class AdminDashboardService {
     private final IncidentRepository incidentRepository;
     private final PaymentAttemptRepository paymentAttemptRepository;
     private final DeliveryOrderRepository deliveryOrderRepository;
+
+    private final Map<String, CacheEntry> cache = new ConcurrentHashMap<>();
 
     public AdminDashboardService(
             UserRepository userRepository,
@@ -68,6 +75,22 @@ public class AdminDashboardService {
     @Transactional(readOnly = true)
     public AdminDashboardResponse dashboard(String rawPeriod) {
         DashboardPeriod period = DashboardPeriod.from(rawPeriod);
+        String cacheKey = "dashboard_" + period.code();
+        
+        CacheEntry cached = cache.get(cacheKey);
+        if (cached != null && !cached.isExpired()) {
+            log.debug("Dashboard cache hit for period: {}", period.code());
+            return cached.response;
+        }
+
+        log.debug("Building dashboard for period: {}", period.code());
+        AdminDashboardResponse response = buildDashboard(period);
+        cache.put(cacheKey, new CacheEntry(response));
+        
+        return response;
+    }
+
+    private AdminDashboardResponse buildDashboard(DashboardPeriod period) {
         Instant now = Instant.now();
         Instant periodStartAt = period.startAt(now, REPORT_ZONE);
 
@@ -572,6 +595,34 @@ public class AdminDashboardService {
                     deliveryCompletedCount,
                     activeDeliveryCount
             );
+        }
+    }
+
+    public void invalidateCache() {
+        cache.clear();
+        log.info("Dashboard cache invalidated");
+    }
+
+    public void invalidateCache(String period) {
+        cache.remove("dashboard_" + period);
+        log.info("Dashboard cache invalidated for period: {}", period);
+    }
+
+    public int getCacheSize() {
+        return cache.size();
+    }
+
+    private static class CacheEntry {
+        final AdminDashboardResponse response;
+        final long timestamp;
+
+        CacheEntry(AdminDashboardResponse response) {
+            this.response = response;
+            this.timestamp = System.currentTimeMillis();
+        }
+
+        boolean isExpired() {
+            return System.currentTimeMillis() - timestamp > CACHE_TTL_MS;
         }
     }
 }

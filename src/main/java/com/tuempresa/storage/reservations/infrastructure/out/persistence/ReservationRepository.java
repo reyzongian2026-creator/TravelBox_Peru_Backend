@@ -129,4 +129,15 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
             @Param("query") String query,
             Pageable pageable
     );
+
+    @Query("""
+            select r from Reservation r
+            where r.status in :activeStatuses
+            and r.endAt < :now
+            order by r.endAt asc
+            """)
+    List<Reservation> findActiveReservationsForSurchargeProcessing(
+            @Param("activeStatuses") Collection<ReservationStatus> activeStatuses,
+            @Param("now") Instant now
+    );
 }
