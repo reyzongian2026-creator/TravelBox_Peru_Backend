@@ -6,22 +6,24 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.socket.WebSocketSession;
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
 
-import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Component
 public class WebSocketBroker {
 
     private static final Logger log = LoggerFactory.getLogger(WebSocketBroker.class);
+    private static final int MAX_CONNECTIONS_PER_USER = 5;
+    private static final int MAX_TOTAL_CONNECTIONS = 10000;
 
     private final Map<String, Set<WebSocketSession>> sessionsByUserId = new ConcurrentHashMap<>();
     private final Map<String, String> sessionToUserId = new ConcurrentHashMap<>();
     private final Map<String, Sinks.Many<WebSocketMessage>> userSinks = new ConcurrentHashMap<>();
+    private final AtomicInteger totalConnections = new AtomicInteger(0);
     
     private final ObjectMapper objectMapper;
     private final JwtTokenProvider jwtTokenProvider;
@@ -33,6 +35,12 @@ public class WebSocketBroker {
 
     public void handleConnection(WebSocketSession session, String token) {
         try {
+            if (totalConnections.get() >= MAX_TOTAL_CONNECTIONS) {
+                log.warn("WebSocket rejected: max connections reached");
+                session.close().subscribe();
+                return;
+            }
+
             Long userIdLong = jwtTokenProvider.extractUserId(token);
             if (userIdLong == null) {
                 log.warn("WebSocket rejected: invalid token");
@@ -41,24 +49,56 @@ public class WebSocketBroker {
             }
             String userId = userIdLong.toString();
 
+            Set<WebSocketSession> existingSessions = sessionsByUserId.computeIfAbsent(userId, k -> ConcurrentHashMap.newKeySet());
+            if (existingSessions.size() >= MAX_CONNECTIONS_PER_USER) {
+                log.warn("WebSocket rejected: max connections per user reached for userId={}", userId);
+                session.close().subscribe();
+                return;
+            }
+
             String sessionId = session.getId();
             sessionToUserId.put(sessionId, userId);
+            existingSessions.add(session);
+            totalConnections.incrementAndGet();
             
-            sessionsByUserId.computeIfAbsent(userId, k -> ConcurrentHashMap.newKeySet()).add(session);
             userSinks.computeIfAbsent(userId, k -> Sinks.many().multicast().onBackpressureBuffer(100));
 
-            log.info("WebSocket connected: userId={}, sessionId={}", userId, sessionId);
+            log.info("WebSocket connected: userId={}, sessionId={}, totalConnections={}", userId, sessionId, totalConnections.get());
 
             sendMessage(session, new WebSocketMessage("connected", Map.of("status", "ok", "userId", userId)));
 
             session.receive()
+                    .doOnNext(msg -> handleMessage(session, msg.getPayloadAsText()))
                     .doOnComplete(() -> disconnect(session))
-                    .doOnError(e -> disconnect(session))
+                    .doOnError(e -> {
+                        log.error("WebSocket receive error for session {}: {}", sessionId, e.getMessage());
+                        disconnect(session);
+                    })
                     .subscribe();
 
         } catch (Exception e) {
             log.error("WebSocket connection error", e);
             session.close().subscribe();
+        }
+    }
+
+    private void handleMessage(WebSocketSession session, String text) {
+        try {
+            Map<String, Object> json = objectMapper.readValue(text, Map.class);
+            String type = json.get("type") != null ? json.get("type").toString() : "";
+            
+            switch (type) {
+                case "ping":
+                    sendMessage(session, new WebSocketMessage("pong", Map.of("timestamp", System.currentTimeMillis())));
+                    break;
+                case "pong":
+                    log.debug("Received pong from session {}", session.getId());
+                    break;
+                default:
+                    log.debug("Received message type '{}' from session {}", type, session.getId());
+            }
+        } catch (Exception e) {
+            log.warn("Error parsing WebSocket message from session {}: {}", session.getId(), e.getMessage());
         }
     }
 
@@ -80,7 +120,8 @@ public class WebSocketBroker {
             }
         }
         
-        log.info("WebSocket disconnected: sessionId={}", sessionId);
+        totalConnections.decrementAndGet();
+        log.info("WebSocket disconnected: sessionId={}, remainingConnections={}", sessionId, totalConnections.get());
     }
 
     public void sendToUser(String userId, String eventType, Map<String, Object> payload) {
@@ -93,9 +134,16 @@ public class WebSocketBroker {
         
         Set<WebSocketSession> sessions = sessionsByUserId.get(userId);
         if (sessions != null) {
-            for (WebSocketSession session : sessions) {
-                sendMessage(session, message);
-            }
+            sessions.removeIf(session -> {
+                try {
+                    sendMessage(session, message);
+                    return false;
+                } catch (Exception e) {
+                    log.warn("Removing failed session {} for user {}", session.getId(), userId);
+                    disconnect(session);
+                    return true;
+                }
+            });
         }
     }
 
@@ -115,7 +163,10 @@ public class WebSocketBroker {
         try {
             String json = objectMapper.writeValueAsString(message);
             session.send(Mono.just(session.textMessage(json)))
-                    .doOnError(e -> log.error("Failed to send WebSocket message to session {}: {}", session.getId(), e.getMessage()))
+                    .doOnError(e -> {
+                        log.error("Failed to send WebSocket message to session {}: {}", session.getId(), e.getMessage());
+                        disconnect(session);
+                    })
                     .subscribe();
         } catch (Exception e) {
             log.error("Error serializing WebSocket message: {}", e.getMessage());
@@ -123,7 +174,7 @@ public class WebSocketBroker {
     }
 
     public int getConnectionCount() {
-        return sessionsByUserId.values().stream().mapToInt(Set::size).sum();
+        return totalConnections.get();
     }
 
     public boolean isUserConnected(String userId) {
