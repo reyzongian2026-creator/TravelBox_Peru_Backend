@@ -166,6 +166,22 @@ public class ReservationService {
             );
         }
         User customer = resolveOrCreateAssistedCustomer(request);
+        
+        if (!customer.isEmailVerified()) {
+            throw new ApiException(
+                    HttpStatus.PRECONDITION_REQUIRED,
+                    "ASSISTED_CUSTOMER_EMAIL_NOT_VERIFIED",
+                    "El cliente debe verificar su correo antes de crear reservas asistidas."
+            );
+        }
+        if (!customer.isProfileCompleted()) {
+            throw new ApiException(
+                    HttpStatus.PRECONDITION_REQUIRED,
+                    "ASSISTED_CUSTOMER_PROFILE_INCOMPLETE",
+                    "El cliente debe completar su perfil antes de crear reservas asistidas."
+            );
+        }
+        
         return createReservation(
                 customer,
                 request.warehouseId(),
