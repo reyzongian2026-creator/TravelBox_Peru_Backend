@@ -69,36 +69,43 @@ public class AdminDashboardService {
     public AdminDashboardResponse dashboard(String rawPeriod) {
         DashboardPeriod period = DashboardPeriod.from(rawPeriod);
         Instant now = Instant.now();
+        Instant periodStartAt = period.startAt(now, REPORT_ZONE);
 
-        List<Reservation> allReservations = reservationRepository.findAll();
-        List<Incident> allIncidents = incidentRepository.findAll();
-        List<PaymentAttempt> allPayments = paymentAttemptRepository.findAll();
-        List<DeliveryOrder> allDeliveries = deliveryOrderRepository.findAll();
+        List<Reservation> periodReservations = reservationRepository
+                .findByStartAtBetweenOrderByStartAtAsc(periodStartAt, now);
+        Set<Long> periodReservationIds = periodReservations.stream()
+                .map(Reservation::getId)
+                .collect(Collectors.toSet());
+
+        List<Incident> periodIncidents = periodReservationIds.isEmpty()
+                ? List.of()
+                : incidentRepository.findByReservationIdIn(periodReservationIds);
+        List<Incident> periodOpenIncidents = periodReservationIds.isEmpty()
+                ? List.of()
+                : incidentRepository.findByReservationIdInAndStatus(periodReservationIds, IncidentStatus.OPEN);
+        List<PaymentAttempt> periodConfirmedPayments = periodReservationIds.isEmpty()
+                ? List.of()
+                : paymentAttemptRepository.findByReservationIdInAndStatusOrderByCreatedAtDesc(
+                        periodReservationIds,
+                        PaymentStatus.CONFIRMED
+                );
+        List<DeliveryOrder> periodDeliveries = deliveryOrderRepository
+                .findByUpdatedAtBetweenOrderByUpdatedAtDesc(periodStartAt, now);
 
         long totalUsers = userRepository.count();
         long totalWarehouses = warehouseRepository.count();
-        long activeReservations = allReservations.stream()
-                .filter(this::isActiveReservation)
-                .count();
-        long openIncidents = allIncidents.stream()
-                .filter(incident -> incident.getStatus() == IncidentStatus.OPEN)
-                .count();
-        BigDecimal confirmedPayments = allPayments.stream()
-                .filter(payment -> payment.getStatus() == PaymentStatus.CONFIRMED)
-                .map(PaymentAttempt::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        long activeReservations = reservationRepository.countByStatusNotIn(INACTIVE_RESERVATION_STATUSES);
+        long openIncidents = incidentRepository.countByStatus(IncidentStatus.OPEN);
+        BigDecimal confirmedPayments = paymentAttemptRepository.sumAmountByStatus(PaymentStatus.CONFIRMED);
+        if (confirmedPayments == null) {
+            confirmedPayments = BigDecimal.ZERO;
+        }
 
-        Map<Long, BigDecimal> confirmedRevenueByReservation = resolveConfirmedRevenueByReservation(allPayments);
-        Map<Long, Long> incidentCountByReservation = allIncidents.stream()
+        Map<Long, BigDecimal> confirmedRevenueByReservation = resolveConfirmedRevenueByReservation(periodConfirmedPayments);
+        Map<Long, Long> incidentCountByReservation = periodIncidents.stream()
                 .collect(Collectors.groupingBy(incident -> incident.getReservation().getId(), Collectors.counting()));
-        Map<Long, Long> openIncidentCountByReservation = allIncidents.stream()
-                .filter(incident -> incident.getStatus() == IncidentStatus.OPEN)
+        Map<Long, Long> openIncidentCountByReservation = periodOpenIncidents.stream()
                 .collect(Collectors.groupingBy(incident -> incident.getReservation().getId(), Collectors.counting()));
-
-        List<Reservation> periodReservations = allReservations.stream()
-                .filter(reservation -> period.includes(reservation.getStartAt(), now, REPORT_ZONE))
-                .sorted(Comparator.comparing(Reservation::getStartAt))
-                .toList();
 
         long completedReservations = periodReservations.stream()
                 .filter(reservation -> reservation.getStatus() == ReservationStatus.COMPLETED)
@@ -140,9 +147,6 @@ public class AdminDashboardService {
                 confirmedRevenueByReservation,
                 incidentCountByReservation
         );
-        List<DeliveryOrder> periodDeliveries = allDeliveries.stream()
-                .filter(delivery -> period.includes(delivery.getUpdatedAt(), now, REPORT_ZONE))
-                .toList();
 
         return new AdminDashboardResponse(
                 period.code(),
@@ -388,7 +392,7 @@ public class AdminDashboardService {
     }
 
     private List<AdminDashboardResponse.OperationalUserPerformance> buildOperatorRanking(List<DeliveryOrder> deliveries) {
-        Map<String, User> usersByEmail = userRepository.findAll().stream()
+        Map<String, User> usersByEmail = userRepository.findActiveByAnyRole(Set.of(Role.OPERATOR)).stream()
                 .filter(user -> user.getEmail() != null)
                 .collect(Collectors.toMap(
                         user -> user.getEmail().trim().toLowerCase(Locale.ROOT),
@@ -440,6 +444,12 @@ public class AdminDashboardService {
             DeliveryStatus.REQUESTED,
             DeliveryStatus.ASSIGNED,
             DeliveryStatus.IN_TRANSIT
+    );
+
+    private static final Set<ReservationStatus> INACTIVE_RESERVATION_STATUSES = Set.of(
+            ReservationStatus.CANCELLED,
+            ReservationStatus.COMPLETED,
+            ReservationStatus.EXPIRED
     );
 
     private double ratio(long numerator, long denominator) {

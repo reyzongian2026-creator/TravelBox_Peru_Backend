@@ -48,6 +48,10 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
 
     List<Reservation> findByStatusAndExpiresAtBefore(ReservationStatus status, Instant threshold);
 
+    List<Reservation> findByStartAtBetweenOrderByStartAtAsc(Instant startAt, Instant endAt);
+
+    long countByStatusNotIn(Collection<ReservationStatus> statuses);
+
     Optional<Reservation> findByQrCodeIgnoreCase(String qrCode);
 
     @Query("""

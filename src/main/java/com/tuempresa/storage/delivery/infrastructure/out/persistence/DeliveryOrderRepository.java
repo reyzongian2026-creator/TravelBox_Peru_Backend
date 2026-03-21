@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -39,6 +40,8 @@ public interface DeliveryOrderRepository extends JpaRepository<DeliveryOrder, Lo
             Collection<Long> warehouseIds,
             Collection<DeliveryStatus> statuses
     );
+
+    List<DeliveryOrder> findByUpdatedAtBetweenOrderByUpdatedAtDesc(Instant startAt, Instant endAt);
 
     boolean existsByReservationIdAndTypeIgnoreCaseAndStatusIn(
             Long reservationId,
