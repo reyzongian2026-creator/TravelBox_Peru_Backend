@@ -32,4 +32,7 @@ public interface RatingRepository extends JpaRepository<Rating, Long> {
     BigDecimal getAverageStarsByWarehouseIdAndType(@Param("warehouseId") Long warehouseId, @Param("type") Rating.RatingType type);
 
     List<Rating> findTop10ByWarehouseIdOrderByCreatedAtDesc(Long warehouseId);
+
+    @Query("SELECT r FROM Rating r JOIN FETCH r.user JOIN FETCH r.warehouse LEFT JOIN FETCH r.reservation ORDER BY r.createdAt DESC")
+    List<Rating> findAllWithRelations();
 }

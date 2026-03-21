@@ -190,7 +190,7 @@ public class RatingService {
 
     @Transactional(readOnly = true)
     public List<AdminRatingResponse> getAllRatings() {
-        return ratingRepository.findAll().stream()
+        return ratingRepository.findAllWithRelations().stream()
                 .map(AdminRatingResponse::from)
                 .collect(Collectors.toList());
     }
