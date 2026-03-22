@@ -88,9 +88,6 @@ public class SecurityConfig {
             headers.frameOptions(frame -> frame.sameOrigin());
             headers.contentTypeOptions(Customizer.withDefaults());
             headers.referrerPolicy(policy -> policy.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.SAME_ORIGIN));
-            headers.permissionsPolicy(permissions -> permissions.policy(
-                    "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
-            ));
             headers.contentSecurityPolicy(csp -> csp.policyDirectives(
                     "default-src 'self'; " +
                             "base-uri 'self'; " +
