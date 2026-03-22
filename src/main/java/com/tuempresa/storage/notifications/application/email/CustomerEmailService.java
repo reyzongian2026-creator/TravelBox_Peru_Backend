@@ -47,27 +47,27 @@ public class CustomerEmailService {
         }
         String locale = getUserLocale(user);
         List<String> details = new ArrayList<>();
-        details.add(getLocalizedText(locale, "Reservation", "Reserva", "Reservation", "Reserva") + ": #" + reservation.getId());
-        details.add(getLocalizedText(locale, "Location", "Sede", "Location", "Local") + ": " + safeText(reservation.getWarehouse().getName(), "-"));
-        details.add(getLocalizedText(locale, "Start", "Inicio", "Start", "Inicio") + ": " + formatInstant(reservation.getStartAt()));
-        details.add(getLocalizedText(locale, "End", "Fin", "End", "Fim") + ": " + formatInstant(reservation.getEndAt()));
-        details.add(getLocalizedText(locale, "Total estimated", "Total estimado", "Total estimated", "Total estimado") + ": " + formatMoney(reservation.getTotalPrice()));
+        details.add(getLocalizedText(locale, "Reserva", "Reservation", "Reserva") + ": #" + reservation.getId());
+        details.add(getLocalizedText(locale, "Sede", "Location", "Local") + ": " + safeText(reservation.getWarehouse().getName(), "-"));
+        details.add(getLocalizedText(locale, "Inicio", "Start", "Inicio") + ": " + formatInstant(reservation.getStartAt()));
+        details.add(getLocalizedText(locale, "Fin", "End", "Fim") + ": " + formatInstant(reservation.getEndAt()));
+        details.add(getLocalizedText(locale, "Total estimado", "Total estimated", "Total estimado") + ": " + formatMoney(reservation.getTotalPrice()));
 
         EmailContent content = renderTemplate(
                 locale,
-                getLocalizedText(locale, "Reservation registered", "Reserva registrada", "Reservation registered", "Reserva registrada"),
-                getLocalizedText(locale, "Your reservation was registered", "Tu reserva fue registrada correctamente", "Your reservation was registered", "Sua reserva foi registrada"),
+                getLocalizedText(locale, "Reserva registrada", "Reservation registered", "Reserva registrada"),
+                getLocalizedText(locale, "Tu reserva fue registrada correctamente", "Your reservation was registered", "Sua reserva foi registrada"),
                 "Hola " + displayName(user) + ", ya registramos tu reserva en " + brandName + ".",
                 details,
                 null,
                 null,
-                getLocalizedText(locale, "View my reservation", "Ver mi reserva", "View my reservation", "Ver minha reserva"),
+                getLocalizedText(locale, "Ver mi reserva", "View my reservation", "Ver minha reserva"),
                 reservationRoute(reservation.getId()),
-                getLocalizedText(locale, "Complete payment to activate", "Completa el pago para activar el servicio", "Complete payment to activate the service", "Complete o pagamento para ativar")
+                getLocalizedText(locale, "Completa el pago para activar el servicio", "Complete payment to activate the service", "Complete o pagamento para ativar")
         );
         send(
                 user.getEmail(),
-                "TravelBox | " + getLocalizedText(locale, "Reservation registered", "Reserva registrada", "Reservation registered", "Reserva registrada") + " #" + reservation.getId(),
+                "TravelBox | " + getLocalizedText(locale, "Reserva registrada", "Reservation registered", "Reserva registrada") + " #" + reservation.getId(),
                 content,
                 "RESERVATION_CREATED",
                 "reservation-created:" + reservation.getId()
@@ -382,10 +382,25 @@ public class CustomerEmailService {
         return user.getPreferredLanguage() != null ? user.getPreferredLanguage() : "es";
     }
 
-    private String getLocalizedText(String locale, String key, String spanish, String english, String portuguese) {
+    private String getLocalizedText(String locale, String spanish, String english, String portuguese) {
         return switch (locale.toLowerCase()) {
             case "en" -> english;
             case "pt" -> portuguese;
+            default -> spanish;
+        };
+    }
+
+    private String getLocalizedText(String locale, String key, String spanish, String english, String portuguese) {
+        return getLocalizedText(locale, spanish, english, portuguese);
+    }
+
+    private String getLocalizedText(String locale, String key, String spanish, String english, String portuguese, String german, String french, String italian) {
+        return switch (locale.toLowerCase()) {
+            case "en" -> english;
+            case "pt" -> portuguese;
+            case "de" -> german != null ? german : spanish;
+            case "fr" -> french != null ? french : spanish;
+            case "it" -> italian != null ? italian : spanish;
             default -> spanish;
         };
     }

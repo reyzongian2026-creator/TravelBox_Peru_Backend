@@ -1,8 +1,9 @@
 package com.tuempresa.storage.shared.infrastructure.in.web;
 
 import com.tuempresa.storage.shared.application.usecase.AuditLogService;
-import com.tuempresa.storage.shared.application.usecase.AuditLogService.AuditEntry;
+import com.tuempresa.storage.shared.domain.audit.AuditLogEntry;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -62,25 +63,27 @@ public class AdminSystemController {
     }
 
     @GetMapping("/audit-log")
-    public reactor.core.publisher.Flux<AuditEntry> getAuditLog(
+    public reactor.core.publisher.Flux<AuditLogEntry> getAuditLog(
             @RequestParam(defaultValue = "100") int limit,
             @RequestParam(required = false) String entityType,
-            @RequestParam(required = false) Long entityId,
+            @RequestParam(required = false) String entityId,
             @RequestParam(required = false) String action,
             @RequestParam(required = false) String performedBy
     ) {
         int safeLimit = Math.min(Math.max(limit, 1), 1000);
+        PageRequest pageable = PageRequest.of(0, safeLimit);
         
         if (entityType != null && entityId != null) {
-            return reactor.core.publisher.Flux.fromIterable(auditLogService.getEntriesByEntity(entityType, entityId, safeLimit));
+            AuditLogEntry.EntityType type = AuditLogEntry.EntityType.valueOf(entityType.toUpperCase());
+            return reactor.core.publisher.Flux.fromIterable(auditLogService.getEntriesByEntity(type, entityId, pageable).getContent());
         }
         if (action != null) {
-            return reactor.core.publisher.Flux.fromIterable(auditLogService.getEntriesByAction(action, safeLimit));
+            return reactor.core.publisher.Flux.fromIterable(auditLogService.getEntriesByAction(action, pageable).getContent());
         }
         if (performedBy != null) {
-            return reactor.core.publisher.Flux.fromIterable(auditLogService.getEntriesByUser(performedBy, safeLimit));
+            return reactor.core.publisher.Flux.fromIterable(auditLogService.getEntriesByUser(performedBy, pageable).getContent());
         }
-        return reactor.core.publisher.Flux.fromIterable(auditLogService.getEntries(safeLimit));
+        return reactor.core.publisher.Flux.fromIterable(auditLogService.getEntries(pageable).getContent());
     }
 
     public record SystemHealthResponse(

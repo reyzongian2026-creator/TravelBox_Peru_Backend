@@ -97,7 +97,7 @@ public class InventoryService {
     }
 
     @Transactional
-    public InventoryActionResponse checkin(CheckinRequest request, AuthUserPrincipal principal) {
+    public InventoryActionResponse checkin(CheckinRequest request, AuthUserPrincipal principal) throws Exception {
         return checkinInternal(request, principal, List.of());
     }
 
@@ -106,7 +106,7 @@ public class InventoryService {
             CheckinRequest request,
             List<MultipartFile> baggagePhotos,
             AuthUserPrincipal principal
-    ) {
+    ) throws Exception {
         return checkinInternal(
                 request,
                 principal,
@@ -118,7 +118,7 @@ public class InventoryService {
             CheckinRequest request,
             AuthUserPrincipal principal,
             List<MultipartFile> baggagePhotos
-    ) {
+    ) throws Exception {
         Reservation reservation = reservationService.requireReservation(request.reservationId());
         assertOperationalWarehouseAccess(principal, reservation);
         User operator = loadUser(principal.getId());
@@ -416,7 +416,7 @@ public class InventoryService {
         for (int index = 0; index < baggagePhotos.size(); index++) {
             MultipartFile file = baggagePhotos.get(index);
             StorageService.UploadResult result = storageService.upload(file, FileCategory.EVIDENCES);
-            auditLogService.logFileUpload(result.filename(), "evidences", operator.getUsername());
+            auditLogService.logFileUpload(result.filename(), "evidences", operator.getEmail());
             evidences.add(
                     StoredItemEvidence.luggagePhoto(
                             reservation,

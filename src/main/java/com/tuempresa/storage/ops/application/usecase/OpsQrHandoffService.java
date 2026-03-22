@@ -165,7 +165,7 @@ public class OpsQrHandoffService {
             String notes,
             List<MultipartFile> bagPhotos,
             AuthUserPrincipal principal
-    ) {
+    ) throws Exception {
         assertPrivileged(principal);
         Reservation reservation = requireReservation(reservationId);
         QrHandoffCase handoff = loadOrCreateCase(reservation, reservation.getUser().getPreferredLanguage());

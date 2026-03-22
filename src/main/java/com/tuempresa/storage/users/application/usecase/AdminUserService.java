@@ -73,6 +73,7 @@ public class AdminUserService {
     private final PasswordEncoder passwordEncoder;
     private final StorageService storageService;
     private final com.tuempresa.storage.shared.application.usecase.AuditLogService auditLogService;
+    private final com.tuempresa.storage.firebase.application.FirebaseAdminService firebaseAdminService;
 
     public AdminUserService(
             UserRepository userRepository,
@@ -81,7 +82,8 @@ public class AdminUserService {
             WarehouseRepository warehouseRepository,
             PasswordEncoder passwordEncoder,
             StorageService storageService,
-            com.tuempresa.storage.shared.application.usecase.AuditLogService auditLogService
+            com.tuempresa.storage.shared.application.usecase.AuditLogService auditLogService,
+            com.tuempresa.storage.firebase.application.FirebaseAdminService firebaseAdminService
     ) {
         this.userRepository = userRepository;
         this.deliveryOrderRepository = deliveryOrderRepository;
@@ -90,6 +92,7 @@ public class AdminUserService {
         this.passwordEncoder = passwordEncoder;
         this.storageService = storageService;
         this.auditLogService = auditLogService;
+        this.firebaseAdminService = firebaseAdminService;
     }
 
     @Transactional(readOnly = true)

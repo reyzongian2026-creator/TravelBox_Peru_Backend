@@ -11,6 +11,11 @@ spring:
     url: "jdbc:postgresql://34.151.246.247:5432/travelbox?sslmode=require"
     username: "travelbox"
     password: "${DB_PASSWORD:travelbox}"
+  flyway:
+    enabled: false
+  jpa:
+    hibernate:
+      ddl-auto: none
   mail:
     host: "smtp-relay.brevo.com"
     port: 587
