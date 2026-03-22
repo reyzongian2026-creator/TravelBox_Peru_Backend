@@ -51,6 +51,7 @@ public class FirebaseAdminService {
     private final String storageBucket;
     private final String clientProfileCollection;
     private final FirebaseApp firebaseApp;
+    private final boolean initialized;
 
     public FirebaseAdminService(
             @Value("${app.firebase.enabled:false}") boolean enabled,
@@ -63,30 +64,33 @@ public class FirebaseAdminService {
         this.enabled = enabled;
         this.storageBucket = safe(storageBucket);
         this.clientProfileCollection = safe(clientProfileCollection) == null ? "clientProfiles" : safe(clientProfileCollection);
-        if (!enabled) {
-            this.firebaseApp = null;
-            return;
-        }
-        try {
-            FirebaseOptions.Builder builder = FirebaseOptions.builder()
-                    .setCredentials(loadCredentials(serviceAccountFile, serviceAccountJson));
-            if (safe(projectId) != null) {
-                builder.setProjectId(projectId.trim());
+        FirebaseApp app = null;
+        boolean initSuccess = false;
+        if (enabled) {
+            try {
+                FirebaseOptions.Builder builder = FirebaseOptions.builder()
+                        .setCredentials(loadCredentials(serviceAccountFile, serviceAccountJson));
+                if (safe(projectId) != null) {
+                    builder.setProjectId(projectId.trim());
+                }
+                if (this.storageBucket != null) {
+                    builder.setStorageBucket(this.storageBucket);
+                }
+                app = FirebaseApp.getApps().stream()
+                        .filter(a -> "travelbox-backend".equals(a.getName()))
+                        .findFirst()
+                        .orElseGet(() -> FirebaseApp.initializeApp(builder.build(), "travelbox-backend"));
+                initSuccess = true;
+            } catch (Exception ex) {
+                System.err.println("WARNING: Firebase initialization failed - Firebase features will be disabled. Error: " + ex.getMessage());
             }
-            if (this.storageBucket != null) {
-                builder.setStorageBucket(this.storageBucket);
-            }
-            this.firebaseApp = FirebaseApp.getApps().stream()
-                    .filter(app -> "travelbox-backend".equals(app.getName()))
-                    .findFirst()
-                    .orElseGet(() -> FirebaseApp.initializeApp(builder.build(), "travelbox-backend"));
-        } catch (IOException ex) {
-            throw new IllegalStateException("No se pudo inicializar Firebase Admin.", ex);
         }
+        this.firebaseApp = app;
+        this.initialized = initSuccess;
     }
 
     public boolean isEnabled() {
-        return enabled && firebaseApp != null;
+        return enabled && initialized && firebaseApp != null;
     }
 
     public boolean isStorageEnabled() {
