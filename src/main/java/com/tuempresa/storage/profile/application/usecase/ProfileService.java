@@ -427,7 +427,7 @@ public class ProfileService {
                 user.getPreferredLanguage(),
                 user.getAuthProvider().name(),
                 user.isManagedByAdmin(),
-                user.isClientSelfManaged(),
+                user.canSelfEditProfile(),
                 user.getVehiclePlate(),
                 user.isEmailVerified(),
                 user.isProfileCompleted(),

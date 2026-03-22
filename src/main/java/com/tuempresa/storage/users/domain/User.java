@@ -632,6 +632,13 @@ public class User extends AuditableEntity {
         return roles.contains(Role.CLIENT) && !managedByAdmin;
     }
 
+    public boolean canSelfEditProfile() {
+        if (roles.contains(Role.ADMIN)) {
+            return true;
+        }
+        return isClientSelfManaged();
+    }
+
     public boolean isSocialClientAuth() {
         return roles.contains(Role.CLIENT) && authProvider != null && authProvider != AuthProvider.LOCAL;
     }

@@ -438,7 +438,7 @@ public class AuthService {
                 user.getPreferredLanguage(),
                 user.getAuthProvider().name(),
                 user.isManagedByAdmin(),
-                user.isClientSelfManaged(),
+                user.canSelfEditProfile(),
                 user.getVehiclePlate(),
                 user.getProfilePhotoPath(),
                 user.isEmailVerified(),

@@ -164,8 +164,10 @@ public class AzureBlobStorageService {
     }
 
     public String getImageUrl(String blobName, String containerType) {
-        if (imagesUrlBase != null && !imagesUrlBase.isBlank()) {
-            return imagesUrlBase + "/" + getContainerName(containerType) + "/" + blobName;
+        String base = imagesUrlBase != null ? imagesUrlBase.trim() : "";
+        if (!base.isEmpty()) {
+            base = base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
+            return base + "/" + getContainerName(containerType) + "/" + blobName;
         }
 
         if (imagesBlobServiceClient == null) {
@@ -180,8 +182,10 @@ public class AzureBlobStorageService {
     public String getReportUrl(String blobName, boolean isExport) {
         String containerName = isExport ? exportsContainerName : reportsContainerName;
 
-        if (reportsUrlBase != null && !reportsUrlBase.isBlank()) {
-            return reportsUrlBase + "/" + containerName + "/" + blobName;
+        String base = reportsUrlBase != null ? reportsUrlBase.trim() : "";
+        if (!base.isEmpty()) {
+            base = base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
+            return base + "/" + containerName + "/" + blobName;
         }
 
         if (reportsBlobServiceClient == null) {

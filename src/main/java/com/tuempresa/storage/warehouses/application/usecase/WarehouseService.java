@@ -358,7 +358,12 @@ public class WarehouseService {
             path = "/api/v1/warehouses/" + warehouse.getId() + "/image";
         }
         String separator = path.contains("?") ? "&" : "?";
-        return publicUrlService.absolute(path + separator + "v=" + version);
+        return normalizeUrl(publicUrlService.absolute(path + separator + "v=" + version));
+    }
+
+    private static String normalizeUrl(String url) {
+        if (url == null) return null;
+        return url.replace(":/", "://").replaceAll("(?<!:)/{2,}", "/");
     }
 
     private double haversineKm(double lat1, double lon1, double lat2, double lon2) {

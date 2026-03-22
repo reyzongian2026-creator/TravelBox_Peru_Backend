@@ -30,6 +30,8 @@ public class AzureBlobStorageServiceImpl implements StorageService {
             "image/jpeg", "image/png", "image/webp", "image/gif"
     );
 
+    private LocalFileStorageService localFileStorageService;
+
     private static final Set<String> ALLOWED_DOCUMENT_TYPES = Set.of(
             "application/pdf",
             "image/jpeg", "image/png", "image/webp",
@@ -79,6 +81,10 @@ public class AzureBlobStorageServiceImpl implements StorageService {
     private BlobServiceClient imagesBlobServiceClient;
     private BlobServiceClient reportsBlobServiceClient;
 
+    public void setLocalFileStorageServiceFallback(LocalFileStorageService localFileStorageService) {
+        this.localFileStorageService = localFileStorageService;
+    }
+
     @PostConstruct
     public void init() {
         if (imagesConnectionString != null && !imagesConnectionString.isBlank()) {
@@ -110,6 +116,11 @@ public class AzureBlobStorageServiceImpl implements StorageService {
     public UploadResult upload(InputStream data, long length, String filename,
                                String contentType, FileCategory category) {
         BlobServiceClient client = getBlobServiceClient(category);
+        
+        if (client == null || !isAzureConfigured(category)) {
+            return uploadToLocalFallback(data, length, filename, contentType, category);
+        }
+        
         String containerName = getContainerName(category);
         String blobName = generateBlobName(filename, category);
 
@@ -122,6 +133,64 @@ public class AzureBlobStorageServiceImpl implements StorageService {
         LOG.info("Uploaded file {} to container {} via Azure", blobName, containerName);
 
         return new UploadResult(blobName, url, contentType, length);
+    }
+    
+    private boolean isAzureConfigured(FileCategory category) {
+        if (category == FileCategory.REPORTS || category == FileCategory.EXPORTS) {
+            return reportsBlobServiceClient != null;
+        }
+        return imagesBlobServiceClient != null;
+    }
+    
+    private UploadResult uploadToLocalFallback(InputStream data, long length, String filename,
+                                               String contentType, FileCategory category) {
+        if (localFileStorageService == null) {
+            throw new RuntimeException("Azure Blob Storage not configured and no local fallback available");
+        }
+        LOG.warn("Azure Blob Storage not configured. Using local file storage fallback for {} upload", category);
+        
+        byte[] bytes;
+        try {
+            bytes = data.readAllBytes();
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to read input stream", e);
+        }
+        
+        String localPath;
+        if (category == FileCategory.WAREHOUSES) {
+            localPath = localFileStorageService.saveWarehouseImage(new InMemoryMultipartFile(filename, filename, contentType, bytes));
+        } else {
+            localPath = localFileStorageService.saveEvidenceImage(new InMemoryMultipartFile(filename, filename, contentType, bytes));
+        }
+        
+        String blobName = localPath.substring(localPath.lastIndexOf("/") + 1);
+        return new UploadResult(blobName, localPath, contentType, length);
+    }
+    
+    private record InMemoryMultipartFile(
+            String name,
+            String originalFilename,
+            String contentType,
+            byte[] bytes
+    ) implements MultipartFile {
+        @Override
+        public String getName() { return name; }
+        @Override
+        public String getOriginalFilename() { return originalFilename; }
+        @Override
+        public String getContentType() { return contentType; }
+        @Override
+        public boolean isEmpty() { return bytes.length == 0; }
+        @Override
+        public long getSize() { return bytes.length; }
+        @Override
+        public byte[] getBytes() { return bytes; }
+        @Override
+        public InputStream getInputStream() { return new ByteArrayInputStream(bytes); }
+        @Override
+        public void transferTo(java.io.File dest) throws IOException {
+            java.nio.file.Files.write(dest.toPath(), bytes);
+        }
     }
 
     @Override
@@ -179,7 +248,8 @@ public class AzureBlobStorageServiceImpl implements StorageService {
     public String getUrl(String filename, FileCategory category) {
         String urlBase = getUrlBase(category);
         if (urlBase != null && !urlBase.isBlank()) {
-            return urlBase + "/" + getContainerName(category) + "/" + filename;
+            String base = urlBase.endsWith("/") ? urlBase.substring(0, urlBase.length() - 1) : urlBase;
+            return base + "/" + getContainerName(category) + "/" + filename;
         }
 
         BlobServiceClient client = getBlobServiceClient(category);
