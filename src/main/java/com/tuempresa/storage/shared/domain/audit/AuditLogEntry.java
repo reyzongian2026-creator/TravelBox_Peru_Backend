@@ -32,8 +32,8 @@ public class AuditLogEntry {
     @Column(name = "entity_type", nullable = false, length = 50)
     private EntityType entityType;
 
-    @Column(name = "entity_id", length = 50)
-    private String entityId;
+    @Column(name = "entity_id")
+    private Long entityId;
 
     @Column(columnDefinition = "TEXT")
     private String details;
@@ -68,13 +68,24 @@ public class AuditLogEntry {
         AuditLogEntry entry = new AuditLogEntry();
         entry.action = action;
         entry.entityType = entityType;
-        entry.entityId = entityId;
+        entry.entityId = parseEntityId(entityId);
         entry.details = details;
         entry.performedBy = performedBy;
         entry.ipAddress = ipAddress;
         entry.userAgent = userAgent;
         entry.performedAt = Instant.now();
         return entry;
+    }
+
+    private static Long parseEntityId(String entityId) {
+        if (entityId == null || entityId.isEmpty()) {
+            return null;
+        }
+        try {
+            return Long.parseLong(entityId);
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     public Long getId() {
@@ -89,7 +100,7 @@ public class AuditLogEntry {
         return entityType;
     }
 
-    public String getEntityId() {
+    public Long getEntityId() {
         return entityId;
     }
 

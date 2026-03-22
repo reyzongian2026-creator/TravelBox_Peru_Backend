@@ -83,7 +83,7 @@ public class AuditLogService {
     }
 
     public Page<AuditLogEntry> getEntriesByEntity(AuditLogEntry.EntityType entityType,
-                                                   String entityId, Pageable pageable) {
+                                                   Long entityId, Pageable pageable) {
         return repository.findByEntityTypeAndEntityId(entityType, entityId, pageable);
     }
 
@@ -100,7 +100,7 @@ public class AuditLogService {
         return repository.findByDateRange(startDate, endDate, pageable);
     }
 
-    public Page<AuditLogEntry> search(AuditLogEntry.EntityType entityType, String entityId,
+    public Page<AuditLogEntry> search(AuditLogEntry.EntityType entityType, Long entityId,
                                        String action, String performedBy,
                                        Instant startDate, Instant endDate,
                                        Pageable pageable) {

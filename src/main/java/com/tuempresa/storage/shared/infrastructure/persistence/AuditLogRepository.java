@@ -16,7 +16,7 @@ public interface AuditLogRepository extends JpaRepository<AuditLogEntry, Long> {
 
     Page<AuditLogEntry> findByEntityTypeAndEntityId(
             AuditLogEntry.EntityType entityType,
-            String entityId,
+            Long entityId,
             Pageable pageable
     );
 
@@ -47,7 +47,7 @@ public interface AuditLogRepository extends JpaRepository<AuditLogEntry, Long> {
             """)
     Page<AuditLogEntry> search(
             @Param("entityType") AuditLogEntry.EntityType entityType,
-            @Param("entityId") String entityId,
+            @Param("entityId") Long entityId,
             @Param("action") String action,
             @Param("performedBy") String performedBy,
             @Param("startDate") Instant startDate,

@@ -75,7 +75,8 @@ public class AdminSystemController {
         
         if (entityType != null && entityId != null) {
             AuditLogEntry.EntityType type = AuditLogEntry.EntityType.valueOf(entityType.toUpperCase());
-            return reactor.core.publisher.Flux.fromIterable(auditLogService.getEntriesByEntity(type, entityId, pageable).getContent());
+            Long parsedEntityId = parseEntityId(entityId);
+            return reactor.core.publisher.Flux.fromIterable(auditLogService.getEntriesByEntity(type, parsedEntityId, pageable).getContent());
         }
         if (action != null) {
             return reactor.core.publisher.Flux.fromIterable(auditLogService.getEntriesByAction(action, pageable).getContent());
@@ -106,4 +107,15 @@ public class AdminSystemController {
             int availableProcessors,
             double loadAverage
     ) {}
+
+    private Long parseEntityId(String entityId) {
+        if (entityId == null || entityId.isEmpty()) {
+            return null;
+        }
+        try {
+            return Long.parseLong(entityId);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
 }
