@@ -45,27 +45,29 @@ public class CustomerEmailService {
         if (user == null || reservation == null) {
             return;
         }
+        String locale = getUserLocale(user);
         List<String> details = new ArrayList<>();
-        details.add("Reserva: #" + reservation.getId());
-        details.add("Sede: " + safeText(reservation.getWarehouse().getName(), "-"));
-        details.add("Inicio: " + formatInstant(reservation.getStartAt()));
-        details.add("Fin: " + formatInstant(reservation.getEndAt()));
-        details.add("Total estimado: " + formatMoney(reservation.getTotalPrice()));
+        details.add(getLocalizedText(locale, "Reservation", "Reserva", "Reservation", "Reserva") + ": #" + reservation.getId());
+        details.add(getLocalizedText(locale, "Location", "Sede", "Location", "Local") + ": " + safeText(reservation.getWarehouse().getName(), "-"));
+        details.add(getLocalizedText(locale, "Start", "Inicio", "Start", "Inicio") + ": " + formatInstant(reservation.getStartAt()));
+        details.add(getLocalizedText(locale, "End", "Fin", "End", "Fim") + ": " + formatInstant(reservation.getEndAt()));
+        details.add(getLocalizedText(locale, "Total estimated", "Total estimado", "Total estimated", "Total estimado") + ": " + formatMoney(reservation.getTotalPrice()));
 
         EmailContent content = renderTemplate(
-                "Reserva registrada",
-                "Tu reserva fue registrada correctamente",
+                locale,
+                getLocalizedText(locale, "Reservation registered", "Reserva registrada", "Reservation registered", "Reserva registrada"),
+                getLocalizedText(locale, "Your reservation was registered", "Tu reserva fue registrada correctamente", "Your reservation was registered", "Sua reserva foi registrada"),
                 "Hola " + displayName(user) + ", ya registramos tu reserva en " + brandName + ".",
                 details,
                 null,
                 null,
-                "Ver mi reserva",
+                getLocalizedText(locale, "View my reservation", "Ver mi reserva", "View my reservation", "Ver minha reserva"),
                 reservationRoute(reservation.getId()),
-                "Completa el pago para activar el servicio y evitar vencimientos automaticos."
+                getLocalizedText(locale, "Complete payment to activate", "Completa el pago para activar el servicio", "Complete payment to activate the service", "Complete o pagamento para ativar")
         );
         send(
                 user.getEmail(),
-                "TravelBox | Reserva registrada #" + reservation.getId(),
+                "TravelBox | " + getLocalizedText(locale, "Reservation registered", "Reserva registrada", "Reservation registered", "Reserva registrada") + " #" + reservation.getId(),
                 content,
                 "RESERVATION_CREATED",
                 "reservation-created:" + reservation.getId()
@@ -76,26 +78,28 @@ public class CustomerEmailService {
         if (user == null || reservation == null) {
             return;
         }
+        String locale = getUserLocale(user);
         List<String> details = new ArrayList<>();
-        details.add("Reserva: #" + reservation.getId());
-        details.add("Monto pagado: " + formatMoney(reservation.getTotalPrice()));
-        details.add("Metodo: " + safeText(paymentMethod, "online"));
-        details.add("Estado: Pago confirmado");
+        details.add(getLocalizedText(locale, "Reservation", "Reserva", "Reservation", "Reserva") + ": #" + reservation.getId());
+        details.add(getLocalizedText(locale, "Amount paid", "Monto pagado", "Amount paid", "Valor pago") + ": " + formatMoney(reservation.getTotalPrice()));
+        details.add(getLocalizedText(locale, "Method", "Metodo", "Method", "Metodo") + ": " + safeText(paymentMethod, "online"));
+        details.add(getLocalizedText(locale, "Status", "Estado", "Status", "Status") + ": " + getLocalizedText(locale, "Payment confirmed", "Pago confirmado", "Payment confirmed", "Pagamento confirmado"));
 
         EmailContent content = renderTemplate(
-                "Pago aprobado",
-                "Recibimos tu pago",
+                locale,
+                getLocalizedText(locale, "Payment approved", "Pago aprobado", "Payment approved", "Pagamento aprovado"),
+                getLocalizedText(locale, "We received your payment", "Recibimos tu pago", "We received your payment", "Recebemos seu pagamento"),
                 "Hola " + displayName(user) + ", confirmamos el pago de tu reserva.",
                 details,
                 null,
                 null,
-                "Ver detalle",
+                getLocalizedText(locale, "View details", "Ver detalle", "View details", "Ver detalhes"),
                 reservationRoute(reservation.getId()),
                 "Gracias por confiar en " + brandName + "."
         );
         send(
                 user.getEmail(),
-                "TravelBox | Pago confirmado #" + reservation.getId(),
+                "TravelBox | " + getLocalizedText(locale, "Payment confirmed", "Pago confirmado", "Payment confirmed", "Pagamento confirmado") + " #" + reservation.getId(),
                 content,
                 "PAYMENT_CONFIRMED",
                 "payment-confirmed:" + reservation.getId()
@@ -106,25 +110,27 @@ public class CustomerEmailService {
         if (user == null || reservation == null) {
             return;
         }
+        String locale = getUserLocale(user);
         List<String> details = new ArrayList<>();
-        details.add("Reserva: #" + reservation.getId());
-        details.add("Sede: " + safeText(reservation.getWarehouse().getName(), "-"));
-        details.add("Estado: Servicio completado");
+        details.add(getLocalizedText(locale, "Reservation", "Reserva", "Reservation", "Reserva") + ": #" + reservation.getId());
+        details.add(getLocalizedText(locale, "Location", "Sede", "Location", "Local") + ": " + safeText(reservation.getWarehouse().getName(), "-"));
+        details.add(getLocalizedText(locale, "Status", "Estado", "Status", "Status") + ": " + getLocalizedText(locale, "Service completed", "Servicio completado", "Service completed", "Servico concluido"));
 
         EmailContent content = renderTemplate(
-                "Gracias por tu recojo",
-                "Tu servicio fue completado",
+                locale,
+                getLocalizedText(locale, "Thank you for pickup", "Gracias por tu recojo", "Thank you for pickup", "Obrigado pela coleta"),
+                getLocalizedText(locale, "Your service was completed", "Tu servicio fue completado", "Your service was completed", "Seu servico foi concluido"),
                 "Hola " + displayName(user) + ", tu equipaje ya fue entregado correctamente.",
                 details,
                 null,
                 null,
-                "Calificar experiencia",
+                getLocalizedText(locale, "Rate experience", "Calificar experiencia", "Rate experience", "Avaliar experiencia"),
                 feedbackRoute(),
-                "Gracias por elegir " + brandName + ". Te esperamos pronto."
+                getLocalizedText(locale, "Thank you for choosing", "Gracias por elegir", "Thank you for choosing", "Obrigado por escolher") + " " + brandName + ". " + getLocalizedText(locale, "See you soon", "Te esperamos pronto", "See you soon", "Ate logo")
         );
         send(
                 user.getEmail(),
-                "TravelBox | Gracias por tu confianza",
+                "TravelBox | " + getLocalizedText(locale, "Thank you for your trust", "Gracias por tu confianza", "Thank you for your trust", "Obrigado pela sua confianca"),
                 content,
                 "PICKUP_THANK_YOU",
                 "pickup-thank-you:" + reservation.getId()
@@ -140,27 +146,29 @@ public class CustomerEmailService {
         if (user == null || verificationCode == null || verificationCode.isBlank()) {
             return;
         }
+        String locale = getUserLocale(user);
         List<String> details = new ArrayList<>();
-        details.add("Correo: " + safeText(user.getEmail(), "-"));
-        details.add("Validez: " + formatInstant(expiresAt) + " (hora Lima)");
+        details.add(getLocalizedText(locale, "Email", "Correo", "Email", "Email") + ": " + safeText(user.getEmail(), "-"));
+        details.add(getLocalizedText(locale, "Valid until", "Validez", "Valid until", "Valido ate") + ": " + formatInstant(expiresAt) + " (" + getLocalizedText(locale, "Lima time", "hora Lima", "Lima time", "hora Lima") + ")");
         if (verificationReason != null && !verificationReason.isBlank()) {
-            details.add("Motivo: " + verificationReason.trim());
+            details.add(getLocalizedText(locale, "Reason", "Motivo", "Reason", "Motivo") + ": " + verificationReason.trim());
         }
 
         EmailContent content = renderTemplate(
-                "Verificacion requerida",
-                "Confirma tu correo",
+                locale,
+                getLocalizedText(locale, "Verification required", "Verificacion requerida", "Verification required", "Verificacao obrigatoria"),
+                getLocalizedText(locale, "Confirm your email", "Confirma tu correo", "Confirm your email", "Confirme seu email"),
                 "Hola " + displayName(user) + ", usa este codigo para validar tu correo.",
                 details,
                 verificationCode,
                 expiresAt,
-                "Ir al inicio de sesion",
+                getLocalizedText(locale, "Go to login", "Ir al inicio de sesion", "Go to login", "Ir para login"),
                 loginRoute(),
-                "Si no solicitaste esta accion, ignora este mensaje."
+                getLocalizedText(locale, "If you did not request", "Si no solicitaste esta accion, ignora este mensaje", "If you did not request this action, ignore this message", "Se voce nao solicitou esta acao, ignore esta mensagem")
         );
         send(
                 user.getEmail(),
-                "TravelBox | Codigo de verificacion",
+                "TravelBox | " + getLocalizedText(locale, "Verification code", "Codigo de verificacion", "Verification code", "Codigo de verificacao"),
                 content,
                 "EMAIL_VERIFICATION_CODE",
                 "email-verification:" + safeId(user) + ":" + verificationCode.trim()
@@ -171,24 +179,26 @@ public class CustomerEmailService {
         if (user == null || resetCode == null || resetCode.isBlank()) {
             return;
         }
+        String locale = getUserLocale(user);
         List<String> details = new ArrayList<>();
-        details.add("Correo: " + safeText(user.getEmail(), "-"));
-        details.add("Validez: " + formatInstant(expiresAt) + " (hora Lima)");
+        details.add(getLocalizedText(locale, "Email", "Correo", "Email", "Email") + ": " + safeText(user.getEmail(), "-"));
+        details.add(getLocalizedText(locale, "Valid until", "Validez", "Valid until", "Valido ate") + ": " + formatInstant(expiresAt) + " (" + getLocalizedText(locale, "Lima time", "hora Lima", "Lima time", "hora Lima") + ")");
 
         EmailContent content = renderTemplate(
-                "Recuperacion de contrasena",
-                "Restablece tu contrasena",
+                locale,
+                getLocalizedText(locale, "Password recovery", "Recuperacion de contrasena", "Password recovery", "Recuperacao de senha"),
+                getLocalizedText(locale, "Reset your password", "Restablece tu contrasena", "Reset your password", "Redefina sua senha"),
                 "Hola " + displayName(user) + ", usa este codigo para recuperar el acceso.",
                 details,
                 resetCode,
                 expiresAt,
-                "Abrir recuperacion",
+                getLocalizedText(locale, "Open recovery", "Abrir recuperacion", "Open recovery", "Abrir recuperacao"),
                 passwordResetRoute(),
-                "Si no solicitaste el cambio, protege tu cuenta y no compartas este codigo."
+                getLocalizedText(locale, "If you did not request change", "Si no solicitaste el cambio, protege tu cuenta", "If you did not request the change, protect your account", "Se voce nao solicitou a mudanca, proteja sua conta")
         );
         send(
                 user.getEmail(),
-                "TravelBox | Codigo para restablecer contrasena",
+                "TravelBox | " + getLocalizedText(locale, "Code to reset password", "Codigo para restablecer contrasena", "Code to reset password", "Codigo para redefinir senha"),
                 content,
                 "PASSWORD_RESET_CODE",
                 "password-reset:" + safeId(user) + ":" + resetCode.trim()
@@ -199,27 +209,29 @@ public class CustomerEmailService {
         if (user == null) {
             return;
         }
+        String locale = getUserLocale(user);
         List<String> details = new ArrayList<>();
-        details.add("Correo: " + safeText(user.getEmail(), "-"));
-        details.add("Fecha: " + formatInstant(Instant.now()) + " (hora Lima)");
+        details.add(getLocalizedText(locale, "Email", "Correo", "Email", "Email") + ": " + safeText(user.getEmail(), "-"));
+        details.add(getLocalizedText(locale, "Date", "Fecha", "Date", "Data") + ": " + formatInstant(Instant.now()) + " (" + getLocalizedText(locale, "Lima time", "hora Lima", "Lima time", "hora Lima") + ")");
 
         EmailContent content = renderTemplate(
-                "Contrasena actualizada",
-                "Tu contrasena fue cambiada",
+                locale,
+                getLocalizedText(locale, "Password updated", "Contrasena actualizada", "Password updated", "Senha atualizada"),
+                getLocalizedText(locale, "Your password was changed", "Tu contrasena fue cambiada", "Your password was changed", "Sua senha foi alterada"),
                 "Hola " + displayName(user) + ", registramos un cambio de contrasena exitoso.",
                 details,
                 null,
                 null,
-                "Ingresar a mi cuenta",
+                getLocalizedText(locale, "Login to my account", "Ingresar a mi cuenta", "Login to my account", "Entrar na minha conta"),
                 loginRoute(),
-                "Si no fuiste tu, contacta soporte inmediatamente."
+                getLocalizedText(locale, "If it was not you", "Si no fuiste tu, contacta soporte inmediatamente", "If it was not you, contact support immediately", "Se nao foi voce, entre em contato com suporte imediatamente")
         );
         String passwordFingerprint = user.getPasswordHash() == null
                 ? String.valueOf(Instant.now().toEpochMilli())
                 : Integer.toHexString(user.getPasswordHash().hashCode());
         send(
                 user.getEmail(),
-                "TravelBox | Contrasena actualizada",
+                "TravelBox | " + getLocalizedText(locale, "Password updated", "Contrasena actualizada", "Password updated", "Senha atualizada"),
                 content,
                 "PASSWORD_CHANGED",
                 "password-changed:" + safeId(user) + ":" + passwordFingerprint
@@ -235,25 +247,27 @@ public class CustomerEmailService {
         if (user == null || verificationCode == null || verificationCode.isBlank()) {
             return;
         }
+        String locale = getUserLocale(user);
         List<String> details = new ArrayList<>();
-        details.add("Correo de cuenta: " + safeText(user.getEmail(), "-"));
-        details.add("Cambios detectados: " + changedFieldsLine(changedFields));
-        details.add("Validez del codigo: " + formatInstant(expiresAt) + " (hora Lima)");
+        details.add(getLocalizedText(locale, "Account email", "Correo de cuenta", "Account email", "Email da conta") + ": " + safeText(user.getEmail(), "-"));
+        details.add(getLocalizedText(locale, "Changes detected", "Cambios detectados", "Changes detected", "Mudancas detectadas") + ": " + changedFieldsLine(changedFields));
+        details.add(getLocalizedText(locale, "Code validity", "Validez del codigo", "Code validity", "Validade do codigo") + ": " + formatInstant(expiresAt) + " (" + getLocalizedText(locale, "Lima time", "hora Lima", "Lima time", "hora Lima") + ")");
 
         EmailContent content = renderTemplate(
-                "Confirmacion de perfil",
-                "Valida los cambios de tu perfil",
+                locale,
+                getLocalizedText(locale, "Profile confirmation", "Confirmacion de perfil", "Profile confirmation", "Confirmacao do perfil"),
+                getLocalizedText(locale, "Validate your profile changes", "Valida los cambios de tu perfil", "Validate your profile changes", "Valide as mudancas do seu perfil"),
                 "Hola " + displayName(user) + ", confirma los cambios de tu perfil con este codigo.",
                 details,
                 verificationCode,
                 expiresAt,
-                "Abrir perfil",
+                getLocalizedText(locale, "Open profile", "Abrir perfil", "Open profile", "Abrir perfil"),
                 profileRoute(),
-                "Hasta confirmar el codigo, la cuenta quedara en estado pendiente de verificacion."
+                getLocalizedText(locale, "Until confirming code", "Hasta confirmar el codigo, la cuenta quedara pendiente", "Until confirming the code, the account will remain pending", "Ate confirmar o codigo, a conta permanecera pendente")
         );
         send(
                 user.getEmail(),
-                "TravelBox | Confirma la actualizacion de tu perfil",
+                "TravelBox | " + getLocalizedText(locale, "Confirm your profile update", "Confirma la actualizacion de tu perfil", "Confirm your profile update", "Confirme a atualizacao do seu perfil"),
                 content,
                 "PROFILE_UPDATE_VERIFICATION",
                 "profile-update-verification:" + safeId(user) + ":" + verificationCode.trim()
@@ -264,21 +278,23 @@ public class CustomerEmailService {
         if (user == null || changedFields == null || changedFields.isEmpty()) {
             return;
         }
+        String locale = getUserLocale(user);
         List<String> details = new ArrayList<>();
-        details.add("Correo de cuenta: " + safeText(user.getEmail(), "-"));
-        details.add("Campos actualizados: " + changedFieldsLine(changedFields));
-        details.add("Fecha: " + formatInstant(Instant.now()) + " (hora Lima)");
+        details.add(getLocalizedText(locale, "Account email", "Correo de cuenta", "Account email", "Email da conta") + ": " + safeText(user.getEmail(), "-"));
+        details.add(getLocalizedText(locale, "Updated fields", "Campos actualizados", "Updated fields", "Campos atualizados") + ": " + changedFieldsLine(changedFields));
+        details.add(getLocalizedText(locale, "Date", "Fecha", "Date", "Data") + ": " + formatInstant(Instant.now()) + " (" + getLocalizedText(locale, "Lima time", "hora Lima", "Lima time", "hora Lima") + ")");
 
         EmailContent content = renderTemplate(
-                "Perfil actualizado",
-                "Tus datos fueron actualizados",
+                locale,
+                getLocalizedText(locale, "Profile updated", "Perfil actualizado", "Profile updated", "Perfil atualizado"),
+                getLocalizedText(locale, "Your data was updated", "Tus datos fueron actualizados", "Your data was updated", "Seus dados foram atualizados"),
                 "Hola " + displayName(user) + ", registramos cambios en tu perfil.",
                 details,
                 null,
                 null,
-                "Revisar perfil",
+                getLocalizedText(locale, "Review profile", "Revisar perfil", "Review profile", "Revisar perfil"),
                 profileRoute(),
-                "Si no reconoces esta actividad, cambia tu contrasena y contacta soporte."
+                getLocalizedText(locale, "If you do not recognize", "Si no reconoces esta actividad, cambia tu contrasena", "If you do not recognize this activity, change your password", "Se voce nao reconhece esta atividade, altere sua senha")
         );
         String fieldDigest = changedFields.stream()
                 .map(this::normalize)
@@ -289,7 +305,7 @@ public class CustomerEmailService {
                 : String.valueOf(user.getUpdatedAt().toEpochMilli())) + ":" + fieldDigest.hashCode();
         send(
                 user.getEmail(),
-                "TravelBox | Actualizacion de perfil registrada",
+                "TravelBox | " + getLocalizedText(locale, "Profile update recorded", "Actualizacion de perfil registrada", "Profile update recorded", "Atualizacao de perfil registrada"),
                 content,
                 "PROFILE_UPDATED",
                 "profile-updated:" + safeId(user) + ":" + updateFingerprint
@@ -305,25 +321,27 @@ public class CustomerEmailService {
         if (user == null || pendingEmail == null || pendingEmail.isBlank() || verificationCode == null || verificationCode.isBlank()) {
             return;
         }
+        String locale = getUserLocale(user);
         List<String> details = new ArrayList<>();
-        details.add("Nuevo correo: " + safeText(pendingEmail, "-"));
-        details.add("Correo actual: " + safeText(user.getEmail(), "-"));
-        details.add("Validez: " + formatInstant(expiresAt) + " (hora Lima)");
+        details.add(getLocalizedText(locale, "New email", "Nuevo correo", "New email", "Novo email") + ": " + safeText(pendingEmail, "-"));
+        details.add(getLocalizedText(locale, "Current email", "Correo actual", "Current email", "Email atual") + ": " + safeText(user.getEmail(), "-"));
+        details.add(getLocalizedText(locale, "Valid until", "Validez", "Valid until", "Valido ate") + ": " + formatInstant(expiresAt) + " (" + getLocalizedText(locale, "Lima time", "hora Lima", "Lima time", "hora Lima") + ")");
 
         EmailContent content = renderTemplate(
-                "Cambio de correo",
-                "Verifica tu nuevo correo",
+                locale,
+                getLocalizedText(locale, "Email change", "Cambio de correo", "Email change", "Mudanca de email"),
+                getLocalizedText(locale, "Verify your new email", "Verifica tu nuevo correo", "Verify your new email", "Verifique seu novo email"),
                 "Hola " + displayName(user) + ", solicitaste cambiar tu correo. Usa este codigo para confirmar el cambio.",
                 details,
                 verificationCode,
                 expiresAt,
-                "Confirmar cambio",
+                getLocalizedText(locale, "Confirm change", "Confirmar cambio", "Confirm change", "Confirmar mudanca"),
                 profileRoute(),
-                "Si no solicitaste este cambio, ignora este mensaje y considera cambiar tu contrasena."
+                getLocalizedText(locale, "If you did not request", "Si no solicitaste este cambio, ignora este mensaje", "If you did not request this change, ignore this message", "Se voce nao solicitou esta mudanca, ignore esta mensagem")
         );
         send(
                 pendingEmail,
-                "TravelBox | Codigo para cambiar tu correo",
+                "TravelBox | " + getLocalizedText(locale, "Code to change your email", "Codigo para cambiar tu correo", "Code to change your email", "Codigo para alterar seu email"),
                 content,
                 "EMAIL_CHANGE_VERIFICATION",
                 "email-change:" + safeId(user) + ":" + verificationCode.trim()
@@ -334,28 +352,42 @@ public class CustomerEmailService {
         if (user == null) {
             return;
         }
+        String locale = getUserLocale(user);
         List<String> details = new ArrayList<>();
-        details.add("Nuevo correo: " + safeText(user.getEmail(), "-"));
-        details.add("Fecha: " + formatInstant(Instant.now()) + " (hora Lima)");
+        details.add(getLocalizedText(locale, "New email", "Nuevo correo", "New email", "Novo email") + ": " + safeText(user.getEmail(), "-"));
+        details.add(getLocalizedText(locale, "Date", "Fecha", "Date", "Data") + ": " + formatInstant(Instant.now()) + " (" + getLocalizedText(locale, "Lima time", "hora Lima", "Lima time", "hora Lima") + ")");
 
         EmailContent content = renderTemplate(
-                "Correo actualizado",
-                "Tu correo fue cambiado",
+                locale,
+                getLocalizedText(locale, "Email updated", "Correo actualizado", "Email updated", "Email atualizado"),
+                getLocalizedText(locale, "Your email was changed", "Tu correo fue cambiado", "Your email was changed", "Seu email foi alterado"),
                 "Hola " + displayName(user) + ", confirmamos el cambio de tu correo electronico.",
                 details,
                 null,
                 null,
-                "Ir a mi cuenta",
+                getLocalizedText(locale, "Go to my account", "Ir a mi cuenta", "Go to my account", "Ir para minha conta"),
                 profileRoute(),
-                "Si no realizaste este cambio, contacta soporte inmediatamente."
+                getLocalizedText(locale, "If you did not make this change", "Si no realizaste este cambio, contacta soporte", "If you did not make this change, contact support", "Se voce nao fez esta mudanca, entre em contato com suporte")
         );
         send(
                 user.getEmail(),
-                "TravelBox | Correo electronico actualizado",
+                "TravelBox | " + getLocalizedText(locale, "Email updated", "Correo electronico actualizado", "Email updated", "Email eletronico atualizado"),
                 content,
                 "EMAIL_CHANGE_CONFIRMED",
                 "email-change-confirmed:" + safeId(user)
         );
+    }
+
+    private String getUserLocale(User user) {
+        return user.getPreferredLanguage() != null ? user.getPreferredLanguage() : "es";
+    }
+
+    private String getLocalizedText(String locale, String key, String spanish, String english, String portuguese) {
+        return switch (locale.toLowerCase()) {
+            case "en" -> english;
+            case "pt" -> portuguese;
+            default -> spanish;
+        };
     }
 
     private void send(
@@ -389,6 +421,7 @@ public class CustomerEmailService {
     }
 
     private EmailContent renderTemplate(
+            String locale,
             String badge,
             String title,
             String intro,
@@ -406,10 +439,11 @@ public class CustomerEmailService {
         String detailsHtml = buildDetailsHtml(detailLines);
         String codeHtml = buildCodeHtml(code, codeExpiresAt);
         String ctaHtml = buildCtaHtml(ctaLabel, ctaUrl);
+        String htmlLang = locale.toLowerCase().equals("en") ? "en" : locale.toLowerCase().equals("pt") ? "pt" : "es";
 
         String html = """
                 <!doctype html>
-                <html lang="es">
+                <html lang="%s">
                 <head>
                   <meta charset="utf-8">
                   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -459,6 +493,7 @@ public class CustomerEmailService {
                 </body>
                 </html>
                 """.formatted(
+                htmlLang,
                 safeTitle,
                 safeBadge,
                 safeTitle,
@@ -470,7 +505,7 @@ public class CustomerEmailService {
                 escape(brandName + " | Notificacion automatica")
         );
 
-        String text = buildTextVersion(title, intro, detailLines, code, codeExpiresAt, ctaLabel, ctaUrl, footerMessage);
+        String text = buildTextVersion(locale, title, intro, detailLines, code, codeExpiresAt, ctaLabel, ctaUrl, footerMessage);
         return new EmailContent(html, text);
     }
 
@@ -522,6 +557,7 @@ public class CustomerEmailService {
     }
 
     private String buildTextVersion(
+            String locale,
             String title,
             String intro,
             List<String> detailLines,
@@ -535,7 +571,7 @@ public class CustomerEmailService {
         builder.append(safeText(title, "Notificacion TravelBox")).append("\n\n");
         builder.append(safeText(intro, "")).append("\n");
         if (detailLines != null && !detailLines.isEmpty()) {
-            builder.append("\nDetalles:\n");
+            builder.append("\n").append(getLocalizedText(locale, "Details", "Detalles", "Details", "Detalhes") + ":\n");
             for (String line : detailLines) {
                 if (line != null && !line.isBlank()) {
                     builder.append("- ").append(line.trim()).append("\n");
@@ -543,9 +579,9 @@ public class CustomerEmailService {
             }
         }
         if (code != null && !code.isBlank()) {
-            builder.append("\nCodigo: ").append(code.trim()).append("\n");
+            builder.append("\n" + getLocalizedText(locale, "Code", "Codigo", "Code", "Codigo") + ": ").append(code.trim()).append("\n");
             if (codeExpiresAt != null) {
-                builder.append("Validez: ").append(formatInstant(codeExpiresAt)).append(" (hora Lima)\n");
+                builder.append(getLocalizedText(locale, "Valid until", "Validez", "Valid until", "Valido ate") + ": ").append(formatInstant(codeExpiresAt)).append(" (" + getLocalizedText(locale, "Lima time", "hora Lima", "Lima time", "hora Lima") + ")\n");
             }
         }
         if (normalize(ctaLabel) != null && normalize(ctaUrl) != null) {
