@@ -101,6 +101,7 @@ management:
         enabled: true
 
 server:
+  port: ${PORT:8080}
   shutdown: graceful
   http2:
     enabled: ${SERVER_HTTP2_ENABLED:true}

@@ -182,4 +182,36 @@ Step 10: Courier completes delivery with PIN
 
 ---
 
+## 8. Health Check Endpoints
+
+| Endpoint | Auth | Description |
+|----------|------|-------------|
+| `/health` | None | Simple liveness check for Cloud Run |
+| `/` | None | Root endpoint returning service info |
+| `/actuator/health` | None | Spring Boot Actuator health (includes DB, Redis, etc.) |
+| `/actuator/health/liveness` | None | Kubernetes liveness probe |
+| `/actuator/health/readiness` | None | Kubernetes readiness probe |
+
+### Cloud Run Deployment Notes
+
+- Health check timeout: 5 minutes (default)
+- Container port: 8080 (via `PORT` environment variable)
+- Min instances: 0 (scale to zero)
+- Startup timeout: 600 seconds (10 minutes)
+
+### Required Azure Key Vault Secrets
+
+| Secret Name | Description |
+|-------------|-------------|
+| `tbx-back-db-url` | PostgreSQL connection URL |
+| `tbx-back-db-username` | Database username |
+| `tbx-back-db-password` | Database password |
+| `tbx-back-jwt-secret` | JWT signing secret (min 256 bits) |
+| `tbx-back-smtp-host` | SMTP server host |
+| `tbx-back-smtp-username` | SMTP username |
+| `tbx-back-smtp-password` | SMTP password |
+| `tbx-back-firebase-sa-json` | Firebase service account JSON |
+
+---
+
 *Last updated: March 2026*

@@ -80,6 +80,7 @@ public class ReactiveSecurityConfig {
                         ))
                 )
                 .authorizeExchange(auth -> auth
+                        .pathMatchers("/", "/health").permitAll()
                         .pathMatchers("/api/v1/auth/**").permitAll()
                         .pathMatchers("/api/v1/payments/webhooks/**").permitAll()
                         .pathMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
