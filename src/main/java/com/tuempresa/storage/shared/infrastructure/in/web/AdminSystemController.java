@@ -8,11 +8,10 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import reactor.core.publisher.Mono;
 
 import java.lang.management.ManagementFactory;
 import java.time.Instant;
-import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping({"/api/v1/admin/system", "/api/v1/admin/sistema"})
@@ -32,36 +31,38 @@ public class AdminSystemController {
     }
 
     @GetMapping("/health")
-    public SystemHealthResponse getHealth() {
-        Runtime runtime = Runtime.getRuntime();
-        long totalMemory = runtime.totalMemory();
-        long freeMemory = runtime.freeMemory();
-        long usedMemory = totalMemory - freeMemory;
-        long maxMemory = runtime.maxMemory();
-        
-        int availableProcessors = runtime.availableProcessors();
-        double loadAverage = ManagementFactory.getOperatingSystemMXBean().getSystemLoadAverage();
-        
-        return new SystemHealthResponse(
-                applicationName,
-                "UP",
-                serverPort,
-                Instant.now(),
-                new MemoryInfo(
-                        usedMemory / (1024 * 1024),
-                        maxMemory / (1024 * 1024),
-                        freeMemory / (1024 * 1024),
-                        ((double) usedMemory / maxMemory) * 100
-                ),
-                new CpuInfo(
-                        availableProcessors,
-                        loadAverage >= 0 ? loadAverage : -1
-                )
-        );
+    public Mono<SystemHealthResponse> getHealth() {
+        return Mono.fromSupplier(() -> {
+            Runtime runtime = Runtime.getRuntime();
+            long totalMemory = runtime.totalMemory();
+            long freeMemory = runtime.freeMemory();
+            long usedMemory = totalMemory - freeMemory;
+            long maxMemory = runtime.maxMemory();
+            
+            int availableProcessors = runtime.availableProcessors();
+            double loadAverage = ManagementFactory.getOperatingSystemMXBean().getSystemLoadAverage();
+            
+            return new SystemHealthResponse(
+                    applicationName,
+                    "UP",
+                    serverPort,
+                    Instant.now(),
+                    new MemoryInfo(
+                            usedMemory / (1024 * 1024),
+                            maxMemory / (1024 * 1024),
+                            freeMemory / (1024 * 1024),
+                            ((double) usedMemory / maxMemory) * 100
+                    ),
+                    new CpuInfo(
+                            availableProcessors,
+                            loadAverage >= 0 ? loadAverage : -1
+                    )
+            );
+        });
     }
 
     @GetMapping("/audit-log")
-    public List<AuditEntry> getAuditLog(
+    public reactor.core.publisher.Flux<AuditEntry> getAuditLog(
             @RequestParam(defaultValue = "100") int limit,
             @RequestParam(required = false) String entityType,
             @RequestParam(required = false) Long entityId,
@@ -71,15 +72,15 @@ public class AdminSystemController {
         int safeLimit = Math.min(Math.max(limit, 1), 1000);
         
         if (entityType != null && entityId != null) {
-            return auditLogService.getEntriesByEntity(entityType, entityId, safeLimit);
+            return reactor.core.publisher.Flux.fromIterable(auditLogService.getEntriesByEntity(entityType, entityId, safeLimit));
         }
         if (action != null) {
-            return auditLogService.getEntriesByAction(action, safeLimit);
+            return reactor.core.publisher.Flux.fromIterable(auditLogService.getEntriesByAction(action, safeLimit));
         }
         if (performedBy != null) {
-            return auditLogService.getEntriesByUser(performedBy, safeLimit);
+            return reactor.core.publisher.Flux.fromIterable(auditLogService.getEntriesByUser(performedBy, safeLimit));
         }
-        return auditLogService.getEntries(safeLimit);
+        return reactor.core.publisher.Flux.fromIterable(auditLogService.getEntries(safeLimit));
     }
 
     public record SystemHealthResponse(
