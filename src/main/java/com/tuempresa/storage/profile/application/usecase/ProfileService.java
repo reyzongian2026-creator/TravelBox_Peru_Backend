@@ -96,7 +96,7 @@ public class ProfileService {
     @Transactional
     public UserProfileResponse updateMyProfile(UpdateProfileRequest request, AuthUserPrincipal principal) {
         User user = requireUser(principal.getId());
-        ensureSelfManagedClient(user);
+        ensureSelfManagedClient(user, principal);
         ProfileSnapshot before = ProfileSnapshot.from(user);
 
         String normalizedEmail = normalize(request.email());
@@ -238,7 +238,7 @@ public class ProfileService {
     @Transactional
     public UserProfileResponse uploadMyProfilePhoto(MultipartFile file, AuthUserPrincipal principal) {
         User user = requireUser(principal.getId());
-        ensureSelfManagedClient(user);
+        ensureSelfManagedClient(user, principal);
         String photoUrl;
         try {
             photoUrl = azureBlobStorageService.uploadImage(file, "profiles");
@@ -276,7 +276,10 @@ public class ProfileService {
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "Usuario no encontrado."));
     }
 
-    private void ensureSelfManagedClient(User user) {
+    private void ensureSelfManagedClient(User user, AuthUserPrincipal principal) {
+        if (principal.roleNames().contains("ADMIN")) {
+            return;
+        }
         if (!user.isClientSelfManaged()) {
             throw new ApiException(
                     HttpStatus.FORBIDDEN,
