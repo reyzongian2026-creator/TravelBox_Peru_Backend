@@ -393,6 +393,24 @@ public class InventoryService {
                 .size();
     }
 
+    @Transactional(readOnly = true)
+    public List<com.tuempresa.storage.inventory.application.dto.EvidenceResponse> getEvidencesByReservationId(Long reservationId) {
+        if (reservationId == null) {
+            return List.of();
+        }
+        List<StoredItemEvidence> evidences = storedItemEvidenceRepository.findByReservationIdOrderByCreatedAtAsc(reservationId);
+        return evidences.stream()
+                .map(e -> new com.tuempresa.storage.inventory.application.dto.EvidenceResponse(
+                        e.getId(),
+                        e.getType(),
+                        e.getUrl(),
+                        e.getObservation(),
+                        e.getCreatedAt(),
+                        e.getOperator().getEmail()
+                ))
+                .toList();
+    }
+
     private void saveBaggagePhotos(
             Reservation reservation,
             User operator,
