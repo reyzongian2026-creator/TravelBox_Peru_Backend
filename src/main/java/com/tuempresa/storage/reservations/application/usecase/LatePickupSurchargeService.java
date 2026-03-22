@@ -50,6 +50,11 @@ public class LatePickupSurchargeService {
         }
 
         Instant endTime = reservation.getEndAt();
+        if (endTime == null) {
+            log.warn("Cannot calculate surcharge: endAt is null for reservation {}", reservation.getId());
+            return;
+        }
+        
         Instant now = Instant.now();
         
         if (now.isBefore(endTime)) {
