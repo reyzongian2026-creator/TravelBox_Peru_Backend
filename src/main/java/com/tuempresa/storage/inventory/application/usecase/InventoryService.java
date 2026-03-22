@@ -19,10 +19,12 @@ import com.tuempresa.storage.reservations.application.usecase.ReservationService
 import com.tuempresa.storage.reservations.domain.Reservation;
 import com.tuempresa.storage.reservations.domain.ReservationBagSize;
 import com.tuempresa.storage.reservations.domain.ReservationStatus;
+import com.tuempresa.storage.shared.application.usecase.AuditLogService;
 import com.tuempresa.storage.shared.domain.exception.ApiException;
 import com.tuempresa.storage.shared.infrastructure.security.AuthUserPrincipal;
 import com.tuempresa.storage.shared.infrastructure.security.WarehouseAccessService;
-import com.tuempresa.storage.shared.infrastructure.storage.LocalFileStorageService;
+import com.tuempresa.storage.shared.infrastructure.storage.StorageService;
+import com.tuempresa.storage.shared.infrastructure.storage.StorageService.FileCategory;
 import com.tuempresa.storage.shared.infrastructure.web.PublicUrlService;
 import com.tuempresa.storage.users.domain.Role;
 import com.tuempresa.storage.users.domain.User;
@@ -56,7 +58,8 @@ public class InventoryService {
     private final PaymentAttemptRepository paymentAttemptRepository;
     private final ReservationService reservationService;
     private final UserRepository userRepository;
-    private final LocalFileStorageService localFileStorageService;
+    private final StorageService storageService;
+    private final AuditLogService auditLogService;
     private final PublicUrlService publicUrlService;
     private final WarehouseAccessService warehouseAccessService;
     private final NotificationService notificationService;
@@ -70,7 +73,8 @@ public class InventoryService {
             PaymentAttemptRepository paymentAttemptRepository,
             ReservationService reservationService,
             UserRepository userRepository,
-            LocalFileStorageService localFileStorageService,
+            StorageService storageService,
+            AuditLogService auditLogService,
             PublicUrlService publicUrlService,
             WarehouseAccessService warehouseAccessService,
             NotificationService notificationService,
@@ -83,7 +87,8 @@ public class InventoryService {
         this.paymentAttemptRepository = paymentAttemptRepository;
         this.reservationService = reservationService;
         this.userRepository = userRepository;
-        this.localFileStorageService = localFileStorageService;
+        this.storageService = storageService;
+        this.auditLogService = auditLogService;
         this.publicUrlService = publicUrlService;
         this.warehouseAccessService = warehouseAccessService;
         this.notificationService = notificationService;
@@ -353,13 +358,14 @@ public class InventoryService {
             String observation,
             MultipartFile file,
             AuthUserPrincipal principal
-    ) {
-        String fileUrl = localFileStorageService.saveEvidenceImage(file);
+    ) throws Exception {
+        StorageService.UploadResult result = storageService.upload(file, FileCategory.EVIDENCES);
+        auditLogService.logFileUpload(result.filename(), "evidences", principal.getUsername());
         return addEvidence(
                 new EvidenceRequest(
                         reservationId,
                         type,
-                        fileUrl,
+                        result.url(),
                         observation
                 ),
                 principal
@@ -392,7 +398,7 @@ public class InventoryService {
             User operator,
             List<MultipartFile> baggagePhotos,
             String observation
-    ) {
+    ) throws Exception {
         if (baggagePhotos == null || baggagePhotos.isEmpty()) {
             return;
         }
@@ -409,12 +415,13 @@ public class InventoryService {
         List<StoredItemEvidence> evidences = new ArrayList<>();
         for (int index = 0; index < baggagePhotos.size(); index++) {
             MultipartFile file = baggagePhotos.get(index);
-            String fileUrl = localFileStorageService.saveEvidenceImage(file);
+            StorageService.UploadResult result = storageService.upload(file, FileCategory.EVIDENCES);
+            auditLogService.logFileUpload(result.filename(), "evidences", operator.getUsername());
             evidences.add(
                     StoredItemEvidence.luggagePhoto(
                             reservation,
                             operator,
-                            publicUrlService.absolute(fileUrl),
+                            result.url(),
                             index + 1,
                             observation
                     )

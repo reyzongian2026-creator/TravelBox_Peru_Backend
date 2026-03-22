@@ -4,7 +4,6 @@ import com.tuempresa.storage.reservations.application.dto.BulkOperationResponse;
 import com.tuempresa.storage.reservations.application.dto.BulkReservationStatusRequest;
 import com.tuempresa.storage.reservations.application.dto.ReservationExportRow;
 import com.tuempresa.storage.reservations.application.usecase.ReservationService;
-import com.tuempresa.storage.reservations.domain.Reservation;
 import com.tuempresa.storage.shared.application.usecase.CsvExportService;
 import com.tuempresa.storage.shared.domain.exception.ApiException;
 import com.tuempresa.storage.shared.infrastructure.reactive.ReactiveBlockingExecutor;
@@ -62,12 +61,12 @@ public class AdminReservationController {
     @GetMapping(value = "/export", produces = "text/csv")
     public Mono<ResponseEntity<byte[]>> exportReservations() {
         return reactiveBlockingExecutor.call(() -> {
-            List<Reservation> reservations = reservationService.exportReservations();
+            List<ReservationExportRow> rows = reservationService.exportReservations();
             List<String> headers = ReservationExportRow.headers();
-            List<Function<Reservation, String>> mappers = ReservationExportRow.columnMappers();
+            List<Function<ReservationExportRow, String>> mappers = ReservationExportRow.dtoColumnMappers();
             byte[] csv;
             try {
-                csv = exportToCsv(headers, reservations, mappers);
+                csv = exportToCsv(headers, rows, mappers);
             } catch (IOException e) {
                 csv = ("Error generating CSV: " + e.getMessage()).getBytes();
             }

@@ -204,7 +204,6 @@ public class ProfileService {
         }
 
         User saved = userRepository.save(user);
-        firebaseAdminService.mirrorClientProfile(saved);
 
         if (emailChanged) {
             notifyRemainingChanges(saved, "correo", "PROFILE_EMAIL_CHANGE_REMAINING", saved.remainingEmailChanges());

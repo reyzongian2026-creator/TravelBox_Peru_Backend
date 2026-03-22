@@ -3,9 +3,10 @@ package com.tuempresa.storage.users.application.usecase;
 import com.tuempresa.storage.delivery.domain.DeliveryStatus;
 import com.tuempresa.storage.delivery.infrastructure.out.persistence.DeliveryOrderRepository;
 import com.tuempresa.storage.auth.infrastructure.out.persistence.RefreshTokenRepository;
-import com.tuempresa.storage.firebase.application.FirebaseAdminService;
 import com.tuempresa.storage.shared.domain.exception.ApiException;
 import com.tuempresa.storage.shared.infrastructure.security.AuthUserPrincipal;
+import com.tuempresa.storage.shared.infrastructure.storage.StorageService;
+import com.tuempresa.storage.shared.infrastructure.storage.StorageService.FileCategory;
 import com.tuempresa.storage.shared.infrastructure.web.PagedResponse;
 import com.tuempresa.storage.users.application.dto.AdminUserPagedResponse;
 import com.tuempresa.storage.users.application.dto.AdminUserResponse;
@@ -70,7 +71,7 @@ public class AdminUserService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final WarehouseRepository warehouseRepository;
     private final PasswordEncoder passwordEncoder;
-    private final FirebaseAdminService firebaseAdminService;
+    private final StorageService storageService;
     private final com.tuempresa.storage.shared.application.usecase.AuditLogService auditLogService;
 
     public AdminUserService(
@@ -79,7 +80,7 @@ public class AdminUserService {
             RefreshTokenRepository refreshTokenRepository,
             WarehouseRepository warehouseRepository,
             PasswordEncoder passwordEncoder,
-            FirebaseAdminService firebaseAdminService,
+            StorageService storageService,
             com.tuempresa.storage.shared.application.usecase.AuditLogService auditLogService
     ) {
         this.userRepository = userRepository;
@@ -87,7 +88,7 @@ public class AdminUserService {
         this.refreshTokenRepository = refreshTokenRepository;
         this.warehouseRepository = warehouseRepository;
         this.passwordEncoder = passwordEncoder;
-        this.firebaseAdminService = firebaseAdminService;
+        this.storageService = storageService;
         this.auditLogService = auditLogService;
     }
 
@@ -469,8 +470,10 @@ public class AdminUserService {
     }
 
     @Transactional
-    public String uploadDocumentPhoto(MultipartFile file) {
-        return firebaseAdminService.uploadPublicImage(file, "documents", "dni-");
+    public String uploadDocumentPhoto(MultipartFile file) throws Exception {
+        StorageService.UploadResult result = storageService.upload(file, FileCategory.DOCUMENTS);
+        auditLogService.logFileUpload(result.filename(), "documents", "admin-document-upload");
+        return result.url();
     }
 
     @Transactional(readOnly = true)

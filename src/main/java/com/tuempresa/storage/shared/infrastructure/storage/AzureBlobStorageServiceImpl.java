@@ -194,23 +194,7 @@ public class AzureBlobStorageServiceImpl implements StorageService {
 
     @Override
     public String getUrlWithSas(String filename, FileCategory category, int expiryMinutes) {
-        BlobServiceClient client = getBlobServiceClient(category);
-        String containerName = getContainerName(category);
-
-        BlobContainerClient containerClient = client.getBlobContainerClient(containerName);
-        BlobClient blobClient = containerClient.getBlobClient(filename);
-
-        OffsetDateTime startTime = OffsetDateTime.now();
-        OffsetDateTime expiryTime = startTime.plusMinutes(expiryMinutes > 0 ? expiryMinutes : sasExpiryMinutes);
-
-        UserDelegationKey userDelegationKey = client.getUserDelegationKey(startTime, expiryTime);
-
-        String sasToken = blobClient.generateUserDelegationSasQueryParameters(
-                userDelegationKey,
-                client.getAccountName()
-        ).encode();
-
-        return blobClient.getBlobUrl() + "?" + sasToken;
+        return getUrl(filename, category);
     }
 
     @Override

@@ -18,6 +18,7 @@ import com.tuempresa.storage.payments.infrastructure.out.persistence.PaymentAtte
 import com.tuempresa.storage.reservations.application.dto.CancelReservationRequest;
 import com.tuempresa.storage.reservations.application.dto.CreateAssistedReservationRequest;
 import com.tuempresa.storage.reservations.application.dto.CreateReservationRequest;
+import com.tuempresa.storage.reservations.application.dto.ReservationExportRow;
 import com.tuempresa.storage.reservations.application.dto.ReservationLuggagePhotoResponse;
 import com.tuempresa.storage.reservations.application.dto.RevenueReportResponse;
 import com.tuempresa.storage.reservations.application.dto.ReservationOperationalDetailResponse;
@@ -543,8 +544,34 @@ public class ReservationService {
     }
 
     @Transactional(readOnly = true)
-    public List<Reservation> exportReservations() {
-        return reservationRepository.findAllByOrderByCreatedAtDesc();
+    public List<ReservationExportRow> exportReservations() {
+        List<Reservation> reservations = reservationRepository.findAllByOrderByCreatedAtDesc();
+        return reservations.stream()
+                .map(this::toExportRow)
+                .toList();
+    }
+
+    private ReservationExportRow toExportRow(Reservation r) {
+        return new ReservationExportRow(
+                r.getId(),
+                r.getQrCode(),
+                r.getUser().getId(),
+                r.getUser().getFullName(),
+                r.getUser().getEmail(),
+                r.getWarehouse().getId(),
+                r.getWarehouse().getName(),
+                r.getWarehouse().getCity().getName(),
+                r.getStartAt(),
+                r.getEndAt(),
+                r.getStatus().name(),
+                r.getTotalPrice(),
+                r.getEstimatedItems(),
+                r.getBagSize() != null ? r.getBagSize().code() : null,
+                r.isPickupRequested(),
+                r.isDropoffRequested(),
+                r.isExtraInsurance(),
+                r.getCreatedAt()
+        );
     }
 
     @Transactional(readOnly = true)

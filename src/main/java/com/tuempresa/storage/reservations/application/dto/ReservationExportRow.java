@@ -51,6 +51,29 @@ public record ReservationExportRow(
         );
     }
 
+    public static List<Function<ReservationExportRow, String>> dtoColumnMappers() {
+        return List.of(
+                r -> String.valueOf(r.id()),
+                r -> r.qrCode() != null ? r.qrCode() : "",
+                r -> String.valueOf(r.userId()),
+                r -> r.userName() != null ? r.userName() : "",
+                r -> r.userEmail() != null ? r.userEmail() : "",
+                r -> String.valueOf(r.warehouseId()),
+                r -> r.warehouseName() != null ? r.warehouseName() : "",
+                r -> r.warehouseCity() != null ? r.warehouseCity() : "",
+                r -> r.startAt() != null ? r.startAt().toString() : "",
+                r -> r.endAt() != null ? r.endAt().toString() : "",
+                r -> r.status() != null ? r.status() : "",
+                r -> r.totalPrice() != null ? r.totalPrice().toString() : "0.00",
+                r -> String.valueOf(r.estimatedItems()),
+                r -> r.bagSize() != null ? r.bagSize() : "",
+                r -> r.pickupRequested() ? "Si" : "No",
+                r -> r.dropoffRequested() ? "Si" : "No",
+                r -> r.extraInsurance() ? "Si" : "No",
+                r -> r.createdAt() != null ? r.createdAt().toString() : ""
+        );
+    }
+
     public static List<String> headers() {
         return List.of(
                 "ID", "QR Code", "User ID", "User Name", "User Email",

@@ -144,6 +144,10 @@ app:
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:*,http://127.0.0.1:*,http://0.0.0.0:*}
   storage:
     local-dir: ${APP_STORAGE_LOCAL_DIR:uploads}
+    max-image-size-mb: ${APP_STORAGE_MAX_IMAGE_SIZE_MB:5}
+    max-document-size-mb: ${APP_STORAGE_MAX_DOCUMENT_SIZE_MB:10}
+  audit:
+    retention-days: ${APP_AUDIT_RETENTION_DAYS:90}
   inventory:
     office-pickup-late-grace-minutes: ${APP_INVENTORY_OFFICE_PICKUP_LATE_GRACE_MINUTES:30}
   public-base-url: ${APP_PUBLIC_BASE_URL:}
@@ -245,9 +249,12 @@ azure:
         profiles: ${AZURE_STORAGE_PROFILES_CONTAINER:travelbox-profiles}
         warehouses: ${AZURE_STORAGE_WAREHOUSES_CONTAINER:travelbox-warehouses}
         documents: ${AZURE_STORAGE_DOCUMENTS_CONTAINER:travelbox-documents}
+        evidences: ${AZURE_STORAGE_EVIDENCES_CONTAINER:travelbox-evidences}
     reports:
       connection-string: ${tbx-back-azure-storage-reports-connection-string:${AZURE_STORAGE_REPORTS_CONNECTION_STRING:}}
       url-base: ${AZURE_STORAGE_REPORTS_URL_BASE:}
       container:
         reports: ${AZURE_STORAGE_REPORTS_CONTAINER:travelbox-reports}
         exports: ${AZURE_STORAGE_EXPORTS_CONTAINER:travelbox-exports}
+    sas:
+      expiry-minutes: ${AZURE_STORAGE_SAS_EXPIRY_MINUTES:60}

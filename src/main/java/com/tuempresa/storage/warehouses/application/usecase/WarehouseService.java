@@ -4,8 +4,10 @@ import com.tuempresa.storage.geo.domain.City;
 import com.tuempresa.storage.geo.domain.TouristZone;
 import com.tuempresa.storage.geo.infrastructure.out.persistence.CityRepository;
 import com.tuempresa.storage.geo.infrastructure.out.persistence.TouristZoneRepository;
-import com.tuempresa.storage.firebase.application.FirebaseAdminService;
+import com.tuempresa.storage.shared.application.usecase.AuditLogService;
 import com.tuempresa.storage.shared.domain.exception.ApiException;
+import com.tuempresa.storage.shared.infrastructure.storage.StorageService;
+import com.tuempresa.storage.shared.infrastructure.storage.StorageService.FileCategory;
 import com.tuempresa.storage.shared.infrastructure.web.PagedResponse;
 import com.tuempresa.storage.shared.infrastructure.web.PublicUrlService;
 import com.tuempresa.storage.warehouses.application.dto.AdminWarehouseRequest;
@@ -35,21 +37,24 @@ public class WarehouseService {
     private final WarehouseRepository warehouseRepository;
     private final CityRepository cityRepository;
     private final TouristZoneRepository touristZoneRepository;
+    private final StorageService storageService;
+    private final AuditLogService auditLogService;
     private final PublicUrlService publicUrlService;
-    private final FirebaseAdminService firebaseAdminService;
 
     public WarehouseService(
             WarehouseRepository warehouseRepository,
             CityRepository cityRepository,
             TouristZoneRepository touristZoneRepository,
-            PublicUrlService publicUrlService,
-            FirebaseAdminService firebaseAdminService
+            StorageService storageService,
+            AuditLogService auditLogService,
+            PublicUrlService publicUrlService
     ) {
         this.warehouseRepository = warehouseRepository;
         this.cityRepository = cityRepository;
         this.touristZoneRepository = touristZoneRepository;
+        this.storageService = storageService;
+        this.auditLogService = auditLogService;
         this.publicUrlService = publicUrlService;
-        this.firebaseAdminService = firebaseAdminService;
     }
 
     @Transactional(readOnly = true)
@@ -209,12 +214,11 @@ public class WarehouseService {
     }
 
     @Transactional
-    public WarehouseResponse updatePhoto(Long id, MultipartFile file) {
+    public WarehouseResponse updatePhoto(Long id, MultipartFile file) throws Exception {
         Warehouse warehouse = loadWarehouse(id);
-        String photoPath = firebaseAdminService.isStorageEnabled()
-                ? firebaseAdminService.uploadPublicImage(file, "warehouses", "warehouse-")
-                : null;
-        warehouse.updatePhoto(photoPath);
+        StorageService.UploadResult result = storageService.upload(file, FileCategory.WAREHOUSES);
+        auditLogService.logFileUpload(result.filename(), "warehouses", "warehouse-" + id);
+        warehouse.updatePhoto(result.url());
         return toResponse(warehouse, null);
     }
 
