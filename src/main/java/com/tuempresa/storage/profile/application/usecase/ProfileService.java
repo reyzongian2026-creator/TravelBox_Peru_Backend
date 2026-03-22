@@ -1,5 +1,7 @@
 package com.tuempresa.storage.profile.application.usecase;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import com.tuempresa.storage.firebase.application.FirebaseAdminService;
 import com.tuempresa.storage.notifications.application.email.CustomerEmailService;
 import com.tuempresa.storage.notifications.application.usecase.NotificationService;
@@ -10,6 +12,7 @@ import com.tuempresa.storage.shared.domain.exception.ApiException;
 import com.tuempresa.storage.shared.infrastructure.security.AuthUserPrincipal;
 import com.tuempresa.storage.shared.infrastructure.security.SensitiveDataService;
 import com.tuempresa.storage.shared.infrastructure.security.SensitiveDataService.SensitiveFieldType;
+import com.tuempresa.storage.shared.infrastructure.storage.AzureBlobStorageService;
 import com.tuempresa.storage.users.domain.AuthProvider;
 import com.tuempresa.storage.users.domain.DocumentType;
 import com.tuempresa.storage.users.domain.Gender;
@@ -35,6 +38,7 @@ import java.util.regex.Pattern;
 @Service
 public class ProfileService {
 
+    private static final Logger LOG = LoggerFactory.getLogger(ProfileService.class);
     private static final Set<String> SUPPORTED_LANGUAGES = Set.of("es", "en", "de", "fr", "it", "pt");
     private static final Pattern INTERNATIONAL_PHONE_PATTERN = Pattern.compile("^\\+[1-9]\\d{6,14}$");
 
@@ -43,6 +47,7 @@ public class ProfileService {
     private final NotificationService notificationService;
     private final CustomerEmailService customerEmailService;
     private final FirebaseAdminService firebaseAdminService;
+    private final AzureBlobStorageService azureBlobStorageService;
     private final SensitiveDataService sensitiveDataService;
     private final String emailProvider;
 
@@ -52,6 +57,7 @@ public class ProfileService {
             NotificationService notificationService,
             CustomerEmailService customerEmailService,
             FirebaseAdminService firebaseAdminService,
+            AzureBlobStorageService azureBlobStorageService,
             SensitiveDataService sensitiveDataService,
             @Value("${app.auth.email-provider:mock}") String emailProvider
     ) {
@@ -60,6 +66,7 @@ public class ProfileService {
         this.notificationService = notificationService;
         this.customerEmailService = customerEmailService;
         this.firebaseAdminService = firebaseAdminService;
+        this.azureBlobStorageService = azureBlobStorageService;
         this.sensitiveDataService = sensitiveDataService;
         this.emailProvider = emailProvider == null ? "mock" : emailProvider.trim().toLowerCase(Locale.ROOT);
     }
@@ -232,7 +239,13 @@ public class ProfileService {
     public UserProfileResponse uploadMyProfilePhoto(MultipartFile file, AuthUserPrincipal principal) {
         User user = requireUser(principal.getId());
         ensureSelfManagedClient(user);
-        String photoUrl = firebaseAdminService.uploadPublicImage(file, "profiles", "profile-");
+        String photoUrl;
+        try {
+            photoUrl = azureBlobStorageService.uploadImage(file, "profiles");
+        } catch (Exception e) {
+            LOG.warn("Azure Blob Storage upload failed, falling back to Firebase: {}", e.getMessage());
+            photoUrl = firebaseAdminService.uploadPublicImage(file, "profiles", "profile-");
+        }
         user.updateProfile(
                 null,
                 null,
