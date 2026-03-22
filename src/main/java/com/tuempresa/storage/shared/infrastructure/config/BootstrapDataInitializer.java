@@ -839,7 +839,7 @@ public class BootstrapDataInitializer {
         reservation = reservationRepository.save(reservation);
 
         if (details != null && finalStatus == ReservationStatus.INCIDENT) {
-            Incident incident = Incident.open(reservation, user, details);
+            Incident incident = Incident.open(reservation, user, details, "es");
             if (!keepIncidentOpen) {
                 incident.resolve(user, "Incidencia cerrada en seed local.");
             }

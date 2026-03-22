@@ -174,7 +174,7 @@ public class IncidentService {
             reservation.transitionTo(ReservationStatus.INCIDENT);
         }
 
-        Incident incident = incidentRepository.save(Incident.open(reservation, opener, request.description()));
+        Incident incident = incidentRepository.save(Incident.open(reservation, opener, request.description(), request.originalLanguage()));
         notifyCustomerIncidentEvent(
                 incident,
                 "INCIDENT_OPENED",
@@ -237,18 +237,19 @@ public class IncidentService {
                 incident.getStatus(),
                 translateIncidentTextForViewer(
                         incident.getDescription(),
-                        incident.getOpenedBy(),
+                        incident.getOriginalLanguage(),
                         customer,
                         viewer,
                         internalViewer
                 ),
                 translateIncidentTextForViewer(
                         incident.getResolution(),
-                        incident.getResolvedBy(),
+                        incident.getOriginalLanguage(),
                         customer,
                         viewer,
                         internalViewer
                 ),
+                incident.getOriginalLanguage(),
                 incident.getOpenedBy().getId(),
                 incident.getResolvedBy() != null ? incident.getResolvedBy().getId() : null,
                 incident.getResolvedAt(),
@@ -280,18 +281,19 @@ public class IncidentService {
                 incident.getStatus(),
                 translateIncidentTextForViewer(
                         incident.getDescription(),
-                        openedBy,
+                        incident.getOriginalLanguage(),
                         customer,
                         viewer,
                         internalViewer
                 ),
                 translateIncidentTextForViewer(
                         incident.getResolution(),
-                        incident.getResolvedBy(),
+                        incident.getOriginalLanguage(),
                         customer,
                         viewer,
                         internalViewer
                 ),
+                incident.getOriginalLanguage(),
                 incident.getCreatedAt(),
                 incident.getResolvedAt()
         );
@@ -326,7 +328,7 @@ public class IncidentService {
 
     private String translateIncidentTextForViewer(
             String text,
-            User author,
+            String sourceLanguage,
             User customer,
             User viewer,
             boolean internalViewer
@@ -334,14 +336,14 @@ public class IncidentService {
         if (text == null || text.isBlank()) {
             return text;
         }
-        String sourceLanguage = normalizeLanguage(author == null ? null : author.getPreferredLanguage());
+        String normalizedSource = normalizeLanguage(sourceLanguage);
         String targetLanguage = internalViewer
                 ? "es"
                 : preferredLanguageOrDefault(
                 viewer == null ? null : viewer.getPreferredLanguage(),
                 customer == null ? null : customer.getPreferredLanguage()
         );
-        return opsMessageTranslationService.translate(text, sourceLanguage, targetLanguage);
+        return opsMessageTranslationService.translate(text, normalizedSource, targetLanguage);
     }
 
     private String preferredLanguageOrDefault(String preferredLanguage, String fallbackLanguage) {

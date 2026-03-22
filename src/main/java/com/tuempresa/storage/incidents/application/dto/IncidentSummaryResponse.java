@@ -24,6 +24,7 @@ public record IncidentSummaryResponse(
         IncidentStatus status,
         String description,
         String resolution,
+        String originalLanguage,
         Instant createdAt,
         Instant resolvedAt
 ) {

@@ -43,12 +43,16 @@ public class Incident extends AuditableEntity {
     @Column
     private Instant resolvedAt;
 
-    public static Incident open(Reservation reservation, User openedBy, String description) {
+    @Column(name = "original_language", length = 5)
+    private String originalLanguage;
+
+    public static Incident open(Reservation reservation, User openedBy, String description, String originalLanguage) {
         Incident incident = new Incident();
         incident.reservation = reservation;
         incident.openedBy = openedBy;
         incident.status = IncidentStatus.OPEN;
         incident.description = description;
+        incident.originalLanguage = originalLanguage != null ? originalLanguage.trim().toLowerCase() : "es";
         return incident;
     }
 
@@ -78,6 +82,10 @@ public class Incident extends AuditableEntity {
 
     public Instant getResolvedAt() {
         return resolvedAt;
+    }
+
+    public String getOriginalLanguage() {
+        return originalLanguage;
     }
 
     public void resolve(User resolver, String resolution) {

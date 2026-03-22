@@ -10,6 +10,7 @@ public record IncidentResponse(
         IncidentStatus status,
         String description,
         String resolution,
+        String originalLanguage,
         Long openedBy,
         Long resolvedBy,
         Instant resolvedAt,

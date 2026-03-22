@@ -50,9 +50,12 @@ public class SensitiveDataNotificationService {
                 .withZone(LIMA_ZONE)
                 .format(java.time.Instant.now()));
 
-        String subject = getLocalizedText(locale, "sensitive_data_changed_subject",
-                "Aviso: Datos actualizados", 
+        String subject = getLocalizedText(locale,
+                "Aviso: Datos actualizados",
                 "Notice: Data updated",
+                "Hinweis: Daten aktualisiert",
+                "Avis: Données mises à jour",
+                "Avviso: Dati aggiornati",
                 "Aviso: Dados atualizados");
         String body = buildSensitiveDataChangedBody(locale, templateData);
 
@@ -85,10 +88,13 @@ public class SensitiveDataNotificationService {
                 .withZone(LIMA_ZONE)
                 .format(java.time.Instant.now()));
 
-        String subject = getLocalizedText(locale, "email_change_request_subject",
-                "Solicitud de cambio de email", 
+        String subject = getLocalizedText(locale,
+                "Solicitud de cambio de email",
                 "Email change request",
-                "Solicitacao de mudanca de email");
+                "Anfrage zur E-Mail-Änderung",
+                "Demande de changement d'email",
+                "Richiesta di cambio email",
+                "Solicitação de mudança de email");
         String body = buildEmailChangeRequestBody(locale, templateData);
 
         String dedupKey = "EMAIL_CHANGE_REQUEST:" + user.getId();
@@ -115,9 +121,12 @@ public class SensitiveDataNotificationService {
         templateData.put("oldEmail", sensitiveDataService.maskEmail(oldEmail));
         templateData.put("newEmail", sensitiveDataService.maskEmail(newEmail));
 
-        String subject = getLocalizedText(locale, "email_change_confirmed_subject",
-                "Email actualizado correctamente", 
+        String subject = getLocalizedText(locale,
+                "Email actualizado correctamente",
                 "Email updated successfully",
+                "E-Mail erfolgreich aktualisiert",
+                "Email mis à jour avec succès",
+                "Email aggiornato con successo",
                 "Email atualizado com sucesso");
         String body = buildEmailChangeConfirmedBody(locale, templateData);
 
@@ -148,9 +157,12 @@ public class SensitiveDataNotificationService {
                 .withZone(LIMA_ZONE)
                 .format(java.time.Instant.now()));
 
-        String subject = getLocalizedText(locale, "admin_access_subject",
-                "Acceso a tus datos personales", 
+        String subject = getLocalizedText(locale,
+                "Acceso a tus datos personales",
                 "Access to your personal data",
+                "Zugriff auf Ihre persönlichen Daten",
+                "Accès à vos données personnelles",
+                "Accesso ai tuoi dati personali",
                 "Acesso aos seus dados pessoais");
         String body = buildAdminAccessBody(locale, templateData);
 
@@ -166,29 +178,41 @@ public class SensitiveDataNotificationService {
         );
     }
 
-    private String getLocalizedText(String locale, String key, String spanish, String english, String portuguese) {
+    private String getLocalizedText(String locale, String spanish, String english, String german, String french, String italian, String portuguese) {
         return switch (locale.toLowerCase()) {
             case "en" -> english;
+            case "de" -> german;
+            case "fr" -> french;
+            case "it" -> italian;
             case "pt" -> portuguese;
             default -> spanish;
         };
     }
 
     private String buildSensitiveDataChangedBody(String locale, Map<String, Object> data) {
-        String title = getLocalizedText(locale, "sensitive_data_changed_title",
+        String title = getLocalizedText(locale,
                 "⚠️ Aviso: Datos Actualizados",
                 "⚠️ Notice: Data Updated",
+                "⚠️ Hinweis: Daten aktualisiert",
+                "⚠️ Avis: Données mises à jour",
+                "⚠️ Avviso: Dati aggiornati",
                 "⚠️ Aviso: Dados Atualizados");
 
-        String intro = getLocalizedText(locale, "sensitive_data_changed_intro",
+        String intro = getLocalizedText(locale,
                 "Te informamos que se han realizado cambios en tus datos sensibles:",
                 "We inform you that changes have been made to your sensitive data:",
-                "Informamos que foram realizadas alteracoes nos seus dados sensiveis:");
+                "Wir informieren Sie, dass Änderungen an Ihren sensiblen Daten vorgenommen wurden:",
+                "Nous vous informons que des modifications ont été apportées à vos données sensibles:",
+                "Ti informiamo che sono state apportate modifiche ai tuoi dati sensibili:",
+                "Informamos que foram realizadas alterações nos seus dados sensíveis:");
 
-        String contact = getLocalizedText(locale, "sensitive_data_changed_contact",
+        String contact = getLocalizedText(locale,
                 "Si no realizaste estos cambios, contacta inmediatamente a soporte.",
                 "If you did not make these changes, contact support immediately.",
-                "Se voce nao fez essas alteracoes, entre em contato com suporte imediatamente.");
+                "Wenn Sie diese Änderungen nicht vorgenommen haben, wenden Sie sich sofort an den Support.",
+                "Si vous n'avez pas effectué ces modifications, contactez immédiatement le support.",
+                "Se non hai apportato queste modifiche, contatta immediatamente il supporto.",
+                "Se você não fez essas alterações, entre em contato com suporte imediatamente.");
 
         String html = """
             <!DOCTYPE html>
@@ -211,9 +235,15 @@ public class SensitiveDataNotificationService {
                     <p>Hola %s,</p>
                     <p>%s</p>
                     <div class="warning">
-                        <strong>Cambios realizados:</strong>
+                        <strong>%s:</strong>
                         <ul>
-            """.formatted(locale, title, data.get("userName"), intro);
+            """.formatted(
+                locale,
+                title,
+                data.get("userName"),
+                intro,
+                getLocalizedText(locale, "Cambios realizados", "Changes made", "Änderungen vorgenommen", "Modifications apportées", "Modifiche apportate", "Alterações realizadas")
+            );
 
         @SuppressWarnings("unchecked")
         Map<String, String> changes = (Map<String, String>) data.get("changes");
@@ -227,34 +257,50 @@ public class SensitiveDataNotificationService {
                         </ul>
                     </div>
                     <p>%s</p>
-                    <p>Fecha y hora: %s</p>
+                    <p>%s: %s</p>
                 </div>
                 <div class="footer">
-                    <p>%s - Sistema de Seguridad</p>
-                    <p>Este es un email automatico. No responder.</p>
+                    <p>%s - %s</p>
+                    <p>%s</p>
                 </div>
             </body>
             </html>
-            """.formatted(contact, data.get("timestamp"), brandName);
+            """.formatted(
+                contact,
+                getLocalizedText(locale, "Fecha y hora", "Date and time", "Datum und Uhrzeit", "Date et heure", "Data e ora", "Data e hora"),
+                data.get("timestamp"),
+                brandName,
+                getLocalizedText(locale, "Sistema de Seguridad", "Security System", "Sicherheitssystem", "Système de sécurité", "Sistema di sicurezza", "Sistema de Segurança"),
+                getLocalizedText(locale, "Este es un email automatico. No responder.", "This is an automatic email. Do not reply.", "Dies ist eine automatische E-Mail. Nicht antworten.", "Ceci est un email automatique. Ne pas répondre.", "Questa è un'email automatica. Non rispondere.", "Este é um email automático. Não responder.")
+            );
 
         return html;
     }
 
     private String buildEmailChangeRequestBody(String locale, Map<String, Object> data) {
-        String title = getLocalizedText(locale, "email_change_request_title",
+        String title = getLocalizedText(locale,
                 "Solicitud de cambio de email",
                 "Email change request",
-                "Solicitacao de mudanca de email");
+                "Anfrage zur E-Mail-Änderung",
+                "Demande de changement d'email",
+                "Richiesta di cambio email",
+                "Solicitação de mudança de email");
 
-        String intro = getLocalizedText(locale, "email_change_request_intro",
+        String intro = getLocalizedText(locale,
                 "Recibimos una solicitud para cambiar tu email a:",
                 "We received a request to change your email to:",
-                "Recebemos uma solicitacao para alterar seu email para:");
+                "Wir haben eine Anfrage erhalten, Ihre E-Mail-Adresse zu ändern zu:",
+                "Nous avons reçu une demande pour changer votre email en:",
+                "Abbiamo ricevuto una richiesta per cambiare la tua email in:",
+                "Recebemos uma solicitação para alterar seu email para:");
 
-        String instruction = getLocalizedText(locale, "email_change_request_instruction",
+        String instruction = getLocalizedText(locale,
                 "Si fuiste tu, ignora este email. Si no fuiste tu, contacta a soporte inmediatamente.",
                 "If this was you, ignore this email. If it was not you, contact support immediately.",
-                "Se foi voce, ignore este email. Se nao foi voce, entre em contato com suporte imediatamente.");
+                "Wenn Sie es waren, ignorieren Sie diese E-Mail. Wenn Sie es nicht waren, wenden Sie sich sofort an den Support.",
+                "Si c'était vous, ignorez cet email. Si ce n'était pas vous, contactez immédiatement le support.",
+                "Se eri tu, ignora questa email. Se non eri tu, contatta immediatamente il supporto.",
+                "Se foi você, ignore este email. Se não foi você, entre em contato com suporte imediatamente.");
 
         return """
             <!DOCTYPE html>
@@ -277,31 +323,42 @@ public class SensitiveDataNotificationService {
                     <p>Hola %s,</p>
                     <p>%s</p>
                     <div class="email-box">
-                        <strong>Nuevo email:</strong> %s
+                        <strong>%s:</strong> %s
                     </div>
                     <p>%s</p>
-                    <p>Fecha: %s</p>
+                    <p>%s: %s</p>
                 </div>
                 <div class="footer">
                     <p>%s</p>
                 </div>
             </body>
             </html>
-            """.formatted(
-                locale, title, data.get("userName"), intro, data.get("newEmail"),
-                instruction, data.get("timestamp"), brandName
+            """            .formatted(
+                locale, title, data.get("userName"), intro,
+                getLocalizedText(locale, "Nuevo email", "New email", "Neue E-Mail", "Nouvel email", "Nuova email", "Novo email"),
+                data.get("newEmail"),
+                instruction,
+                getLocalizedText(locale, "Fecha", "Date", "Datum", "Date", "Data", "Data"),
+                data.get("timestamp"),
+                brandName
         );
     }
 
     private String buildEmailChangeConfirmedBody(String locale, Map<String, Object> data) {
-        String title = getLocalizedText(locale, "email_change_confirmed_title",
+        String title = getLocalizedText(locale,
                 "Email actualizado correctamente",
                 "Email updated successfully",
+                "E-Mail erfolgreich aktualisiert",
+                "Email mis à jour avec succès",
+                "Email aggiornato con successo",
                 "Email atualizado com sucesso");
 
-        String message = getLocalizedText(locale, "email_change_confirmed_message",
+        String message = getLocalizedText(locale,
                 "Tu email ha sido actualizado exitosamente.",
                 "Your email has been successfully updated.",
+                "Ihre E-Mail-Adresse wurde erfolgreich aktualisiert.",
+                "Votre email a été mis à jour avec succès.",
+                "La tua email è stata aggiornata con successo.",
                 "Seu email foi atualizado com sucesso.");
 
         return """
@@ -323,35 +380,48 @@ public class SensitiveDataNotificationService {
                 <div class="content">
                     <p>Hola %s,</p>
                     <p>%s</p>
-                    <p><strong>Email anterior:</strong> %s</p>
-                    <p><strong>Nuevo email:</strong> %s</p>
+                    <p><strong>%s:</strong> %s</p>
+                    <p><strong>%s:</strong> %s</p>
                 </div>
                 <div class="footer">
                     <p>%s</p>
                 </div>
             </body>
             </html>
-            """.formatted(
-                locale, title, data.get("userName"), message, 
-                data.get("oldEmail"), data.get("newEmail"), brandName
+            """            .formatted(
+                locale, title, data.get("userName"), message,
+                getLocalizedText(locale, "Email anterior", "Previous email", "Vorherige E-Mail", "Email précédent", "Email precedente", "Email anterior"),
+                data.get("oldEmail"),
+                getLocalizedText(locale, "Nuevo email", "New email", "Neue E-Mail", "Nouvel email", "Nuova email", "Novo email"),
+                data.get("newEmail"),
+                brandName
         );
     }
 
     private String buildAdminAccessBody(String locale, Map<String, Object> data) {
-        String title = getLocalizedText(locale, "admin_access_title",
+        String title = getLocalizedText(locale,
                 "🔐 Acceso a tus datos personales",
                 "🔐 Access to your personal data",
+                "🔐 Zugriff auf Ihre persönlichen Daten",
+                "🔐 Accès à vos données personnelles",
+                "🔐 Accesso ai tuoi dati personali",
                 "🔐 Acesso aos seus dados pessoais");
 
-        String intro = getLocalizedText(locale, "admin_access_intro",
+        String intro = getLocalizedText(locale,
                 "Un administrador accedio a tus datos personales:",
                 "An administrator accessed your personal data:",
+                "Ein Administrator hat auf Ihre persönlichen Daten zugegriffen:",
+                "Un administrateur a accédé à vos données personnelles:",
+                "Un amministratore ha acceduto ai tuoi dati personali:",
                 "Um administrador acessou seus dados pessoais:");
 
-        String warning = getLocalizedText(locale, "admin_access_warning",
+        String warning = getLocalizedText(locale,
                 "Si no autorizaste este acceso, contacta a soporte inmediatamente.",
                 "If you did not authorize this access, contact support immediately.",
-                "Se voce nao autorizou este acesso, entre em contato com suporte imediatamente.");
+                "Wenn Sie diesen Zugriff nicht autorisiert haben, wenden Sie sich sofort an den Support.",
+                "Si vous n'avez pas autorisé cet accès, contactez immédiatement le support.",
+                "Se non hai autorizzato questo accesso, contatta immediatamente il supporto.",
+                "Se você não autorizou este acesso, entre em contato com suporte imediatamente.");
 
         return """
             <!DOCTYPE html>
@@ -374,10 +444,10 @@ public class SensitiveDataNotificationService {
                     <p>Hola %s,</p>
                     <p>%s</p>
                     <div class="info-box">
-                        <p><strong>Administrador:</strong> %s</p>
-                        <p><strong>Accion:</strong> %s</p>
-                        <p><strong>Razon:</strong> %s</p>
-                        <p><strong>Fecha y hora:</strong> %s</p>
+                        <p><strong>%s:</strong> %s</p>
+                        <p><strong>%s:</strong> %s</p>
+                        <p><strong>%s:</strong> %s</p>
+                        <p><strong>%s:</strong> %s</p>
                     </div>
                     <p>%s</p>
                 </div>
@@ -386,10 +456,18 @@ public class SensitiveDataNotificationService {
                 </div>
             </body>
             </html>
-            """.formatted(
+            """            .formatted(
                 locale, title, data.get("userName"), intro,
-                data.get("adminName"), data.get("action"), data.get("reason"),
-                data.get("timestamp"), warning, brandName
+                getLocalizedText(locale, "Administrador", "Administrator", "Administrator", "Administrateur", "Amministratore", "Administrador"),
+                data.get("adminName"),
+                getLocalizedText(locale, "Accion", "Action", "Aktion", "Action", "Azione", "Ação"),
+                data.get("action"),
+                getLocalizedText(locale, "Razon", "Reason", "Grund", "Raison", "Motivo", "Razão"),
+                data.get("reason"),
+                getLocalizedText(locale, "Fecha y hora", "Date and time", "Datum und Uhrzeit", "Date et heure", "Data e ora", "Data e hora"),
+                data.get("timestamp"),
+                warning,
+                brandName
         );
     }
 }

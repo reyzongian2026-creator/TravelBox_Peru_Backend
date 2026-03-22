@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Size;
 
 public record CreateIncidentRequest(
         @NotNull Long reservationId,
-        @NotBlank @Size(max = 500) String description
+        @NotBlank @Size(max = 500) String description,
+        @Size(max = 5) String originalLanguage
 ) {
 }
