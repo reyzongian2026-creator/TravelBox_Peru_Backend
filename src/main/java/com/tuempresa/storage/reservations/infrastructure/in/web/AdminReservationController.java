@@ -3,6 +3,7 @@ package com.tuempresa.storage.reservations.infrastructure.in.web;
 import com.tuempresa.storage.reservations.application.dto.BulkOperationResponse;
 import com.tuempresa.storage.reservations.application.dto.BulkReservationStatusRequest;
 import com.tuempresa.storage.reservations.application.dto.ReservationExportRow;
+import com.tuempresa.storage.reservations.application.dto.ReservationResponse;
 import com.tuempresa.storage.reservations.application.usecase.ReservationService;
 import com.tuempresa.storage.shared.application.usecase.CsvExportService;
 import com.tuempresa.storage.shared.domain.exception.ApiException;
@@ -48,6 +49,14 @@ public class AdminReservationController {
         this.securityUtils = securityUtils;
         this.reactiveBlockingExecutor = reactiveBlockingExecutor;
         this.csvExportService = csvExportService;
+    }
+
+    @GetMapping({"", "/", "/list"})
+    public Mono<List<ReservationResponse>> list() {
+        return securityUtils.currentUserOrThrowReactive()
+                .flatMap(currentUser -> reactiveBlockingExecutor.call(
+                        () -> reservationService.list(currentUser)
+                ));
     }
 
     @PatchMapping("/bulk/status")

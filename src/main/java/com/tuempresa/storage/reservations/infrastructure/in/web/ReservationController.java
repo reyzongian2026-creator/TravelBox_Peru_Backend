@@ -1,5 +1,7 @@
 package com.tuempresa.storage.reservations.infrastructure.in.web;
 
+import com.tuempresa.storage.delivery.application.dto.DeliveryTrackingResponse;
+import com.tuempresa.storage.delivery.application.usecase.DeliveryService;
 import com.tuempresa.storage.reservations.application.dto.CancelReservationRequest;
 import com.tuempresa.storage.reservations.application.dto.CreateAssistedReservationRequest;
 import com.tuempresa.storage.reservations.application.dto.CreateReservationCheckoutRequest;
@@ -12,6 +14,7 @@ import com.tuempresa.storage.shared.infrastructure.reactive.ReactiveBlockingExec
 import com.tuempresa.storage.shared.infrastructure.security.SecurityUtils;
 import com.tuempresa.storage.shared.infrastructure.web.PagedResponse;
 import jakarta.validation.Valid;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -34,17 +37,20 @@ public class ReservationController {
 
     private final ReservationService reservationService;
     private final ReservationCheckoutService reservationCheckoutService;
+    private final DeliveryService deliveryService;
     private final SecurityUtils securityUtils;
     private final ReactiveBlockingExecutor reactiveBlockingExecutor;
 
     public ReservationController(
             ReservationService reservationService,
             ReservationCheckoutService reservationCheckoutService,
+            @Lazy DeliveryService deliveryService,
             SecurityUtils securityUtils,
             ReactiveBlockingExecutor reactiveBlockingExecutor
     ) {
         this.reservationService = reservationService;
         this.reservationCheckoutService = reservationCheckoutService;
+        this.deliveryService = deliveryService;
         this.securityUtils = securityUtils;
         this.reactiveBlockingExecutor = reactiveBlockingExecutor;
     }
@@ -127,5 +133,13 @@ public class ReservationController {
                         .header(HttpHeaders.CACHE_CONTROL, "no-store")
                         .contentType(MediaType.IMAGE_PNG)
                         .body(png));
+    }
+
+    @GetMapping("/{id}/tracking")
+    public Mono<DeliveryTrackingResponse> tracking(@PathVariable Long id) {
+        return securityUtils.currentUserOrThrowReactive()
+                .flatMap(currentUser -> reactiveBlockingExecutor.call(
+                        () -> deliveryService.trackingByReservation(id, currentUser)
+                ));
     }
 }
