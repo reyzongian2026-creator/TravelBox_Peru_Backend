@@ -14,22 +14,13 @@ spring:
           property-source-enabled: ${AZURE_KEYVAULT_ENABLED:true}
           property-sources:
             - endpoint: ${AZURE_KEYVAULT_ENDPOINT:https://kvtravelboxpe.vault.azure.net/}
-          timeout:
-            connect: 10s
-            read: 30s
   datasource:
     url: "${tbx-back-db-url:}"
     username: "${tbx-back-db-username:}"
     password: "${tbx-back-db-password:}"
-    hikari:
-      connection-timeout: 30000
-      initialization-fail-timeout: -1
   flyway:
     enabled: true
     baseline-on-migrate: true
-    validate-on-migrate: true
-    connect-retries: 3
-    connect-retries-interval: 10
   mail:
     host: ${tbx-back-smtp-host:}
     port: ${tbx-back-smtp-port:587}
