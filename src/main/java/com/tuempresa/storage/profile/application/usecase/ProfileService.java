@@ -8,6 +8,8 @@ import com.tuempresa.storage.profile.application.dto.UpdateProfileRequest;
 import com.tuempresa.storage.profile.application.dto.UserProfileResponse;
 import com.tuempresa.storage.shared.domain.exception.ApiException;
 import com.tuempresa.storage.shared.infrastructure.security.AuthUserPrincipal;
+import com.tuempresa.storage.shared.infrastructure.security.SensitiveDataService;
+import com.tuempresa.storage.shared.infrastructure.security.SensitiveDataService.SensitiveFieldType;
 import com.tuempresa.storage.users.domain.AuthProvider;
 import com.tuempresa.storage.users.domain.DocumentType;
 import com.tuempresa.storage.users.domain.Gender;
@@ -41,6 +43,7 @@ public class ProfileService {
     private final NotificationService notificationService;
     private final CustomerEmailService customerEmailService;
     private final FirebaseAdminService firebaseAdminService;
+    private final SensitiveDataService sensitiveDataService;
     private final String emailProvider;
 
     public ProfileService(
@@ -49,6 +52,7 @@ public class ProfileService {
             NotificationService notificationService,
             CustomerEmailService customerEmailService,
             FirebaseAdminService firebaseAdminService,
+            SensitiveDataService sensitiveDataService,
             @Value("${app.auth.email-provider:mock}") String emailProvider
     ) {
         this.userRepository = userRepository;
@@ -56,6 +60,7 @@ public class ProfileService {
         this.notificationService = notificationService;
         this.customerEmailService = customerEmailService;
         this.firebaseAdminService = firebaseAdminService;
+        this.sensitiveDataService = sensitiveDataService;
         this.emailProvider = emailProvider == null ? "mock" : emailProvider.trim().toLowerCase(Locale.ROOT);
     }
 
@@ -177,6 +182,8 @@ public class ProfileService {
                 normalize(request.emergencyContactName()),
                 normalizedEmergencyPhone
         );
+
+        encryptSensitiveFields(user);
 
         if (emailChanged) {
             user.incrementEmailChangeCount();
@@ -367,6 +374,31 @@ public class ProfileService {
         return INTERNATIONAL_PHONE_PATTERN.matcher(compact).matches() ? compact : null;
     }
 
+    private void encryptSensitiveFields(User user) {
+        if (user.getPhone() != null) {
+            user.setPhoneEncrypted(sensitiveDataService.encrypt(user.getPhone(), SensitiveFieldType.PHONE));
+        }
+        if (user.getAddressLine() != null) {
+            user.setAddressLineEncrypted(sensitiveDataService.encrypt(user.getAddressLine(), SensitiveFieldType.ADDRESS));
+        }
+        if (user.getPrimaryDocumentNumber() != null) {
+            user.setPrimaryDocumentNumberEncrypted(
+                    sensitiveDataService.encrypt(user.getPrimaryDocumentNumber(), SensitiveFieldType.DNI));
+        }
+        if (user.getSecondaryDocumentNumber() != null) {
+            user.setSecondaryDocumentNumberEncrypted(
+                    sensitiveDataService.encrypt(user.getSecondaryDocumentNumber(), SensitiveFieldType.DNI));
+        }
+        if (user.getEmergencyContactName() != null) {
+            user.setEmergencyContactNameEncrypted(
+                    sensitiveDataService.encrypt(user.getEmergencyContactName(), SensitiveFieldType.EMERGENCY_CONTACT_NAME));
+        }
+        if (user.getEmergencyContactPhone() != null) {
+            user.setEmergencyContactPhoneEncrypted(
+                    sensitiveDataService.encrypt(user.getEmergencyContactPhone(), SensitiveFieldType.EMERGENCY_CONTACT_PHONE));
+        }
+    }
+
     private UserProfileResponse toResponse(User user, String verificationCodePreview) {
         List<String> roles = user.getRoles().stream().map(Enum::name).sorted(Comparator.naturalOrder()).toList();
         return new UserProfileResponse(
@@ -375,7 +407,7 @@ public class ProfileService {
                 user.getFirstName(),
                 user.getLastName(),
                 user.getEmail(),
-                user.getPhone(),
+                maskSensitive(user.getPhone(), SensitiveFieldType.PHONE),
                 user.getNationality(),
                 user.getPreferredLanguage(),
                 user.getAuthProvider().name(),
@@ -387,15 +419,15 @@ public class ProfileService {
                 user.getBirthDate(),
                 user.getGender() == null ? null : user.getGender().name(),
                 user.getProfilePhotoPath(),
-                user.getAddressLine(),
+                maskSensitive(user.getAddressLine(), SensitiveFieldType.ADDRESS),
                 user.getCityName(),
                 user.getCountryName(),
                 user.getPrimaryDocumentType() == null ? null : user.getPrimaryDocumentType().name(),
-                user.getPrimaryDocumentNumber(),
+                maskSensitive(user.getPrimaryDocumentNumber(), SensitiveFieldType.DNI),
                 user.getSecondaryDocumentType() == null ? null : user.getSecondaryDocumentType().name(),
-                user.getSecondaryDocumentNumber(),
-                user.getEmergencyContactName(),
-                user.getEmergencyContactPhone(),
+                maskSensitive(user.getSecondaryDocumentNumber(), SensitiveFieldType.DNI),
+                maskSensitive(user.getEmergencyContactName(), SensitiveFieldType.EMERGENCY_CONTACT_NAME),
+                maskSensitive(user.getEmergencyContactPhone(), SensitiveFieldType.EMERGENCY_CONTACT_PHONE),
                 user.getTermsAcceptedAt(),
                 user.getEmailVerificationExpiresAt(),
                 verificationCodePreview,
@@ -406,6 +438,13 @@ public class ProfileService {
                 user.getWarehouseAssignments().stream().map(warehouse -> warehouse.getId()).sorted().toList(),
                 user.getWarehouseAssignments().stream().map(warehouse -> warehouse.getName()).sorted(String::compareToIgnoreCase).toList()
         );
+    }
+
+    private String maskSensitive(String value, SensitiveFieldType type) {
+        if (value == null) {
+            return null;
+        }
+        return sensitiveDataService.mask(value, type);
     }
 
     private record ProfileSnapshot(

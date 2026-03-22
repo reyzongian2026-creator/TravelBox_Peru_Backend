@@ -139,6 +139,7 @@ app:
         max-requests-per-window: ${APP_AUTH_RATE_LIMIT_MAX_REQUESTS:12}
         window-seconds: ${APP_AUTH_RATE_LIMIT_WINDOW_SECONDS:60}
         block-seconds: ${APP_AUTH_RATE_LIMIT_BLOCK_SECONDS:300}
+    encryption-key: ${tbx-back-encryption-key:${APP_SECURITY_ENCRYPTION_KEY:}}
   cors:
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:*,http://127.0.0.1:*,http://0.0.0.0:*}
   storage:
@@ -233,3 +234,20 @@ app:
       fail-fast: ${APP_FIREBASE_USER_MIGRATION_FAIL_FAST:false}
     firestore:
       client-profile-collection: ${APP_FIREBASE_CLIENT_PROFILE_COLLECTION:clientProfiles}
+
+azure:
+  storage:
+    images:
+      connection-string: ${tbx-back-azure-storage-images-connection-string:${AZURE_STORAGE_IMAGES_CONNECTION_STRING:}}
+      url-base: ${AZURE_STORAGE_IMAGES_URL_BASE:}
+      container:
+        images: ${AZURE_STORAGE_IMAGES_CONTAINER:travelbox-images}
+        profiles: ${AZURE_STORAGE_PROFILES_CONTAINER:travelbox-profiles}
+        warehouses: ${AZURE_STORAGE_WAREHOUSES_CONTAINER:travelbox-warehouses}
+        documents: ${AZURE_STORAGE_DOCUMENTS_CONTAINER:travelbox-documents}
+    reports:
+      connection-string: ${tbx-back-azure-storage-reports-connection-string:${AZURE_STORAGE_REPORTS_CONNECTION_STRING:}}
+      url-base: ${AZURE_STORAGE_REPORTS_URL_BASE:}
+      container:
+        reports: ${AZURE_STORAGE_REPORTS_CONTAINER:travelbox-reports}
+        exports: ${AZURE_STORAGE_EXPORTS_CONTAINER:travelbox-exports}

@@ -120,6 +120,24 @@ public class User extends AuditableEntity {
     @Column(name = "emergency_contact_phone", length = 30)
     private String emergencyContactPhone;
 
+    @Column(name = "phone_encrypted", length = 500)
+    private String phoneEncrypted;
+
+    @Column(name = "address_line_encrypted", length = 500)
+    private String addressLineEncrypted;
+
+    @Column(name = "primary_document_number_encrypted", length = 500)
+    private String primaryDocumentNumberEncrypted;
+
+    @Column(name = "secondary_document_number_encrypted", length = 500)
+    private String secondaryDocumentNumberEncrypted;
+
+    @Column(name = "emergency_contact_name_encrypted", length = 500)
+    private String emergencyContactNameEncrypted;
+
+    @Column(name = "emergency_contact_phone_encrypted", length = 500)
+    private String emergencyContactPhoneEncrypted;
+
     @Column(name = "terms_accepted_at")
     private Instant termsAcceptedAt;
 
@@ -291,6 +309,54 @@ public class User extends AuditableEntity {
 
     public String getEmergencyContactPhone() {
         return emergencyContactPhone;
+    }
+
+    public String getPhoneEncrypted() {
+        return phoneEncrypted;
+    }
+
+    public void setPhoneEncrypted(String phoneEncrypted) {
+        this.phoneEncrypted = phoneEncrypted;
+    }
+
+    public String getAddressLineEncrypted() {
+        return addressLineEncrypted;
+    }
+
+    public void setAddressLineEncrypted(String addressLineEncrypted) {
+        this.addressLineEncrypted = addressLineEncrypted;
+    }
+
+    public String getPrimaryDocumentNumberEncrypted() {
+        return primaryDocumentNumberEncrypted;
+    }
+
+    public void setPrimaryDocumentNumberEncrypted(String primaryDocumentNumberEncrypted) {
+        this.primaryDocumentNumberEncrypted = primaryDocumentNumberEncrypted;
+    }
+
+    public String getSecondaryDocumentNumberEncrypted() {
+        return secondaryDocumentNumberEncrypted;
+    }
+
+    public void setSecondaryDocumentNumberEncrypted(String secondaryDocumentNumberEncrypted) {
+        this.secondaryDocumentNumberEncrypted = secondaryDocumentNumberEncrypted;
+    }
+
+    public String getEmergencyContactNameEncrypted() {
+        return emergencyContactNameEncrypted;
+    }
+
+    public void setEmergencyContactNameEncrypted(String emergencyContactNameEncrypted) {
+        this.emergencyContactNameEncrypted = emergencyContactNameEncrypted;
+    }
+
+    public String getEmergencyContactPhoneEncrypted() {
+        return emergencyContactPhoneEncrypted;
+    }
+
+    public void setEmergencyContactPhoneEncrypted(String emergencyContactPhoneEncrypted) {
+        this.emergencyContactPhoneEncrypted = emergencyContactPhoneEncrypted;
     }
 
     public Instant getTermsAcceptedAt() {
