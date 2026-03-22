@@ -211,6 +211,10 @@ public class User extends AuditableEntity {
         return email;
     }
 
+    public void setEmail(String email) {
+        this.email = normalizeEmail(email);
+    }
+
     public String getPasswordHash() {
         return passwordHash;
     }

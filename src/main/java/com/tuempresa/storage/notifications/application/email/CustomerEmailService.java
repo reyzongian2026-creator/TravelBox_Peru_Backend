@@ -296,6 +296,68 @@ public class CustomerEmailService {
         );
     }
 
+    public void sendEmailChangeVerification(
+            User user,
+            String pendingEmail,
+            String verificationCode,
+            Instant expiresAt
+    ) {
+        if (user == null || pendingEmail == null || pendingEmail.isBlank() || verificationCode == null || verificationCode.isBlank()) {
+            return;
+        }
+        List<String> details = new ArrayList<>();
+        details.add("Nuevo correo: " + safeText(pendingEmail, "-"));
+        details.add("Correo actual: " + safeText(user.getEmail(), "-"));
+        details.add("Validez: " + formatInstant(expiresAt) + " (hora Lima)");
+
+        EmailContent content = renderTemplate(
+                "Cambio de correo",
+                "Verifica tu nuevo correo",
+                "Hola " + displayName(user) + ", solicitaste cambiar tu correo. Usa este codigo para confirmar el cambio.",
+                details,
+                verificationCode,
+                expiresAt,
+                "Confirmar cambio",
+                profileRoute(),
+                "Si no solicitaste este cambio, ignora este mensaje y considera cambiar tu contrasena."
+        );
+        send(
+                pendingEmail,
+                "TravelBox | Codigo para cambiar tu correo",
+                content,
+                "EMAIL_CHANGE_VERIFICATION",
+                "email-change:" + safeId(user) + ":" + verificationCode.trim()
+        );
+    }
+
+    public void sendEmailChangeConfirmation(User user) {
+        if (user == null) {
+            return;
+        }
+        List<String> details = new ArrayList<>();
+        details.add("Nuevo correo: " + safeText(user.getEmail(), "-"));
+        details.add("Fecha: " + formatInstant(Instant.now()) + " (hora Lima)");
+
+        EmailContent content = renderTemplate(
+                "Correo actualizado",
+                "Tu correo fue cambiado",
+                "Hola " + displayName(user) + ", confirmamos el cambio de tu correo electronico.",
+                details,
+                null,
+                null,
+                "Ir a mi cuenta",
+                profileRoute(),
+                "Si no realizaste este cambio, contacta soporte inmediatamente."
+        );
+        send(
+                user.getEmail(),
+                "TravelBox | Correo electronico actualizado",
+                content,
+                "EMAIL_CHANGE_CONFIRMED",
+                "email-change-confirmed:" + safeId(user)
+        );
+    }
+
     private void send(
             String to,
             String subject,
