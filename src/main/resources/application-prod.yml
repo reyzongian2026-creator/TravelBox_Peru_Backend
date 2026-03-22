@@ -46,6 +46,8 @@ app:
   security:
     jwt:
       secret: ${tbx-back-jwt-secret:}
+  notifications:
+    provider: firebase
   translation:
     provider: ${APP_TRANSLATION_PROVIDER:google}
     allow-fallback: ${APP_TRANSLATION_ALLOW_FALLBACK:true}
@@ -60,8 +62,14 @@ app:
   auth:
     email-provider: ${tbx-back-auth-email-provider:${tbx-back-email-provider:smtp}}
   routing:
+    provider: google
+    allow-mock-fallback: false
     google:
       api-key: ${tbx-back-routing-google-api-key:}
+  payments:
+    provider: culqi
+    force-cash-only: false
+    allow-mock-confirmation: true
   firebase:
     enabled: ${tbx-back-firebase-enabled:true}
     project-id: ${tbx-back-firebase-project-id:}
