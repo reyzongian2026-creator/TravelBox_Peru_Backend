@@ -174,7 +174,7 @@ app:
       max-threads: ${APP_BLOCKING_MAX_THREADS:96}
       max-queue: ${APP_BLOCKING_MAX_QUEUE:20000}
       thread-ttl-seconds: ${APP_BLOCKING_THREAD_TTL_SECONDS:60}
-      timeout-ms: ${APP_BLOCKING_TIMEOUT_MS:30000}
+      timeout-ms: ${APP_BLOCKING_TIMEOUT_MS:120000}
   payments:
     provider: ${APP_PAYMENT_PROVIDER:culqi}
     force-cash-only: ${APP_PAYMENTS_FORCE_CASH_ONLY:false}
