@@ -13,10 +13,14 @@ import java.nio.file.StandardCopyOption;
 import java.util.Set;
 import java.util.UUID;
 
+import java.awt.image.BufferedImage;
+
 @Service
 public class LocalFileStorageService {
 
     private static final long MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
+    private static final long MIN_IMAGE_SIZE_BYTES = 5 * 1024;
+    private static final int MIN_IMAGE_DIMENSION = 50;
     private static final Set<String> ALLOWED_CONTENT_TYPES = Set.of(
             "image/jpeg",
             "image/png",
@@ -30,10 +34,12 @@ public class LocalFileStorageService {
     }
 
     public String saveEvidenceImage(MultipartFile file) {
+        validateImage(file);
         return saveImage(file, "evidences", "evidence-");
     }
 
     public String saveWarehouseImage(MultipartFile file) {
+        validateImage(file);
         return saveImage(file, "warehouses", "warehouse-");
     }
 
@@ -63,6 +69,27 @@ public class LocalFileStorageService {
             return "/api/v1/files/" + category + "/" + filename;
         } catch (IOException ex) {
             throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "FILE_STORAGE_ERROR", "No se pudo guardar la imagen.");
+        }
+    }
+
+    private void validateImage(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "FILE_REQUIRED", "Debes enviar un archivo.");
+        }
+        if (file.getSize() < MIN_IMAGE_SIZE_BYTES) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "IMAGE_TOO_SMALL", "La imagen es demasiado pequena. Tamano minimo: 5KB.");
+        }
+        try {
+            BufferedImage image = javax.imageio.ImageIO.read(file.getInputStream());
+            if (image == null) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_IMAGE", "No se pudo leer la imagen. Formato invalido.");
+            }
+            if (image.getWidth() < MIN_IMAGE_DIMENSION || image.getHeight() < MIN_IMAGE_DIMENSION) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "IMAGE_DIMENSION_TOO_SMALL", 
+                        "La imagen es demasiado pequena. Minimo: " + MIN_IMAGE_DIMENSION + "x" + MIN_IMAGE_DIMENSION + " pixels.");
+            }
+        } catch (IOException e) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "IMAGE_READ_ERROR", "Error al validar la imagen.");
         }
     }
 

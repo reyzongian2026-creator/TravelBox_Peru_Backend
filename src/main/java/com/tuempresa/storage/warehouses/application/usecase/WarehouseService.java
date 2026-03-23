@@ -210,6 +210,9 @@ public class WarehouseService {
                 resolveMoney(request.dropoffFee(), warehouse.getDropoffFee()),
                 resolveMoney(request.insuranceFee(), warehouse.getInsuranceFee())
         );
+        if (request.imageUrl() != null && !request.imageUrl().isBlank()) {
+            warehouse.updatePhoto(request.imageUrl());
+        }
         return toResponse(warehouse, null);
     }
 

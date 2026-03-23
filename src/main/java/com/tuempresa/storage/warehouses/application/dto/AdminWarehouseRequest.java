@@ -28,6 +28,8 @@ public record AdminWarehouseRequest(
         @DecimalMin(value = "0.00") @Digits(integer = 8, fraction = 2) BigDecimal pricePerHourExtraLarge,
         @DecimalMin(value = "0.00") @Digits(integer = 8, fraction = 2) BigDecimal pickupFee,
         @DecimalMin(value = "0.00") @Digits(integer = 8, fraction = 2) BigDecimal dropoffFee,
-        @DecimalMin(value = "0.00") @Digits(integer = 8, fraction = 2) BigDecimal insuranceFee
+        @DecimalMin(value = "0.00") @Digits(integer = 8, fraction = 2) BigDecimal insuranceFee,
+        String imageUrl,
+        String coverImageUrl
 ) {
 }

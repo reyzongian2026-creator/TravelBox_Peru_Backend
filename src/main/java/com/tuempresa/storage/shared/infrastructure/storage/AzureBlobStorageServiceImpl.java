@@ -21,6 +21,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+
 @Service
 public class AzureBlobStorageServiceImpl implements StorageService {
 
@@ -29,6 +32,9 @@ public class AzureBlobStorageServiceImpl implements StorageService {
     private static final Set<String> ALLOWED_IMAGE_TYPES = Set.of(
             "image/jpeg", "image/png", "image/webp", "image/gif"
     );
+
+    private static final long MIN_IMAGE_SIZE_BYTES = 5 * 1024;
+    private static final int MIN_IMAGE_DIMENSION = 50;
 
     private LocalFileStorageService localFileStorageService;
 
@@ -108,8 +114,34 @@ public class AzureBlobStorageServiceImpl implements StorageService {
 
     @Override
     public UploadResult upload(MultipartFile file, FileCategory category) throws IOException {
+        validateImageFile(file, category);
         return upload(file.getInputStream(), file.getSize(), file.getOriginalFilename(),
                 file.getContentType(), category);
+    }
+    
+    private void validateImageFile(MultipartFile file, FileCategory category) {
+        if (file == null || file.isEmpty()) {
+            throw new RuntimeException("Archivo vacio o no proporcionado");
+        }
+        
+        if (category == FileCategory.PROFILES || category == FileCategory.WAREHOUSES || category == FileCategory.EVIDENCES) {
+            if (file.getSize() < MIN_IMAGE_SIZE_BYTES) {
+                throw new RuntimeException("La imagen es demasiado pequena. Minimum: 5KB");
+            }
+            
+            try {
+                BufferedImage image = javax.imageio.ImageIO.read(file.getInputStream());
+                if (image == null) {
+                    throw new RuntimeException("No se pudo leer la imagen. Formato invalido");
+                }
+                if (image.getWidth() < MIN_IMAGE_DIMENSION || image.getHeight() < MIN_IMAGE_DIMENSION) {
+                    throw new RuntimeException("La imagen es demasiado pequena. Minimo: " + MIN_IMAGE_DIMENSION + "x" + MIN_IMAGE_DIMENSION + " pixels");
+                }
+                file.getInputStream().reset();
+            } catch (IOException e) {
+                throw new RuntimeException("Error al validar la imagen: " + e.getMessage());
+            }
+        }
     }
 
     @Override
