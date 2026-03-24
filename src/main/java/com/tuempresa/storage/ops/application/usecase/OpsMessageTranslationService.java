@@ -26,10 +26,13 @@ public class OpsMessageTranslationService {
     private static final Map<String, Map<String, String>> LOCAL_DICTIONARY = buildLocalDictionary();
 
     private final RestClient googleTranslationClient;
+    private final RestClient azureTranslationClient;
     private final String provider;
     private final boolean allowFallback;
     private final String googleApiKey;
     private final String googleModel;
+    private final String azureApiKey;
+    private final String azureRegion;
     private final long cacheSeconds;
     private final ConcurrentMap<String, CacheEntry> translationCache = new ConcurrentHashMap<>();
 
@@ -40,13 +43,23 @@ public class OpsMessageTranslationService {
             @Value("${app.translation.google.base-url:https://translation.googleapis.com}") String googleBaseUrl,
             @Value("${app.translation.google.api-key:}") String googleApiKey,
             @Value("${app.translation.google.model:nmt}") String googleModel,
+            @Value("${app.translation.azure.base-url:https://api.cognitive.microsofttranslator.com}") String azureBaseUrl,
+            @Value("${app.translation.azure.api-key:}") String azureApiKey,
+            @Value("${app.translation.azure.region:eastus}") String azureRegion,
             @Value("${app.translation.cache-seconds:21600}") long cacheSeconds
     ) {
         this.googleTranslationClient = restClientBuilder.baseUrl(googleBaseUrl).build();
+        this.azureTranslationClient = restClientBuilder
+                .baseUrl(azureBaseUrl)
+                .defaultHeader("Ocp-Apim-Subscription-Key", azureApiKey == null ? "" : azureApiKey.trim())
+                .defaultHeader("Content-Type", "application/json")
+                .build();
         this.provider = provider == null ? "local" : provider.trim().toLowerCase(Locale.ROOT);
         this.allowFallback = allowFallback;
         this.googleApiKey = googleApiKey == null ? "" : googleApiKey.trim();
         this.googleModel = StringUtils.hasText(googleModel) ? googleModel.trim() : "nmt";
+        this.azureApiKey = azureApiKey == null ? "" : azureApiKey.trim();
+        this.azureRegion = StringUtils.hasText(azureRegion) ? azureRegion.trim() : "eastus";
         this.cacheSeconds = Math.max(60L, cacheSeconds);
     }
 
@@ -77,6 +90,15 @@ public class OpsMessageTranslationService {
         String translated = null;
         if (isGoogleProvider(provider)) {
             translated = translateUsingGoogle(source, fromLanguage, toLanguage);
+            if (!StringUtils.hasText(translated) && !allowFallback) {
+                throw new ApiException(
+                        HttpStatus.SERVICE_UNAVAILABLE,
+                        "TRANSLATION_PROVIDER_UNAVAILABLE",
+                        "No se pudo traducir el mensaje y el fallback local esta deshabilitado."
+                );
+            }
+        } else if (isAzureProvider(provider)) {
+            translated = translateUsingAzure(source, fromLanguage, toLanguage);
             if (!StringUtils.hasText(translated) && !allowFallback) {
                 throw new ApiException(
                         HttpStatus.SERVICE_UNAVAILABLE,
@@ -211,6 +233,40 @@ public class OpsMessageTranslationService {
             case "google", "google-translate", "google_translate", "gcp" -> true;
             default -> false;
         };
+    }
+
+    private boolean isAzureProvider(String configuredProvider) {
+        return switch (configuredProvider) {
+            case "azure", "azure-translate", "azure_translate", "microsoft", "ms" -> true;
+            default -> false;
+        };
+    }
+
+    private String translateUsingAzure(String message, String sourceLanguage, String targetLanguage) {
+        if (!StringUtils.hasText(azureApiKey)) {
+            log.warn("Traduccion Azure omitida: app.translation.azure.api-key vacio.");
+            return null;
+        }
+        try {
+            String route = "/" + sourceLanguage + "/translate?api-version=3.0&to=" + targetLanguage;
+            JsonNode response = azureTranslationClient.post()
+                    .uri(route)
+                    .body(Map.of("Text", message))
+                    .retrieve()
+                    .body(JsonNode.class);
+            JsonNode translations = response == null ? null : response.path("translations");
+            if (translations == null || !translations.isArray() || translations.isEmpty()) {
+                return null;
+            }
+            String rawTranslated = translations.get(0).path("text").asText("");
+            if (!StringUtils.hasText(rawTranslated)) {
+                return null;
+            }
+            return rawTranslated.trim();
+        } catch (RestClientException | IllegalStateException ex) {
+            log.warn("Traduccion Azure fallo para targetLanguage={}: {}", targetLanguage, ex.getMessage());
+            return null;
+        }
     }
 
     private String buildCacheKey(String source, String sourceLanguage, String targetLanguage) {
