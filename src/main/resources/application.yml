@@ -141,7 +141,7 @@ app:
         block-seconds: ${APP_AUTH_RATE_LIMIT_BLOCK_SECONDS:300}
     encryption-key: ${tbx-back-encryption-key:${APP_SECURITY_ENCRYPTION_KEY:}}
   cors:
-    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:*,http://127.0.0.1:*,http://0.0.0.0:*}
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:58900,http://127.0.0.1:58900}
   storage:
     local-dir: ${APP_STORAGE_LOCAL_DIR:uploads}
     max-image-size-mb: ${APP_STORAGE_MAX_IMAGE_SIZE_MB:5}

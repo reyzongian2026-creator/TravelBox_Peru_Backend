@@ -99,14 +99,19 @@ public class ReactiveSecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOriginPatterns(allowedOrigins);
+        config.setAllowedOrigins(allowedOrigins);
         config.setAllowedMethods(List.of("GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of(
                 "Authorization",
                 "Content-Type",
                 "Accept",
                 "Origin",
-                "X-Correlation-Id"
+                "X-Correlation-Id",
+                "Cache-Control",
+                "Expires",
+                "Pragma",
+                "Access-Control-Request-Headers",
+                "Access-Control-Request-Method"
         ));
         config.setExposedHeaders(List.of("Authorization", "X-Correlation-Id", "Retry-After"));
         config.setAllowCredentials(true);
