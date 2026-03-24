@@ -1,0 +1,109 @@
+name: Deploy to Azure (Backend)
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "src/**"
+      - "pom.xml"
+  workflow_dispatch:
+    inputs:
+      app_env:
+        description: "Environment (dev/staging/prod)"
+        required: true
+        default: prod
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+
+env:
+  APP_ENV: ${{ inputs.app_env || 'prod' }}
+  AZURE_SUBSCRIPTION: "33815caa-4cfb-4a9e-b60a-8fee5caa2b08"
+  RESOURCE_GROUP: "travelbox-peru-rg"
+  WEBAPP_NAME: "travelbox-backend-prod"
+  JAVA_VERSION: "17"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Login Azure (keyvault mode)
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS_JSON }}
+
+      - name: Load secrets from Azure Key Vault
+        uses: azure/keyvault-secrets@v1
+        with:
+          azure-resource-group: ${{ env.RESOURCE_GROUP }}
+          vault-name: "kvtravelboxpe"
+          secrets-permission: get
+          run-pre-command: |
+            az account set --subscription ${{ env.AZURE_SUBSCRIPTION }}
+
+      - name: Get secrets from Key Vault
+        id: secrets
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $secrets = @{
+            "DB_HOST" = (az keyvault secret show --vault-name "kvtravelboxpe" --name "tbx-new-db-host" --query value -o tsv)
+            "DB_NAME" = (az keyvault secret show --vault-name "kvtravelboxpe" --name "tbx-new-db-name" --query value -o tsv)
+            "DB_USERNAME" = (az keyvault secret show --vault-name "kvtravelboxpe" --name "tbx-new-db-username" --query value -o tsv)
+            "DB_PASSWORD" = (az keyvault secret show --vault-name "kvtravelboxpe" --name "tbx-new-db-password" --query value -o tsv)
+            "JWT_SECRET" = (az keyvault secret show --vault-name "kvtravelboxpe" --name "tbx-back-jwt-secret" --query value -o tsv)
+          }
+          foreach ($kv in $secrets.GetEnumerator()) {
+            Write-Output "$($kv.Key)=$($kv.Value)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          }
+
+      - name: Ensure Maven wrapper executable
+        run: chmod +x mvnw
+
+      - name: Build with Maven
+        run: ./mvnw -B package -DskipTests
+        env:
+          SPRING_PROFILES_ACTIVE: ${{ env.APP_ENV }}
+
+      - name: Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.WEBAPP_NAME }}
+          slot-name: production
+          package: target/*.jar
+          startup-command: "java -jar /home/site/wwwroot/app.jar"
+
+      - name: Configure App Settings
+        shell: pwsh
+        run: |
+          az webapp config appsettings set `
+            --resource-group ${{ env.RESOURCE_GROUP }} `
+            --name ${{ env.WEBAPP_NAME }} `
+            --settings `
+              SPRING_PROFILES_ACTIVE=${{ env.APP_ENV }} `
+              TBX_BACK_DB_URL="jdbc:postgresql://$env:DB_HOST:5432/$env:DB_NAME?sslmode=require" `
+              TBX_BACK_DB_USERNAME="$env:DB_USERNAME" `
+              TBX_BACK_DB_PASSWORD="$env:DB_PASSWORD" `
+              TBX_BACK_JWT_SECRET="$env:JWT_SECRET" `
+              AZURE_KEYVAULT_ENABLED="true" `
+              AZURE_KEYVAULT_ENDPOINT="https://kvtravelboxpe.vault.azure.net/" `
+              APP_PUBLIC_BASE_URL="https://travelbox-backend-prod.azurewebsites.net"
