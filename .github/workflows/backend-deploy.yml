@@ -18,7 +18,9 @@ jobs:
           distribution: 'temurin'
 
       - name: Build JAR
-        run: ./mvnw package -DskipTests -q
+        run: |
+          chmod +x ./mvnw
+          ./mvnw package -DskipTests -q
 
       - name: Login to Azure
         uses: azure/login@v2
