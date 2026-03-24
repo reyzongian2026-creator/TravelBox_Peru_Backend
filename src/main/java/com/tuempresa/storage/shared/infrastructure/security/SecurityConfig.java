@@ -167,7 +167,10 @@ public class SecurityConfig {
     private boolean matchesWildcardPattern(String origin) {
         for (String allowed : allowedOrigins) {
             if (allowed.contains("*")) {
-                String pattern = allowed.replace(".", "\\.").replace("*", ".*");
+                String pattern = allowed
+                        .replace(".", "\\.")
+                        .replace("*", "[^.]+");
+                pattern = "^" + pattern + "$";
                 if (origin.matches(pattern)) {
                     return true;
                 }
