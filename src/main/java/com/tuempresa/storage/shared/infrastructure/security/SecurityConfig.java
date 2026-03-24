@@ -24,6 +24,8 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import jakarta.servlet.http.HttpServletRequest;
+
 import java.util.Arrays;
 import java.util.List;
 
@@ -140,8 +142,37 @@ public class SecurityConfig {
         config.setExposedHeaders(List.of("Authorization", "X-Correlation-Id", "Retry-After"));
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource() {
+            @Override
+            public CorsConfiguration getCorsConfiguration(HttpServletRequest request) {
+                String origin = request.getHeader("Origin");
+                if (origin != null && matchesWildcardPattern(origin)) {
+                    CorsConfiguration specificConfig = new CorsConfiguration();
+                    specificConfig.setAllowedOrigins(List.of(origin));
+                    specificConfig.setAllowedMethods(List.of("GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"));
+                    specificConfig.setAllowedHeaders(config.getAllowedHeaders());
+                    specificConfig.setExposedHeaders(config.getExposedHeaders());
+                    specificConfig.setAllowCredentials(true);
+                    specificConfig.setMaxAge(3600L);
+                    return specificConfig;
+                }
+                return config;
+            }
+        };
         source.registerCorsConfiguration("/**", config);
         return source;
+    }
+
+    private boolean matchesWildcardPattern(String origin) {
+        for (String allowed : allowedOrigins) {
+            if (allowed.contains("*")) {
+                String pattern = allowed.replace(".", "\\.").replace("*", ".*");
+                if (origin.matches(pattern)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 }
