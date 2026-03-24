@@ -46,25 +46,16 @@ jobs:
           java-version: "21"
           cache: maven
 
-      - name: Login Azure (keyvault mode)
+      - name: Login Azure
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS_JSON }}
 
-      - name: Load secrets from Azure Key Vault
-        uses: azure/keyvault-secrets@v1
-        with:
-          azure-resource-group: ${{ env.RESOURCE_GROUP }}
-          vault-name: "kvtravelboxpe"
-          secrets-permission: get
-          run-pre-command: |
-            az account set --subscription ${{ env.AZURE_SUBSCRIPTION }}
-
       - name: Get secrets from Key Vault
-        id: secrets
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
+          az account set --subscription "${{ env.AZURE_SUBSCRIPTION }}"
           $secrets = @{
             "DB_HOST" = (az keyvault secret show --vault-name "kvtravelboxpe" --name "tbx-new-db-host" --query value -o tsv)
             "DB_NAME" = (az keyvault secret show --vault-name "kvtravelboxpe" --name "tbx-new-db-name" --query value -o tsv)
