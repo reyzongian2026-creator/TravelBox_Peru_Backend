@@ -44,6 +44,7 @@
   - Move `lib/features/auth/data/firebase_client_auth_service.dart` to `lib/deprecated/`
   - Remove from `pubspec.yaml`
   - Update imports in `auth_repository_impl.dart`
+- **Status:** ✅ Done (commit `8423f78` backend, `53d7881` frontend)
 
 ---
 
@@ -52,6 +53,12 @@
 ### 5. Azure Cost Monitoring
 - Add cost tracking endpoint to backend
 - Display estimated monthly costs in frontend Settings tab
+- **Status:** ✅ Done (endpoint `/admin/system/azure-resources`, tab in System Admin page)
+
+### 6. Testing
+- Test the Azure Resources endpoint
+- Test the Azure Resources tab in frontend
+- Verify deployment workflows work correctly
 
 ### 6. Resource Expiry Alerts
 - Set up alerts for resource expirations
@@ -75,6 +82,9 @@
 | 2026-03-24 | Firebase Auth disabled | Done |
 | 2026-03-24 | Secrets → Azure Key Vault | Done |
 | 2026-03-24 | Graph API email code ready | Done |
+| 2026-03-24 | Azure Resources monitoring endpoint | Done |
+| 2026-03-24 | Azure Resources tab in frontend | Done |
+| 2026-03-24 | Firebase files moved to deprecated | Done |
 
 ---
 

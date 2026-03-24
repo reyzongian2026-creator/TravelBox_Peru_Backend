@@ -1,7 +1,17 @@
 # Migration Status - TravelBox Peru to Azure
 
 **Last Updated:** March 24, 2026  
-**Status:** 🟡 In Progress (Backend Complete, Frontend Complete, Email Partial)
+**Status:** 🟡 In Progress (Backend Complete, Frontend Complete, Pending Testing)
+
+---
+
+## 🔨 Git Commits
+
+### Backend
+- `8423f78` - "feat: add documentation, Azure resources endpoint, and move Firebase to deprecated"
+
+### Frontend
+- `53d7881` - "feat: move Firebase to deprecated and add Azure Resources monitoring tab"
 
 ---
 
