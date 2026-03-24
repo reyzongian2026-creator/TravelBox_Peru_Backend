@@ -41,3 +41,5 @@ deployment.err
 # Local test artifacts
 backend_out.log
 local_test_env.sh
+nul
+nul
