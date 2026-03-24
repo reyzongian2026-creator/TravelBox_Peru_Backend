@@ -21,11 +21,13 @@ public class GeoRoutingService {
 
     private final RestClient osrmRestClient;
     private final RestClient googleRestClient;
+    private final RestClient azureMapsRestClient;
     private final String provider;
     private final boolean allowMockFallback;
     private final String defaultProfile;
     private final String googleApiKey;
     private final String googleFieldMask;
+    private final String azureApiKey;
 
     public GeoRoutingService(
             RestClient.Builder restClientBuilder,
@@ -35,10 +37,13 @@ public class GeoRoutingService {
             @Value("${app.routing.osrm.profile:driving}") String defaultProfile,
             @Value("${app.routing.google.base-url:https://routes.googleapis.com}") String googleBaseUrl,
             @Value("${app.routing.google.api-key:}") String googleApiKey,
-            @Value("${app.routing.google.field-mask:routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline}") String googleFieldMask
+            @Value("${app.routing.google.field-mask:routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline}") String googleFieldMask,
+            @Value("${app.routing.azure.base-url:https://atlas.microsoft.com}") String azureBaseUrl,
+            @Value("${app.routing.azure.api-key:}") String azureApiKey
     ) {
         this.osrmRestClient = restClientBuilder.baseUrl(osrmBaseUrl).build();
         this.googleRestClient = restClientBuilder.baseUrl(googleBaseUrl).build();
+        this.azureMapsRestClient = restClientBuilder.baseUrl(azureBaseUrl).build();
         this.provider = provider == null ? "mock" : provider.trim().toLowerCase(Locale.ROOT);
         this.allowMockFallback = allowMockFallback;
         this.defaultProfile = normalizeProfile(defaultProfile);
@@ -46,6 +51,7 @@ public class GeoRoutingService {
         this.googleFieldMask = StringUtils.hasText(googleFieldMask)
                 ? googleFieldMask.trim()
                 : "routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline";
+        this.azureApiKey = azureApiKey == null ? "" : azureApiKey.trim();
     }
 
     public RouteResponse route(
@@ -58,21 +64,32 @@ public class GeoRoutingService {
         String effectiveProfile = normalizeProfile(profile);
         if (!"mock".equals(provider)) {
             try {
-                RouteResponse realRoute = isGoogleProvider(provider)
-                        ? fetchGoogleRoute(
-                        originLatitude,
-                        originLongitude,
-                        destinationLatitude,
-                        destinationLongitude,
-                        effectiveProfile
-                )
-                        : fetchOsrmRoute(
-                        originLatitude,
-                        originLongitude,
-                        destinationLatitude,
-                        destinationLongitude,
-                        effectiveProfile
-                );
+                RouteResponse realRoute;
+                if (isGoogleProvider(provider)) {
+                    realRoute = fetchGoogleRoute(
+                            originLatitude,
+                            originLongitude,
+                            destinationLatitude,
+                            destinationLongitude,
+                            effectiveProfile
+                    );
+                } else if (isAzureProvider(provider)) {
+                    realRoute = fetchAzureRoute(
+                            originLatitude,
+                            originLongitude,
+                            destinationLatitude,
+                            destinationLongitude,
+                            effectiveProfile
+                    );
+                } else {
+                    realRoute = fetchOsrmRoute(
+                            originLatitude,
+                            originLongitude,
+                            destinationLatitude,
+                            destinationLongitude,
+                            effectiveProfile
+                    );
+                }
                 if (realRoute != null && !realRoute.points().isEmpty()) {
                     return realRoute;
                 }
@@ -331,6 +348,107 @@ public class GeoRoutingService {
             case "google", "googlemaps", "google-maps", "google_maps", "routes" -> true;
             default -> false;
         };
+    }
+
+    private boolean isAzureProvider(String rawProvider) {
+        return switch (rawProvider) {
+            case "azure", "azuremaps", "azure-maps", "azure_maps", "atlas" -> true;
+            default -> false;
+        };
+    }
+
+    private RouteResponse fetchAzureRoute(
+            double originLatitude,
+            double originLongitude,
+            double destinationLatitude,
+            double destinationLongitude,
+            String profile
+    ) {
+        if (!StringUtils.hasText(azureApiKey)) {
+            throw new IllegalStateException("Azure Maps API key is empty.");
+        }
+
+        String travelMode = toAzureTravelMode(profile);
+        String path = "/route/directions?api-version=2024-02-01&subscription-key=" + azureApiKey + "&query=" 
+                + originLatitude + "," + originLongitude + ":" 
+                + destinationLatitude + "," + destinationLongitude 
+                + "&routeType=fastest&travelMode=" + travelMode;
+
+        JsonNode response = azureMapsRestClient.get()
+                .uri(path)
+                .retrieve()
+                .body(JsonNode.class);
+
+        JsonNode routes = response == null ? null : response.path("routes");
+        if (routes == null || !routes.isArray() || routes.isEmpty()) {
+            throw new IllegalStateException("No route returned by Azure Maps.");
+        }
+
+        JsonNode route = routes.get(0);
+        JsonNode legs = route.path("legs");
+        if (legs == null || !legs.isArray() || legs.isEmpty()) {
+            throw new IllegalStateException("Route has no legs.");
+        }
+
+        List<RoutePointResponse> points = new ArrayList<>();
+        double totalDistanceMeters = 0;
+        double totalDurationSeconds = 0;
+
+        for (JsonNode leg : legs) {
+            JsonNode pointsArray = leg.path("points");
+            if (pointsArray != null && pointsArray.isArray()) {
+                for (JsonNode point : pointsArray) {
+                    double lat = point.path("latitude").asDouble();
+                    double lon = point.path("longitude").asDouble();
+                    points.add(new RoutePointResponse(lat, lon));
+                }
+            }
+            totalDistanceMeters += leg.path("summary").path("lengthInMeters").asDouble(0);
+            String durationStr = leg.path("summary").path("travelTimeInSeconds").asText("0s");
+            totalDurationSeconds += parseAzureDurationSeconds(durationStr);
+        }
+
+        if (points.size() < 2) {
+            throw new IllegalStateException("Route has insufficient points.");
+        }
+
+        if (totalDistanceMeters <= 0) {
+            totalDistanceMeters = estimateDistanceMeters(points);
+        }
+        if (totalDurationSeconds <= 0) {
+            totalDurationSeconds = estimateDurationSeconds(points);
+        }
+
+        return new RouteResponse(
+                "azure",
+                false,
+                totalDistanceMeters,
+                totalDurationSeconds,
+                points
+        );
+    }
+
+    private String toAzureTravelMode(String profile) {
+        return switch (profile) {
+            case "foot" -> "pedestrian";
+            case "bike" -> "bicycle";
+            default -> "car";
+        };
+    }
+
+    private double parseAzureDurationSeconds(String rawDuration) {
+        if (!StringUtils.hasText(rawDuration)) {
+            return 0;
+        }
+        String normalized = rawDuration.trim();
+        if (normalized.endsWith("s") || normalized.endsWith("S")) {
+            try {
+                return Double.parseDouble(normalized.substring(0, normalized.length() - 1));
+            } catch (NumberFormatException ignored) {
+                return 0;
+            }
+        }
+        return 0;
     }
 
     private String toGoogleTravelMode(String profile) {

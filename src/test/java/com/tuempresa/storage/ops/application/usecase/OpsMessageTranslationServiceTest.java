@@ -16,6 +16,9 @@ class OpsMessageTranslationServiceTest {
                 "https://translation.googleapis.com",
                 "",
                 "nmt",
+                "https://api.cognitive.microsofttranslator.com",
+                "",
+                "eastus",
                 3600
         );
 
@@ -39,6 +42,9 @@ class OpsMessageTranslationServiceTest {
                 "https://translation.googleapis.com",
                 "",
                 "nmt",
+                "https://api.cognitive.microsofttranslator.com",
+                "",
+                "eastus",
                 3600
         );
 
@@ -56,6 +62,9 @@ class OpsMessageTranslationServiceTest {
                 "https://translation.googleapis.com",
                 "",
                 "nmt",
+                "https://api.cognitive.microsofttranslator.com",
+                "",
+                "eastus",
                 3600
         );
 

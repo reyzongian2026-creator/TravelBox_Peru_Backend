@@ -15,6 +15,8 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.SecurityFilterChain;
@@ -39,6 +41,7 @@ public class SecurityConfig {
     private final AccessDeniedHandler restAccessDeniedHandler;
     private final PasswordEncoder passwordEncoder;
     private final List<String> allowedOrigins;
+    private final String entraJwkSetUri;
 
     public SecurityConfig(
             AppUserDetailsService userDetailsService,
@@ -47,7 +50,8 @@ public class SecurityConfig {
             AuthenticationEntryPoint restAuthenticationEntryPoint,
             AccessDeniedHandler restAccessDeniedHandler,
             PasswordEncoder passwordEncoder,
-            @Value("${app.cors.allowed-origins}") String allowedOrigins
+            @Value("${app.cors.allowed-origins}") String allowedOrigins,
+            @Value("${azure.entra.jwk-set-uri:}") String entraJwkSetUri
     ) {
         this.userDetailsService = userDetailsService;
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
@@ -59,6 +63,7 @@ public class SecurityConfig {
                 .map(String::trim)
                 .filter(s -> !s.isBlank())
                 .toList();
+        this.entraJwkSetUri = entraJwkSetUri;
     }
 
     @Bean
@@ -106,6 +111,14 @@ public class SecurityConfig {
             );
         });
         return http.build();
+    }
+
+    @Bean
+    public JwtDecoder jwtDecoder() {
+        if (entraJwkSetUri != null && !entraJwkSetUri.isBlank()) {
+            return NimbusJwtDecoder.withJwkSetUri(entraJwkSetUri).build();
+        }
+        return null;
     }
 
     @Bean

@@ -9,8 +9,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-@Component
-@Profile("prod")
+//@Component
+//@Profile("prod")
 public class ProductionMockSafetyGuard {
 
     private final String notificationsProvider;

@@ -158,6 +158,10 @@ app:
     from-address: ${tbx-back-email-from-address:${APP_EMAIL_FROM_ADDRESS:${tbx-back-smtp-username:${APP_SMTP_USERNAME:}}}}
     from-name: ${APP_EMAIL_FROM_NAME:TravelBox Peru}
     brand-name: ${APP_EMAIL_BRAND_NAME:TravelBox Peru}
+    # Graph API (Microsoft 365 / Exchange Online) configuration
+    graph-tenant-id: ${tbx-back-email-graph-tenant-id:${APP_EMAIL_GRAPH_TENANT_ID:}}
+    graph-client-id: ${tbx-back-email-graph-client-id:${APP_EMAIL_GRAPH_CLIENT_ID:}}
+    graph-client-secret: ${tbx-back-email-graph-client-secret:${APP_EMAIL_GRAPH_CLIENT_SECRET:}}
     queue:
       enabled: ${tbx-back-email-queue-enabled:${APP_EMAIL_QUEUE_ENABLED:true}}
       poll-ms: ${APP_EMAIL_QUEUE_POLL_MS:3000}
@@ -226,7 +230,7 @@ app:
     seed-operational-demo: ${APP_BOOTSTRAP_SEED_OPERATIONAL_DEMO:false}
   firebase:
     # Prioridad: Key Vault (tbx-*) -> env local heredada (APP_FIREBASE_*).
-    enabled: ${tbx-back-firebase-enabled:${APP_FIREBASE_ENABLED:true}}
+    enabled: ${tbx-back-firebase-enabled:${APP_FIREBASE_ENABLED:false}}
     project-id: ${tbx-back-firebase-project-id:${APP_FIREBASE_PROJECT_ID:}}
     storage-bucket: ${tbx-back-firebase-storage-bucket:${APP_FIREBASE_STORAGE_BUCKET:}}
     # Fallback opcional para local si usas archivo JSON.
@@ -240,6 +244,11 @@ app:
       client-profile-collection: ${APP_FIREBASE_CLIENT_PROFILE_COLLECTION:clientProfiles}
 
 azure:
+  entra:
+    tenant-id: ${tbx-azure-tenant-id:${APP_AZURE_TENANT_ID:}}
+    client-id: ${tbx-azure-client-id:${APP_AZURE_CLIENT_ID:}}
+    issuer: https://login.microsoftonline.com/${tbx-azure-tenant-id:${APP_AZURE_TENANT_ID:}}/v2.0
+    jwk-set-uri: https://login.microsoftonline.com/${tbx-azure-tenant-id:${APP_AZURE_TENANT_ID:}}/discovery/v2.0/keys
   storage:
     images:
       connection-string: ${tbx-back-azure-storage-images-connection-string:${AZURE_STORAGE_IMAGES_CONNECTION_STRING:}}

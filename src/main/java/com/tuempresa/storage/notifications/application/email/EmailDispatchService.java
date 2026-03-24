@@ -14,11 +14,13 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -29,6 +31,8 @@ public class EmailDispatchService {
 
     private static final Logger log = LoggerFactory.getLogger(EmailDispatchService.class);
     private static final URI BREVO_SEND_EMAIL_URI = URI.create("https://api.brevo.com/v3/smtp/email");
+    private static final String GRAPH_TOKEN_URI_TEMPLATE = "https://login.microsoftonline.com/%s/oauth2/v2.0/token";
+    private static final String GRAPH_SEND_MAIL_URI_TEMPLATE = "https://graph.microsoft.com/v1.0/users/%s/sendMail";
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .build();
@@ -40,6 +44,11 @@ public class EmailDispatchService {
     private final String fromAddress;
     private final String fromName;
     private final ObjectMapper objectMapper;
+    private final String graphTenantId;
+    private final String graphClientId;
+    private final String graphClientSecret;
+    private volatile String cachedGraphAccessToken;
+    private volatile long cachedGraphTokenExpiry;
 
     public EmailDispatchService(
             ObjectProvider<JavaMailSender> mailSenderProvider,
@@ -47,7 +56,10 @@ public class EmailDispatchService {
             @Value("${spring.mail.host:}") String smtpHost,
             @Value("${spring.mail.password:}") String smtpPassword,
             @Value("${app.email.from-address:no-reply@travelbox.pe}") String fromAddress,
-            @Value("${app.email.from-name:TravelBox Peru}") String fromName
+            @Value("${app.email.from-name:TravelBox Peru}") String fromName,
+            @Value("${app.email.graph-tenant-id:}") String graphTenantId,
+            @Value("${app.email.graph-client-id:}") String graphClientId,
+            @Value("${app.email.graph-client-secret:}") String graphClientSecret
     ) {
         this.mailSenderProvider = mailSenderProvider;
         this.provider = normalize(provider) == null ? "mock" : normalize(provider).toLowerCase(Locale.ROOT);
@@ -56,10 +68,13 @@ public class EmailDispatchService {
         this.fromAddress = normalize(fromAddress);
         this.fromName = normalize(fromName);
         this.objectMapper = new ObjectMapper();
+        this.graphTenantId = normalize(graphTenantId);
+        this.graphClientId = normalize(graphClientId);
+        this.graphClientSecret = normalize(graphClientSecret);
     }
 
     public boolean isMockProvider() {
-        return !"smtp".equals(provider);
+        return !"smtp".equals(provider) && !"graph".equals(provider);
     }
 
     public DispatchResult sendHtml(String to, String subject, String htmlBody, String textBody) {
@@ -74,12 +89,20 @@ public class EmailDispatchService {
             return DispatchResult.sent("mock");
         }
 
+        if ("graph".equals(provider)) {
+            DispatchResult graphResult = sendViaGraphApi(recipient, safeSubject, htmlBody, textBody);
+            if (graphResult.sent()) {
+                return graphResult;
+            }
+            log.warn("Graph API failed for {}: {}", recipient, graphResult.errorMessage());
+        }
+
         if ("smtp-relay.brevo.com".equals(smtpHost)) {
             DispatchResult brevoResult = sendViaBrevoApi(recipient, safeSubject, htmlBody, textBody);
             if (brevoResult.sent()) {
                 return brevoResult;
             }
-            log.warn("Brevo API fallo para {}: {}", recipient, brevoResult.errorMessage());
+            log.warn("Brevo API failed for {}: {}", recipient, brevoResult.errorMessage());
         }
 
         JavaMailSender mailSender = mailSenderProvider.getIfAvailable();
@@ -108,6 +131,112 @@ public class EmailDispatchService {
         } catch (MessagingException | RuntimeException | java.io.UnsupportedEncodingException ex) {
             log.error("No se pudo enviar correo a {}: {}", recipient, ex.getMessage(), ex);
             return DispatchResult.failed("smtp", ex.getMessage());
+        }
+    }
+
+    private synchronized String getGraphAccessToken() {
+        if (cachedGraphAccessToken != null && System.currentTimeMillis() < cachedGraphTokenExpiry) {
+            return cachedGraphAccessToken;
+        }
+        if (graphTenantId == null || graphClientId == null || graphClientSecret == null) {
+            return null;
+        }
+
+        String tokenUrl = String.format(GRAPH_TOKEN_URI_TEMPLATE, graphTenantId);
+        String requestBody = String.format(
+                "grant_type=client_credentials&client_id=%s&client_secret=%s&scope=https://graph.microsoft.com/.default",
+                URLEncoder.encode(graphClientId, StandardCharsets.UTF_8),
+                URLEncoder.encode(graphClientSecret, StandardCharsets.UTF_8)
+        );
+
+        HttpRequest request = HttpRequest.newBuilder(URI.create(tokenUrl))
+                .timeout(Duration.ofSeconds(20))
+                .header("content-type", "application/x-www-form-urlencoded")
+                .POST(HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8))
+                .build();
+
+        try {
+            HttpResponse<String> response = HTTP_CLIENT.send(
+                    request,
+                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)
+            );
+            if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                var node = objectMapper.readTree(response.body());
+                String accessToken = node.get("access_token").asText();
+                int expiresIn = node.get("expires_in").asInt();
+                cachedGraphAccessToken = accessToken;
+                cachedGraphTokenExpiry = System.currentTimeMillis() + (expiresIn - 60) * 1000L;
+                return accessToken;
+            }
+            log.error("Graph token error: {} - {}", response.statusCode(), truncate(response.body()));
+            return null;
+        } catch (Exception ex) {
+            log.error("Graph token exception: {}", ex.getMessage(), ex);
+            return null;
+        }
+    }
+
+    private DispatchResult sendViaGraphApi(String recipient, String subject, String htmlBody, String textBody) {
+        String accessToken = getGraphAccessToken();
+        if (accessToken == null) {
+            return DispatchResult.failed("graph", "GRAPH_TOKEN_FAILED");
+        }
+        if (fromAddress == null) {
+            return DispatchResult.failed("graph", "GRAPH_FROM_ADDRESS_MISSING");
+        }
+
+        String senderEmail = fromAddress;
+        String sendMailUrl = String.format(GRAPH_SEND_MAIL_URI_TEMPLATE, URLEncoder.encode(senderEmail, StandardCharsets.UTF_8));
+
+        Map<String, Object> message = new LinkedHashMap<>();
+        Map<String, Object> from = new LinkedHashMap<>();
+        Map<String, Object> fromRecipient = new LinkedHashMap<>();
+        fromRecipient.put("emailAddress", Map.of("address", senderEmail, "name", fromName != null ? fromName : "TravelBox Peru"));
+        from.put("emailAddress", fromRecipient);
+        message.put("from", from);
+        message.put("toRecipients", List.of(Map.of("emailAddress", Map.of("address", recipient))));
+        message.put("subject", subject);
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("contentType", htmlBody != null ? "HTML" : "Text");
+        body.put("content", htmlBody != null ? htmlBody : (textBody != null ? textBody : ""));
+        message.put("body", body);
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("message", message);
+        payload.put("saveToSentItems", false);
+
+        String requestBody;
+        try {
+            requestBody = objectMapper.writeValueAsString(payload);
+        } catch (JsonProcessingException ex) {
+            return DispatchResult.failed("graph", "GRAPH_PAYLOAD_SERIALIZATION_ERROR");
+        }
+
+        HttpRequest request = HttpRequest.newBuilder(URI.create(sendMailUrl))
+                .timeout(Duration.ofSeconds(30))
+                .header("Authorization", "Bearer " + accessToken)
+                .header("content-type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8))
+                .build();
+
+        try {
+            HttpResponse<String> response = HTTP_CLIENT.send(
+                    request,
+                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)
+            );
+            if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                return DispatchResult.sent("graph");
+            }
+            return DispatchResult.failed(
+                    "graph",
+                    "GRAPH_API_" + response.statusCode() + ": " + truncate(response.body())
+            );
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            return DispatchResult.failed("graph", "GRAPH_API_INTERRUPTED");
+        } catch (IOException ex) {
+            return DispatchResult.failed("graph", "GRAPH_API_IO_ERROR: " + truncate(ex.getMessage()));
         }
     }
 

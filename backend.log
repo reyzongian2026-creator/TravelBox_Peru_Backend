@@ -1,0 +1,184 @@
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] -----------------------< com.tuempresa:storage >------------------------
+[INFO] Building storage 0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] >>> spring-boot:3.5.11:run (default-cli) > test-compile @ storage >>>
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ storage ---
+[INFO] Copying 5 resources from src\main\resources to target\classes
+[INFO] Copying 29 resources from src\main\resources to target\classes
+[INFO] 
+[INFO] --- compiler:3.14.1:compile (default-compile) @ storage ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- resources:3.3.1:testResources (default-testResources) @ storage ---
+[INFO] Copying 1 resource from src\test\resources to target\test-classes
+[INFO] 
+[INFO] --- compiler:3.14.1:testCompile (default-testCompile) @ storage ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] <<< spring-boot:3.5.11:run (default-cli) < test-compile @ storage <<<
+[INFO] 
+[INFO] 
+[INFO] --- spring-boot:3.5.11:run (default-cli) @ storage ---
+[INFO] Attaching agents: []
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::               (v3.5.11)
+
+2026-03-24 16:42:53.566 INFO  [background-preinit] [na] o.h.validator.internal.util.Version - HV000001: Hibernate Validator 8.0.3.Final
+2026-03-24 16:42:53.597 INFO  [main] [na] c.t.storage.StorageApplication - Starting StorageApplication using Java 21.0.9 with PID 257092 (C:\Users\GianLH\Desktop\PROYECTI\TravelBox_Peru_Backend\target\classes started by GianLH in C:\Users\GianLH\Desktop\PROYECTI\TravelBox_Peru_Backend)
+2026-03-24 16:42:53.598 INFO  [main] [na] c.t.storage.StorageApplication - The following 1 profile is active: "prod"
+2026-03-24 16:42:54.512 INFO  [main] [na] o.s.d.r.c.RepositoryConfigurationDelegate - Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-03-24 16:42:54.633 INFO  [main] [na] o.s.d.r.c.RepositoryConfigurationDelegate - Finished Spring Data repository scanning in 113 ms. Found 20 JPA repository interfaces.
+2026-03-24 16:42:55.071 INFO  [main] [na] o.s.b.w.e.tomcat.TomcatWebServer - Tomcat initialized with port 8080 (http)
+2026-03-24 16:42:55.081 INFO  [main] [na] o.a.coyote.http11.Http11NioProtocol - The ["http-nio-8080"] connector has been configured to support HTTP upgrade to [h2c]
+2026-03-24 16:42:55.082 INFO  [main] [na] o.a.coyote.http11.Http11NioProtocol - Initializing ProtocolHandler ["http-nio-8080"]
+2026-03-24 16:42:55.083 INFO  [main] [na] o.a.catalina.core.StandardService - Starting service [Tomcat]
+2026-03-24 16:42:55.083 INFO  [main] [na] o.a.catalina.core.StandardEngine - Starting Servlet engine: [Apache Tomcat/10.1.52]
+2026-03-24 16:42:55.259 INFO  [main] [na] com.zaxxer.hikari.HikariDataSource - travelbox-hikari - Starting...
+2026-03-24 16:42:58.827 INFO  [main] [na] com.zaxxer.hikari.pool.HikariPool - travelbox-hikari - Added connection org.postgresql.jdbc.PgConnection@1d4531fa
+2026-03-24 16:42:58.828 INFO  [main] [na] com.zaxxer.hikari.HikariDataSource - travelbox-hikari - Start completed.
+2026-03-24 16:42:59.182 INFO  [main] [na] org.flywaydb.core.FlywayExecutor - Database: jdbc:postgresql://travelbox-postgres.postgres.database.azure.com:5432/postgres?sslmode=require (PostgreSQL 18.2)
+2026-03-24 16:43:02.510 WARN  [main] [na] o.f.c.i.database.base.Database - Flyway upgrade recommended: PostgreSQL 18.2 is newer than this version of Flyway and support has not been tested. The latest supported version of PostgreSQL is 17.
+2026-03-24 16:43:04.237 INFO  [main] [na] o.f.core.internal.command.DbValidate - Successfully validated 25 migrations (execution time 00:01.385s)
+2026-03-24 16:43:08.576 INFO  [main] [na] o.f.core.internal.command.DbMigrate - Current version of schema "public": 25
+2026-03-24 16:43:08.910 INFO  [main] [na] o.f.core.internal.command.DbMigrate - Schema "public" is up to date. No migration necessary.
+2026-03-24 16:43:10.979 INFO  [main] [na] o.h.jpa.internal.util.LogHelper - HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-03-24 16:43:11.013 INFO  [main] [na] org.hibernate.Version - HHH000412: Hibernate ORM core version 6.6.42.Final
+2026-03-24 16:43:11.032 INFO  [main] [na] o.h.c.i.RegionFactoryInitiator - HHH000026: Second-level cache disabled
+2026-03-24 16:43:11.198 INFO  [main] [na] o.s.o.j.p.SpringPersistenceUnitInfo - No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-03-24 16:43:12.925 INFO  [main] [na] o.hibernate.orm.connections.pooling - HHH10001005: Database info:
+	Database JDBC URL [Connecting through datasource 'HikariDataSource (travelbox-hikari)']
+	Database driver: undefined/unknown
+	Database version: 18.2
+	Autocommit mode: undefined/unknown
+	Isolation level: undefined/unknown
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-03-24 16:43:13.814 INFO  [main] [na] o.h.e.t.j.p.i.JtaPlatformInitiator - HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-03-24 16:43:13.817 INFO  [main] [na] o.s.o.j.LocalContainerEntityManagerFactoryBean - Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-03-24 16:43:14.063 INFO  [main] [na] o.s.d.j.r.query.QueryEnhancerFactory - Hibernate is in classpath; If applicable, HQL parser will be used.
+2026-03-24 16:43:14.711 INFO  [main] [na] c.t.s.s.i.s.SensitiveDataService - SensitiveDataService initialized with AES-256-GCM encryption
+2026-03-24 16:43:15.328 INFO  [main] [na] c.t.s.s.i.s.AzureBlobStorageServiceImpl - Azure Blob Storage for images initialized
+2026-03-24 16:43:15.330 INFO  [main] [na] c.t.s.s.i.s.AzureBlobStorageServiceImpl - Azure Blob Storage for reports initialized
+2026-03-24 16:43:15.576 INFO  [main] [na] c.t.s.s.i.s.AzureBlobStorageService - Azure Blob Storage for images initialized. Container: travelbox-images
+2026-03-24 16:43:15.578 INFO  [main] [na] c.t.s.s.i.s.AzureBlobStorageService - Azure Blob Storage for reports initialized. Container: travelbox-reports
+2026-03-24 16:43:16.235 INFO  [main] [na] o.s.b.a.e.web.EndpointLinksResolver - Exposing 3 endpoints beneath base path '/actuator'
+2026-03-24 16:43:16.652 INFO  [main] [na] o.a.coyote.http11.Http11NioProtocol - Starting ProtocolHandler ["http-nio-8080"]
+2026-03-24 16:43:16.661 INFO  [main] [na] o.s.b.w.e.tomcat.TomcatWebServer - Tomcat started on port 8080 (http)
+2026-03-24 16:43:16.669 INFO  [main] [na] c.t.storage.StorageApplication - Started StorageApplication in 36.3 seconds (process running for 36.668)
+2026-03-24 16:43:16.722 INFO  [main] [na] c.t.s.s.i.c.BootstrapDataInitializer - Bootstrap seed started (seedOperationalDemoDataEnabled=false, minimalSeedOnly=false)
+2026-03-24 16:44:38.538 WARN  [tbx-email-outbox-1] [na] c.t.s.n.a.email.EmailDispatchService - Brevo API failed for img_test@test.com: BREVO_API_KEY_MISSING
+2026-03-24 16:44:39.618 ERROR [tbx-email-outbox-1] [na] c.t.s.n.a.email.EmailDispatchService - No se pudo enviar correo a img_test@test.com: Authentication failed
+org.springframework.mail.MailAuthenticationException: Authentication failed
+	at org.springframework.mail.javamail.JavaMailSenderImpl.doSend(JavaMailSenderImpl.java:402)
+	at org.springframework.mail.javamail.JavaMailSenderImpl.send(JavaMailSenderImpl.java:350)
+	at org.springframework.mail.javamail.JavaMailSender.send(JavaMailSender.java:101)
+	at com.tuempresa.storage.notifications.application.email.EmailDispatchService.sendHtml(EmailDispatchService.java:129)
+	at com.tuempresa.storage.notifications.application.email.EmailOutboxWorker.processById(EmailOutboxWorker.java:47)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at org.springframework.aop.support.AopUtils.invokeJoinpointUsingReflection(AopUtils.java:360)
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.invokeJoinpoint(ReflectiveMethodInvocation.java:196)
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:163)
+	at org.springframework.transaction.interceptor.TransactionAspectSupport.invokeWithinTransaction(TransactionAspectSupport.java:380)
+	at org.springframework.transaction.interceptor.TransactionInterceptor.invoke(TransactionInterceptor.java:119)
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:184)
+	at org.springframework.aop.framework.CglibAopProxy$DynamicAdvisedInterceptor.intercept(CglibAopProxy.java:728)
+	at com.tuempresa.storage.notifications.application.email.EmailOutboxWorker$$SpringCGLIB$$0.processById(<generated>)
+	at com.tuempresa.storage.notifications.application.email.EmailOutboxScheduler.processSingle(EmailOutboxScheduler.java:84)
+	at com.tuempresa.storage.notifications.application.email.EmailOutboxScheduler.lambda$processOutbox$1(EmailOutboxScheduler.java:71)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1144)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:642)
+	at java.base/java.lang.Thread.run(Thread.java:1583)
+Caused by: jakarta.mail.AuthenticationFailedException: 535 5.7.8 Authentication failed
+
+	at org.eclipse.angus.mail.smtp.SMTPTransport$Authenticator.authenticate(SMTPTransport.java:954)
+	at org.eclipse.angus.mail.smtp.SMTPTransport.authenticate(SMTPTransport.java:865)
+	at org.eclipse.angus.mail.smtp.SMTPTransport.protocolConnect(SMTPTransport.java:769)
+	at jakarta.mail.Service.connect(Service.java:345)
+	at org.springframework.mail.javamail.JavaMailSenderImpl.connectTransport(JavaMailSenderImpl.java:480)
+	at org.springframework.mail.javamail.JavaMailSenderImpl.doSend(JavaMailSenderImpl.java:399)
+	... 19 common frames omitted
+2026-03-24 16:44:46.732 WARN  [boundedElastic-2] [na] c.a.c.h.jdk.httpclient.JdkHttpClient - {"az.sdk.message":"The header is restricted by 'java.net.http.HttpClient' and will be ignored. To allow this header to be set on the request, configure 'jdk.httpclient.allowRestrictedHeaders' with the header added in the comma-separated list.","headerName":"content-length"}
+2026-03-24 16:44:47.132 INFO  [tbx-blocking-5] [na] c.t.s.s.i.s.AzureBlobStorageService - Uploaded image profiles-85c6aa16-a244-4972-a581-9d526582b655.jpg to container travelbox-profiles
+2026-03-24 16:45:10.574 WARN  [tbx-email-outbox-2] [na] c.t.s.n.a.email.EmailDispatchService - Brevo API failed for img_test@test.com: BREVO_API_KEY_MISSING
+2026-03-24 16:45:11.069 ERROR [tbx-email-outbox-2] [na] c.t.s.n.a.email.EmailDispatchService - No se pudo enviar correo a img_test@test.com: Mail server connection failed. Failed messages: jakarta.mail.MessagingException: Could not convert socket to TLS;
+  nested exception is:
+	javax.net.ssl.SSLHandshakeException: No subject alternative DNS name matching smtp-relay.brevo.com found.
+org.springframework.mail.MailSendException: Mail server connection failed. Failed messages: jakarta.mail.MessagingException: Could not convert socket to TLS;
+  nested exception is:
+	javax.net.ssl.SSLHandshakeException: No subject alternative DNS name matching smtp-relay.brevo.com found.; message exceptions (1) are:
+Failed message 1: jakarta.mail.MessagingException: Could not convert socket to TLS;
+  nested exception is:
+	javax.net.ssl.SSLHandshakeException: No subject alternative DNS name matching smtp-relay.brevo.com found.
+	at org.springframework.mail.javamail.JavaMailSenderImpl.doSend(JavaMailSenderImpl.java:410)
+	at org.springframework.mail.javamail.JavaMailSenderImpl.send(JavaMailSenderImpl.java:350)
+	at org.springframework.mail.javamail.JavaMailSender.send(JavaMailSender.java:101)
+	at com.tuempresa.storage.notifications.application.email.EmailDispatchService.sendHtml(EmailDispatchService.java:129)
+	at com.tuempresa.storage.notifications.application.email.EmailOutboxWorker.processById(EmailOutboxWorker.java:47)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at org.springframework.aop.support.AopUtils.invokeJoinpointUsingReflection(AopUtils.java:360)
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.invokeJoinpoint(ReflectiveMethodInvocation.java:196)
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:163)
+	at org.springframework.transaction.interceptor.TransactionAspectSupport.invokeWithinTransaction(TransactionAspectSupport.java:380)
+	at org.springframework.transaction.interceptor.TransactionInterceptor.invoke(TransactionInterceptor.java:119)
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:184)
+	at org.springframework.aop.framework.CglibAopProxy$DynamicAdvisedInterceptor.intercept(CglibAopProxy.java:728)
+	at com.tuempresa.storage.notifications.application.email.EmailOutboxWorker$$SpringCGLIB$$0.processById(<generated>)
+	at com.tuempresa.storage.notifications.application.email.EmailOutboxScheduler.processSingle(EmailOutboxScheduler.java:84)
+	at com.tuempresa.storage.notifications.application.email.EmailOutboxScheduler.lambda$processOutbox$1(EmailOutboxScheduler.java:71)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1144)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:642)
+	at java.base/java.lang.Thread.run(Thread.java:1583)
+Caused by: jakarta.mail.MessagingException: Could not convert socket to TLS;
+  nested exception is:
+	javax.net.ssl.SSLHandshakeException: No subject alternative DNS name matching smtp-relay.brevo.com found.
+	at org.eclipse.angus.mail.smtp.SMTPTransport.startTLS(SMTPTransport.java:2173)
+	at org.eclipse.angus.mail.smtp.SMTPTransport.protocolConnect(SMTPTransport.java:741)
+	at jakarta.mail.Service.connect(Service.java:345)
+	at org.springframework.mail.javamail.JavaMailSenderImpl.connectTransport(JavaMailSenderImpl.java:480)
+	at org.springframework.mail.javamail.JavaMailSenderImpl.doSend(JavaMailSenderImpl.java:399)
+	... 19 common frames omitted
+Caused by: javax.net.ssl.SSLHandshakeException: No subject alternative DNS name matching smtp-relay.brevo.com found.
+	at java.base/sun.security.ssl.Alert.createSSLException(Alert.java:130)
+	at java.base/sun.security.ssl.TransportContext.fatal(TransportContext.java:383)
+	at java.base/sun.security.ssl.TransportContext.fatal(TransportContext.java:326)
+	at java.base/sun.security.ssl.TransportContext.fatal(TransportContext.java:321)
+	at java.base/sun.security.ssl.CertificateMessage$T13CertificateConsumer.checkServerCerts(CertificateMessage.java:1287)
+	at java.base/sun.security.ssl.CertificateMessage$T13CertificateConsumer.onConsumeCertificate(CertificateMessage.java:1164)
+	at java.base/sun.security.ssl.CertificateMessage$T13CertificateConsumer.consume(CertificateMessage.java:1107)
+	at java.base/sun.security.ssl.SSLHandshake.consume(SSLHandshake.java:393)
+	at java.base/sun.security.ssl.HandshakeContext.dispatch(HandshakeContext.java:477)
+	at java.base/sun.security.ssl.HandshakeContext.dispatch(HandshakeContext.java:448)
+	at java.base/sun.security.ssl.TransportContext.dispatch(TransportContext.java:206)
+	at java.base/sun.security.ssl.SSLTransport.decode(SSLTransport.java:172)
+	at java.base/sun.security.ssl.SSLSocketImpl.decode(SSLSocketImpl.java:1506)
+	at java.base/sun.security.ssl.SSLSocketImpl.readHandshakeRecord(SSLSocketImpl.java:1421)
+	at java.base/sun.security.ssl.SSLSocketImpl.startHandshake(SSLSocketImpl.java:455)
+	at java.base/sun.security.ssl.SSLSocketImpl.startHandshake(SSLSocketImpl.java:426)
+	at org.eclipse.angus.mail.util.SocketFetcher.configureSSLSocket(SocketFetcher.java:662)
+	at org.eclipse.angus.mail.util.SocketFetcher.startTLS(SocketFetcher.java:563)
+	at org.eclipse.angus.mail.smtp.SMTPTransport.startTLS(SMTPTransport.java:2168)
+	... 23 common frames omitted
+Caused by: java.security.cert.CertificateException: No subject alternative DNS name matching smtp-relay.brevo.com found.
+	at java.base/sun.security.util.HostnameChecker.matchDNS(HostnameChecker.java:207)
+	at java.base/sun.security.util.HostnameChecker.match(HostnameChecker.java:103)
+	at java.base/sun.security.ssl.X509TrustManagerImpl.checkIdentity(X509TrustManagerImpl.java:470)
+	at java.base/sun.security.ssl.X509TrustManagerImpl.checkIdentity(X509TrustManagerImpl.java:417)
+	at java.base/sun.security.ssl.X509TrustManagerImpl.checkTrusted(X509TrustManagerImpl.java:237)
+	at java.base/sun.security.ssl.X509TrustManagerImpl.checkServerTrusted(X509TrustManagerImpl.java:132)
+	at java.base/sun.security.ssl.CertificateMessage$T13CertificateConsumer.checkServerCerts(CertificateMessage.java:1271)
+	... 37 common frames omitted
+2026-03-24 16:45:21.823 INFO  [main] [na] c.t.s.s.i.c.BootstrapDataInitializer - Bootstrap seed completed (users=68, warehouses=13)
