@@ -33,8 +33,7 @@ jobs:
             --name travelbox-backend-prod \
             --resource-group travelbox-peru-rg \
             --type jar \
-            --src-path target/storage-*.jar \
-            --async:true
+            --src-path target/storage-*.jar
         shell: bash
 
       - name: Restart App Service
