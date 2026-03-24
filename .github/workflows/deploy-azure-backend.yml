@@ -84,26 +84,17 @@ jobs:
         env:
           SPRING_PROFILES_ACTIVE: ${{ env.APP_ENV }}
 
-      - name: Azure Web App
-        uses: azure/webapps-deploy@v3
-        with:
-          app-name: ${{ env.WEBAPP_NAME }}
-          slot-name: production
-          package: target/*.jar
-          startup-command: "java -jar /home/site/wwwroot/app.jar"
+      - name: Deploy JAR to Azure App Service
+        run: |
+          az webapp up --name ${{ env.WEBAPP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --runtime "JAVA|17" --slot production || az webapp deployment source config-zip --resource-group ${{ env.RESOURCE_GROUP }} --name ${{ env.WEBAPP_NAME }} --src target/*.jar --slot production
 
       - name: Configure App Settings
-        shell: pwsh
         run: |
-          az webapp config appsettings set `
-            --resource-group ${{ env.RESOURCE_GROUP }} `
-            --name ${{ env.WEBAPP_NAME }} `
-            --settings `
-              SPRING_PROFILES_ACTIVE=${{ env.APP_ENV }} `
-              TBX_BACK_DB_URL="jdbc:postgresql://$env:DB_HOST:5432/$env:DB_NAME?sslmode=require" `
-              TBX_BACK_DB_USERNAME="$env:DB_USERNAME" `
-              TBX_BACK_DB_PASSWORD="$env:DB_PASSWORD" `
-              TBX_BACK_JWT_SECRET="$env:JWT_SECRET" `
-              AZURE_KEYVAULT_ENABLED="true" `
-              AZURE_KEYVAULT_ENDPOINT="https://kvtravelboxpe.vault.azure.net/" `
-              APP_PUBLIC_BASE_URL="https://travelbox-backend-prod.azurewebsites.net"
+          az webapp config appsettings set \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --name ${{ env.WEBAPP_NAME }} \
+            --settings \
+              SPRING_PROFILES_ACTIVE=${{ env.APP_ENV }} \
+              WEBSITES_PORT=8080 \
+              APP_PUBLIC_BASE_URL="https://travelbox-backend-prod.azurewebsites.net" \
+              JAVA_OPTS="-Djdbc.postgresql://${{ env.DB_HOST }}:5432/${{ env.DB_NAME }}"
