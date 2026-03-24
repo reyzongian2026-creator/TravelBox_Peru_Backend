@@ -86,6 +86,4 @@ jobs:
             --name ${{ env.WEBAPP_NAME }} \
             --settings \
               SPRING_PROFILES_ACTIVE=${{ env.APP_ENV }} \
-              WEBSITES_PORT=8080 \
-              APP_PUBLIC_BASE_URL="https://travelbox-backend-prod.azurewebsites.net" \
-              STARTUP_COMMAND="java -jar /home/site/wwwroot/*.jar"
+              APP_PUBLIC_BASE_URL="https://travelbox-backend-prod.azurewebsites.net"
