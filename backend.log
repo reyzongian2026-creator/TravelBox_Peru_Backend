@@ -182,3 +182,101 @@ Caused by: java.security.cert.CertificateException: No subject alternative DNS n
 	at java.base/sun.security.ssl.CertificateMessage$T13CertificateConsumer.checkServerCerts(CertificateMessage.java:1271)
 	... 37 common frames omitted
 2026-03-24 16:45:21.823 INFO  [main] [na] c.t.s.s.i.c.BootstrapDataInitializer - Bootstrap seed completed (users=68, warehouses=13)
+2026-03-24 16:46:14.677 WARN  [tbx-email-outbox-3] [na] c.t.s.n.a.email.EmailDispatchService - Brevo API failed for img_test@test.com: BREVO_API_KEY_MISSING
+2026-03-24 16:46:15.669 ERROR [tbx-email-outbox-3] [na] c.t.s.n.a.email.EmailDispatchService - No se pudo enviar correo a img_test@test.com: Authentication failed
+org.springframework.mail.MailAuthenticationException: Authentication failed
+	at org.springframework.mail.javamail.JavaMailSenderImpl.doSend(JavaMailSenderImpl.java:402)
+	at org.springframework.mail.javamail.JavaMailSenderImpl.send(JavaMailSenderImpl.java:350)
+	at org.springframework.mail.javamail.JavaMailSender.send(JavaMailSender.java:101)
+	at com.tuempresa.storage.notifications.application.email.EmailDispatchService.sendHtml(EmailDispatchService.java:129)
+	at com.tuempresa.storage.notifications.application.email.EmailOutboxWorker.processById(EmailOutboxWorker.java:47)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at org.springframework.aop.support.AopUtils.invokeJoinpointUsingReflection(AopUtils.java:360)
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.invokeJoinpoint(ReflectiveMethodInvocation.java:196)
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:163)
+	at org.springframework.transaction.interceptor.TransactionAspectSupport.invokeWithinTransaction(TransactionAspectSupport.java:380)
+	at org.springframework.transaction.interceptor.TransactionInterceptor.invoke(TransactionInterceptor.java:119)
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:184)
+	at org.springframework.aop.framework.CglibAopProxy$DynamicAdvisedInterceptor.intercept(CglibAopProxy.java:728)
+	at com.tuempresa.storage.notifications.application.email.EmailOutboxWorker$$SpringCGLIB$$0.processById(<generated>)
+	at com.tuempresa.storage.notifications.application.email.EmailOutboxScheduler.processSingle(EmailOutboxScheduler.java:84)
+	at com.tuempresa.storage.notifications.application.email.EmailOutboxScheduler.lambda$processOutbox$1(EmailOutboxScheduler.java:71)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1144)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:642)
+	at java.base/java.lang.Thread.run(Thread.java:1583)
+Caused by: jakarta.mail.AuthenticationFailedException: 535 5.7.8 Authentication failed
+
+	at org.eclipse.angus.mail.smtp.SMTPTransport$Authenticator.authenticate(SMTPTransport.java:954)
+	at org.eclipse.angus.mail.smtp.SMTPTransport.authenticate(SMTPTransport.java:865)
+	at org.eclipse.angus.mail.smtp.SMTPTransport.protocolConnect(SMTPTransport.java:769)
+	at jakarta.mail.Service.connect(Service.java:345)
+	at org.springframework.mail.javamail.JavaMailSenderImpl.connectTransport(JavaMailSenderImpl.java:480)
+	at org.springframework.mail.javamail.JavaMailSenderImpl.doSend(JavaMailSenderImpl.java:399)
+	... 19 common frames omitted
+2026-03-24 16:46:16.900 WARN  [boundedElastic-2] [na] c.a.c.h.jdk.httpclient.JdkHttpClient - {"az.sdk.message":"The header is restricted by 'java.net.http.HttpClient' and will be ignored. To allow this header to be set on the request, configure 'jdk.httpclient.allowRestrictedHeaders' with the header added in the comma-separated list.","headerName":"content-length"}
+2026-03-24 16:46:17.352 INFO  [tbx-blocking-6] [na] c.t.s.s.i.s.AzureBlobStorageService - Uploaded image profiles-579eacae-687e-4a0e-a957-9b692f6ac12f.jpg to container travelbox-profiles
+2026-03-24 16:47:46.758 WARN  [tbx-email-outbox-4] [na] c.t.s.n.a.email.EmailDispatchService - Brevo API failed for img_test@test.com: BREVO_API_KEY_MISSING
+2026-03-24 16:47:47.770 ERROR [tbx-email-outbox-4] [na] c.t.s.n.a.email.EmailDispatchService - No se pudo enviar correo a img_test@test.com: Authentication failed
+org.springframework.mail.MailAuthenticationException: Authentication failed
+	at org.springframework.mail.javamail.JavaMailSenderImpl.doSend(JavaMailSenderImpl.java:402)
+	at org.springframework.mail.javamail.JavaMailSenderImpl.send(JavaMailSenderImpl.java:350)
+	at org.springframework.mail.javamail.JavaMailSender.send(JavaMailSender.java:101)
+	at com.tuempresa.storage.notifications.application.email.EmailDispatchService.sendHtml(EmailDispatchService.java:129)
+	at com.tuempresa.storage.notifications.application.email.EmailOutboxWorker.processById(EmailOutboxWorker.java:47)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at org.springframework.aop.support.AopUtils.invokeJoinpointUsingReflection(AopUtils.java:360)
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.invokeJoinpoint(ReflectiveMethodInvocation.java:196)
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:163)
+	at org.springframework.transaction.interceptor.TransactionAspectSupport.invokeWithinTransaction(TransactionAspectSupport.java:380)
+	at org.springframework.transaction.interceptor.TransactionInterceptor.invoke(TransactionInterceptor.java:119)
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:184)
+	at org.springframework.aop.framework.CglibAopProxy$DynamicAdvisedInterceptor.intercept(CglibAopProxy.java:728)
+	at com.tuempresa.storage.notifications.application.email.EmailOutboxWorker$$SpringCGLIB$$0.processById(<generated>)
+	at com.tuempresa.storage.notifications.application.email.EmailOutboxScheduler.processSingle(EmailOutboxScheduler.java:84)
+	at com.tuempresa.storage.notifications.application.email.EmailOutboxScheduler.lambda$processOutbox$1(EmailOutboxScheduler.java:71)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1144)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:642)
+	at java.base/java.lang.Thread.run(Thread.java:1583)
+Caused by: jakarta.mail.AuthenticationFailedException: 535 5.7.8 Authentication failed
+
+	at org.eclipse.angus.mail.smtp.SMTPTransport$Authenticator.authenticate(SMTPTransport.java:954)
+	at org.eclipse.angus.mail.smtp.SMTPTransport.authenticate(SMTPTransport.java:865)
+	at org.eclipse.angus.mail.smtp.SMTPTransport.protocolConnect(SMTPTransport.java:769)
+	at jakarta.mail.Service.connect(Service.java:345)
+	at org.springframework.mail.javamail.JavaMailSenderImpl.connectTransport(JavaMailSenderImpl.java:480)
+	at org.springframework.mail.javamail.JavaMailSenderImpl.doSend(JavaMailSenderImpl.java:399)
+	... 19 common frames omitted
+2026-03-24 16:49:50.595 WARN  [tbx-email-outbox-1] [na] c.t.s.n.a.email.EmailDispatchService - Brevo API failed for img_test@test.com: BREVO_API_KEY_MISSING
+2026-03-24 16:49:51.613 ERROR [tbx-email-outbox-1] [na] c.t.s.n.a.email.EmailDispatchService - No se pudo enviar correo a img_test@test.com: Authentication failed
+org.springframework.mail.MailAuthenticationException: Authentication failed
+	at org.springframework.mail.javamail.JavaMailSenderImpl.doSend(JavaMailSenderImpl.java:402)
+	at org.springframework.mail.javamail.JavaMailSenderImpl.send(JavaMailSenderImpl.java:350)
+	at org.springframework.mail.javamail.JavaMailSender.send(JavaMailSender.java:101)
+	at com.tuempresa.storage.notifications.application.email.EmailDispatchService.sendHtml(EmailDispatchService.java:129)
+	at com.tuempresa.storage.notifications.application.email.EmailOutboxWorker.processById(EmailOutboxWorker.java:47)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at org.springframework.aop.support.AopUtils.invokeJoinpointUsingReflection(AopUtils.java:360)
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.invokeJoinpoint(ReflectiveMethodInvocation.java:196)
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:163)
+	at org.springframework.transaction.interceptor.TransactionAspectSupport.invokeWithinTransaction(TransactionAspectSupport.java:380)
+	at org.springframework.transaction.interceptor.TransactionInterceptor.invoke(TransactionInterceptor.java:119)
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:184)
+	at org.springframework.aop.framework.CglibAopProxy$DynamicAdvisedInterceptor.intercept(CglibAopProxy.java:728)
+	at com.tuempresa.storage.notifications.application.email.EmailOutboxWorker$$SpringCGLIB$$0.processById(<generated>)
+	at com.tuempresa.storage.notifications.application.email.EmailOutboxScheduler.processSingle(EmailOutboxScheduler.java:84)
+	at com.tuempresa.storage.notifications.application.email.EmailOutboxScheduler.lambda$processOutbox$1(EmailOutboxScheduler.java:71)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1144)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:642)
+	at java.base/java.lang.Thread.run(Thread.java:1583)
+Caused by: jakarta.mail.AuthenticationFailedException: 535 5.7.8 Authentication failed
+
+	at org.eclipse.angus.mail.smtp.SMTPTransport$Authenticator.authenticate(SMTPTransport.java:954)
+	at org.eclipse.angus.mail.smtp.SMTPTransport.authenticate(SMTPTransport.java:865)
+	at org.eclipse.angus.mail.smtp.SMTPTransport.protocolConnect(SMTPTransport.java:769)
+	at jakarta.mail.Service.connect(Service.java:345)
+	at org.springframework.mail.javamail.JavaMailSenderImpl.connectTransport(JavaMailSenderImpl.java:480)
+	at org.springframework.mail.javamail.JavaMailSenderImpl.doSend(JavaMailSenderImpl.java:399)
+	... 19 common frames omitted
