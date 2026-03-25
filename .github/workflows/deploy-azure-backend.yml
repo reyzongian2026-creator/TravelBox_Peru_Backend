@@ -81,9 +81,15 @@ jobs:
 
       - name: Configure App Settings
         run: |
-          az webapp config appsettings set \
-            --resource-group ${{ env.RESOURCE_GROUP }} \
-            --name ${{ env.WEBAPP_NAME }} \
-            --settings \
-              SPRING_PROFILES_ACTIVE=${{ env.APP_ENV }} \
-              APP_PUBLIC_BASE_URL="https://travelbox-backend-prod.azurewebsites.net"
+          $dbUrl = "jdbc:postgresql://" + $env:DB_HOST + ":5432/" + $env:DB_NAME + "?sslmode=require"
+          az webapp config appsettings set `
+            --resource-group ${{ env.RESOURCE_GROUP }} `
+            --name ${{ env.WEBAPP_NAME }} `
+            --settings `
+              SPRING_PROFILES_ACTIVE=${{ env.APP_ENV }} `
+              APP_PUBLIC_BASE_URL="https://travelbox-backend-prod.azurewebsites.net" `
+              tbx-back-db-url="$dbUrl" `
+              tbx-back-db-username="$env:DB_USERNAME" `
+              tbx-back-db-password="$env:DB_PASSWORD" `
+              tbx-back-jwt-secret="$env:JWT_SECRET" `
+              WEBSITES_PORT=80
