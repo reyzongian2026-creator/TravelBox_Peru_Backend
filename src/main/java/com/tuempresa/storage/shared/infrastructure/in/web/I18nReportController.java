@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Mono;
 
 import java.time.Instant;
 import java.util.List;
@@ -27,116 +28,130 @@ public class I18nReportController {
     }
 
     @PostMapping("/errors")
-    public ResponseEntity<Void> reportErrors(
+    public Mono<ResponseEntity<Void>> reportErrors(
             @RequestBody I18nErrorReportRequest request,
             @AuthenticationPrincipal(expression = "username") String username
     ) {
-        if (request.keys() != null && !request.keys().isEmpty()) {
-            String reportedBy = username != null ? username : (request.reportedBy() != null ? request.reportedBy() : "anonymous");
-            i18nReportService.reportErrors(
-                request.locale() != null ? request.locale() : "unknown",
-                request.keys(),
-                request.context(),
-                reportedBy
-            );
-        }
-        return ResponseEntity.accepted().build();
+        return Mono.fromSupplier(() -> {
+            if (request.keys() != null && !request.keys().isEmpty()) {
+                String reportedBy = username != null ? username : (request.reportedBy() != null ? request.reportedBy() : "anonymous");
+                i18nReportService.reportErrors(
+                    request.locale() != null ? request.locale() : "unknown",
+                    request.keys(),
+                    request.context(),
+                    reportedBy
+                );
+            }
+            return ResponseEntity.accepted().build();
+        });
     }
 
     @PostMapping("/error")
-    public ResponseEntity<Void> reportSingleError(
+    public Mono<ResponseEntity<Void>> reportSingleError(
             @RequestBody I18nSingleErrorRequest request,
             @AuthenticationPrincipal(expression = "username") String username
     ) {
-        String reportedBy = username != null ? username : (request.reportedBy() != null ? request.reportedBy() : "anonymous");
-        i18nReportService.reportError(
-            request.locale() != null ? request.locale() : "unknown",
-            request.key(),
-            request.context(),
-            reportedBy
-        );
-        return ResponseEntity.accepted().build();
+        return Mono.fromSupplier(() -> {
+            String reportedBy = username != null ? username : (request.reportedBy() != null ? request.reportedBy() : "anonymous");
+            i18nReportService.reportError(
+                request.locale() != null ? request.locale() : "unknown",
+                request.key(),
+                request.context(),
+                reportedBy
+            );
+            return ResponseEntity.accepted().build();
+        });
     }
 
     @GetMapping("/errors")
-    public ResponseEntity<List<I18nErrorEntry>> getAllErrors() {
-        return ResponseEntity.ok(i18nReportService.getAllErrors());
+    public Mono<ResponseEntity<List<I18nErrorEntry>>> getAllErrors() {
+        return Mono.fromSupplier(() -> ResponseEntity.ok(i18nReportService.getAllErrors()));
     }
 
     @GetMapping("/errors/locale/{locale}")
-    public ResponseEntity<List<I18nErrorEntry>> getErrorsByLocale(@PathVariable String locale) {
-        return ResponseEntity.ok(i18nReportService.getErrorsByLocale(locale));
+    public Mono<ResponseEntity<List<I18nErrorEntry>>> getErrorsByLocale(@PathVariable String locale) {
+        return Mono.fromSupplier(() -> ResponseEntity.ok(i18nReportService.getErrorsByLocale(locale)));
     }
 
     @GetMapping("/errors/type/{type}")
-    public ResponseEntity<List<I18nErrorEntry>> getErrorsByType(@PathVariable String type) {
-        return ResponseEntity.ok(i18nReportService.getErrorsByType(type));
+    public Mono<ResponseEntity<List<I18nErrorEntry>>> getErrorsByType(@PathVariable String type) {
+        return Mono.fromSupplier(() -> ResponseEntity.ok(i18nReportService.getErrorsByType(type)));
     }
 
     @GetMapping("/errors/user/{reportedBy}")
-    public ResponseEntity<List<I18nErrorEntry>> getErrorsByUser(@PathVariable String reportedBy) {
-        return ResponseEntity.ok(i18nReportService.getErrorsByUser(reportedBy));
+    public Mono<ResponseEntity<List<I18nErrorEntry>>> getErrorsByUser(@PathVariable String reportedBy) {
+        return Mono.fromSupplier(() -> ResponseEntity.ok(i18nReportService.getErrorsByUser(reportedBy)));
     }
 
     @GetMapping("/summary")
-    public ResponseEntity<I18nReportSummary> getSummary() {
-        return ResponseEntity.ok(i18nReportService.getSummary());
+    public Mono<ResponseEntity<I18nReportSummary>> getSummary() {
+        return Mono.fromSupplier(() -> ResponseEntity.ok(i18nReportService.getSummary()));
     }
 
     @GetMapping(value = "/export/json", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<String> exportToJson() {
-        String json = i18nReportService.exportToJson();
-        return ResponseEntity.ok()
-            .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=i18n_report_" + Instant.now().toEpochMilli() + ".json")
-            .body(json);
+    public Mono<ResponseEntity<String>> exportToJson() {
+        return Mono.fromSupplier(() -> {
+            String json = i18nReportService.exportToJson();
+            return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=i18n_report_" + Instant.now().toEpochMilli() + ".json")
+                .body(json);
+        });
     }
 
     @GetMapping(value = "/export/csv", produces = "text/csv")
-    public ResponseEntity<String> exportToCsv() {
-        List<I18nErrorEntry> errors = i18nReportService.getAllErrors();
-        StringBuilder csv = new StringBuilder();
-        csv.append("ID,Key,Locale,Timestamp,Context,ReportedBy,ErrorType,BackendErrorCode,BackendErrorMessage\n");
-        
-        for (I18nErrorEntry error : errors) {
-            csv.append(escapeCsv(error.id())).append(",");
-            csv.append(escapeCsv(error.key())).append(",");
-            csv.append(escapeCsv(error.locale())).append(",");
-            csv.append(error.timestamp().toString()).append(",");
-            csv.append(escapeCsv(error.context())).append(",");
-            csv.append(escapeCsv(error.reportedBy())).append(",");
-            csv.append(escapeCsv(error.errorType())).append(",");
-            csv.append(escapeCsv(error.backendErrorCode().orElse(""))).append(",");
-            csv.append(escapeCsv(error.backendErrorMessage().orElse(""))).append("\n");
-        }
-        
-        return ResponseEntity.ok()
-            .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=i18n_report_" + Instant.now().toEpochMilli() + ".csv")
-            .body(csv.toString());
+    public Mono<ResponseEntity<String>> exportToCsv() {
+        return Mono.fromSupplier(() -> {
+            List<I18nErrorEntry> errors = i18nReportService.getAllErrors();
+            StringBuilder csv = new StringBuilder();
+            csv.append("ID,Key,Locale,Timestamp,Context,ReportedBy,ErrorType,BackendErrorCode,BackendErrorMessage\n");
+            
+            for (I18nErrorEntry error : errors) {
+                csv.append(escapeCsv(error.id())).append(",");
+                csv.append(escapeCsv(error.key())).append(",");
+                csv.append(escapeCsv(error.locale())).append(",");
+                csv.append(error.timestamp().toString()).append(",");
+                csv.append(escapeCsv(error.context())).append(",");
+                csv.append(escapeCsv(error.reportedBy())).append(",");
+                csv.append(escapeCsv(error.errorType())).append(",");
+                csv.append(escapeCsv(error.backendErrorCode().orElse(""))).append(",");
+                csv.append(escapeCsv(error.backendErrorMessage().orElse(""))).append("\n");
+            }
+            
+            return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=i18n_report_" + Instant.now().toEpochMilli() + ".csv")
+                .body(csv.toString());
+        });
     }
 
     @GetMapping("/errors/json")
-    public ResponseEntity<String> getErrorsAsJson() {
-        return ResponseEntity.ok()
+    public Mono<ResponseEntity<String>> getErrorsAsJson() {
+        return Mono.fromSupplier(() -> ResponseEntity.ok()
             .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-            .body(i18nReportService.getReportAsJson());
+            .body(i18nReportService.getReportAsJson()));
     }
 
     @DeleteMapping("/errors")
-    public ResponseEntity<Void> clearAllErrors() {
-        i18nReportService.clearAllErrors();
-        return ResponseEntity.noContent().build();
+    public Mono<ResponseEntity<Void>> clearAllErrors() {
+        return Mono.fromSupplier(() -> {
+            i18nReportService.clearAllErrors();
+            return ResponseEntity.noContent().build();
+        });
     }
 
     @DeleteMapping("/errors/locale/{locale}")
-    public ResponseEntity<Void> clearErrorsByLocale(@PathVariable String locale) {
-        i18nReportService.clearErrorsByLocale(locale);
-        return ResponseEntity.noContent().build();
+    public Mono<ResponseEntity<Void>> clearErrorsByLocale(@PathVariable String locale) {
+        return Mono.fromSupplier(() -> {
+            i18nReportService.clearErrorsByLocale(locale);
+            return ResponseEntity.noContent().build();
+        });
     }
 
     @DeleteMapping("/errors/user/{reportedBy}")
-    public ResponseEntity<Void> clearErrorsByUser(@PathVariable String reportedBy) {
-        i18nReportService.clearErrorsByUser(reportedBy);
-        return ResponseEntity.noContent().build();
+    public Mono<ResponseEntity<Void>> clearErrorsByUser(@PathVariable String reportedBy) {
+        return Mono.fromSupplier(() -> {
+            i18nReportService.clearErrorsByUser(reportedBy);
+            return ResponseEntity.noContent().build();
+        });
     }
 
     private String escapeCsv(String value) {
