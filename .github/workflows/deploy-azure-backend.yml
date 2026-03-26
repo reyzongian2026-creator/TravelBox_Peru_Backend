@@ -7,6 +7,7 @@ on:
     paths:
       - "src/**"
       - "pom.xml"
+      - ".github/workflows/deploy-azure-backend.yml"
   workflow_dispatch:
     inputs:
       app_env:
@@ -75,9 +76,23 @@ jobs:
         env:
           SPRING_PROFILES_ACTIVE: ${{ env.APP_ENV }}
 
+      - name: Resolve JAR artifact
+        id: jar
+        run: |
+          JAR_PATH=$(find target -maxdepth 1 -type f -name "*.jar" ! -name "*.jar.original" | head -n 1)
+          if [ -z "$JAR_PATH" ]; then
+            echo "No JAR artifact found in target/"
+            exit 1
+          fi
+          echo "jar_path=$JAR_PATH" >> "$GITHUB_OUTPUT"
+
       - name: Deploy to Azure App Service
         run: |
-          az webapp deployment source config-zip --resource-group ${{ env.RESOURCE_GROUP }} --name ${{ env.WEBAPP_NAME }} --src target/*.jar
+          az webapp deploy \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --name ${{ env.WEBAPP_NAME }} \
+            --type jar \
+            --src-path "${{ steps.jar.outputs.jar_path }}"
 
       - name: Configure App Settings
         shell: pwsh
@@ -94,3 +109,7 @@ jobs:
               tbx-back-db-password="$env:DB_PASSWORD" `
               tbx-back-jwt-secret="$env:JWT_SECRET" `
               WEBSITES_PORT=80
+
+      - name: Restart App Service
+        run: |
+          az webapp restart --resource-group ${{ env.RESOURCE_GROUP }} --name ${{ env.WEBAPP_NAME }}
