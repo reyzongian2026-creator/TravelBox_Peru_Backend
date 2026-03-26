@@ -91,6 +91,9 @@ public class User extends AuditableEntity {
     @Column(name = "profile_photo_path", length = 260)
     private String profilePhotoPath;
 
+    @Column(name = "document_photo_path", length = 260)
+    private String documentPhotoPath;
+
     @Column(name = "address_line", length = 220)
     private String addressLine;
 
@@ -277,6 +280,10 @@ public class User extends AuditableEntity {
 
     public String getProfilePhotoPath() {
         return profilePhotoPath;
+    }
+
+    public String getDocumentPhotoPath() {
+        return documentPhotoPath;
     }
 
     public String getAddressLine() {
@@ -495,6 +502,12 @@ public class User extends AuditableEntity {
             this.emergencyContactPhone = clean(emergencyContactPhone, 30);
         }
         this.fullName = resolveFullName(this.firstName, this.lastName, this.fullName);
+    }
+
+    public void updateDocumentPhotoPath(String documentPhotoPath) {
+        if (documentPhotoPath != null) {
+            this.documentPhotoPath = clean(documentPhotoPath, 260);
+        }
     }
 
     public void prepareEmailVerification(String verificationCode, Instant expiresAt) {

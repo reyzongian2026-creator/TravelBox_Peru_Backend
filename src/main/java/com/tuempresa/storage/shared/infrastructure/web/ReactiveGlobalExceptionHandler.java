@@ -14,6 +14,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.reactive.resource.NoResourceFoundException;
 import org.springframework.web.bind.support.WebExchangeBindException;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
@@ -134,6 +135,21 @@ public class ReactiveGlobalExceptionHandler {
                         HttpStatus.BAD_REQUEST,
                         "INVALID_PARAMETER_TYPE",
                         "Valor invalido para '" + parameter + "'.",
+                        exchange,
+                        List.of()
+                )));
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public Mono<ResponseEntity<ApiErrorResponse>> handleNoResourceFound(
+            NoResourceFoundException ex,
+            ServerWebExchange exchange
+    ) {
+        return Mono.just(ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(buildError(
+                        HttpStatus.NOT_FOUND,
+                        "RESOURCE_NOT_FOUND",
+                        "El recurso solicitado no existe.",
                         exchange,
                         List.of()
                 )));

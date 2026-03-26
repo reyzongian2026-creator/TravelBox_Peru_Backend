@@ -280,7 +280,7 @@ public class QrHandoffCase extends AuditableEntity {
         }
         String normalized = value.trim().toLowerCase(Locale.ROOT);
         return switch (normalized) {
-            case "es", "en", "de", "fr", "it", "pt" -> normalized;
+            case "es", "en" -> normalized;
             default -> "es";
         };
     }

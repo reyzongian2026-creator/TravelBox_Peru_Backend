@@ -29,6 +29,8 @@ public record UpdateAdminUserRequest(
         String documentType,
         @Size(max = 60, message = "El numero de documento no puede exceder 60 caracteres.")
         String documentNumber,
+        @Size(max = 260, message = "La URL de la foto de perfil no puede exceder 260 caracteres.")
+        String profilePhotoPath,
         @Size(max = 260, message = "La URL de la foto del documento no puede exceder 260 caracteres.")
         String documentPhotoPath,
         @Size(max = 30, message = "La placa no puede exceder 30 caracteres.")

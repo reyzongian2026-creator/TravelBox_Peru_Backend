@@ -12,7 +12,8 @@ import com.tuempresa.storage.shared.domain.exception.ApiException;
 import com.tuempresa.storage.shared.infrastructure.security.AuthUserPrincipal;
 import com.tuempresa.storage.shared.infrastructure.security.SensitiveDataService;
 import com.tuempresa.storage.shared.infrastructure.security.SensitiveDataService.SensitiveFieldType;
-import com.tuempresa.storage.shared.infrastructure.storage.AzureBlobStorageService;
+import com.tuempresa.storage.shared.infrastructure.storage.StorageService;
+import com.tuempresa.storage.shared.infrastructure.storage.StorageService.FileCategory;
 import com.tuempresa.storage.users.domain.AuthProvider;
 import com.tuempresa.storage.users.domain.DocumentType;
 import com.tuempresa.storage.users.domain.Gender;
@@ -39,7 +40,7 @@ import java.util.regex.Pattern;
 public class ProfileService {
 
     private static final Logger LOG = LoggerFactory.getLogger(ProfileService.class);
-    private static final Set<String> SUPPORTED_LANGUAGES = Set.of("es", "en", "de", "fr", "it", "pt");
+    private static final Set<String> SUPPORTED_LANGUAGES = Set.of("es", "en");
     private static final Pattern INTERNATIONAL_PHONE_PATTERN = Pattern.compile("^\\+[1-9]\\d{6,14}$");
 
     private final UserRepository userRepository;
@@ -47,7 +48,7 @@ public class ProfileService {
     private final NotificationService notificationService;
     private final CustomerEmailService customerEmailService;
     private final FirebaseAdminService firebaseAdminService;
-    private final AzureBlobStorageService azureBlobStorageService;
+    private final StorageService storageService;
     private final SensitiveDataService sensitiveDataService;
     private final String emailProvider;
 
@@ -57,7 +58,7 @@ public class ProfileService {
             NotificationService notificationService,
             CustomerEmailService customerEmailService,
             FirebaseAdminService firebaseAdminService,
-            AzureBlobStorageService azureBlobStorageService,
+            StorageService storageService,
             SensitiveDataService sensitiveDataService,
             @Value("${app.auth.email-provider:mock}") String emailProvider
     ) {
@@ -66,7 +67,7 @@ public class ProfileService {
         this.notificationService = notificationService;
         this.customerEmailService = customerEmailService;
         this.firebaseAdminService = firebaseAdminService;
-        this.azureBlobStorageService = azureBlobStorageService;
+        this.storageService = storageService;
         this.sensitiveDataService = sensitiveDataService;
         this.emailProvider = emailProvider == null ? "mock" : emailProvider.trim().toLowerCase(Locale.ROOT);
     }
@@ -239,33 +240,38 @@ public class ProfileService {
     public UserProfileResponse uploadMyProfilePhoto(MultipartFile file, AuthUserPrincipal principal) {
         User user = requireUser(principal.getId());
         ensureSelfManagedClient(user, principal);
-        String photoUrl;
         try {
-            photoUrl = azureBlobStorageService.uploadImage(file, "profiles");
+            StorageService.UploadResult result = storageService.upload(file, FileCategory.PROFILES);
+            user.updateProfile(
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    result.url(),
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+            );
+        } catch (ApiException e) {
+            throw e;
         } catch (Exception e) {
-            LOG.warn("Azure Blob Storage upload failed, falling back to Firebase: {}", e.getMessage());
-            photoUrl = firebaseAdminService.uploadPublicImage(file, "profiles", "profile-");
+            LOG.error("Profile photo upload failed: {}", e.getMessage(), e);
+            throw new ApiException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "PROFILE_PHOTO_UPLOAD_FAILED",
+                    "No se pudo subir la foto de perfil."
+            );
         }
-        user.updateProfile(
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                photoUrl,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null
-        );
         User saved = userRepository.save(user);
         firebaseAdminService.mirrorClientProfile(saved);
         return toResponse(saved, null);

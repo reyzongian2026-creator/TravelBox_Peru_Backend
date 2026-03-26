@@ -14,6 +14,7 @@ public record AdminUserResponse(
         boolean managedByAdmin,
         String documentType,
         String documentNumber,
+        String profilePhotoPath,
         String documentPhotoPath,
         String vehiclePlate,
         boolean emailVerified,

@@ -4,6 +4,7 @@ import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.BlobServiceClientBuilder;
+import com.azure.storage.blob.models.BlobHttpHeaders;
 import com.azure.storage.blob.models.ListBlobsOptions;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
@@ -95,6 +96,9 @@ public class AzureBlobStorageService {
         BlobClient blobClient = containerClient.getBlobClient(blobName);
 
         blobClient.upload(data, length, true);
+        blobClient.setHttpHeaders(
+                new BlobHttpHeaders().setContentType(resolveContentType(contentType, blobName))
+        );
 
         LOG.info("Uploaded image {} to container {}", blobName, containerName);
         return getImageUrl(blobName, containerType);
@@ -119,6 +123,9 @@ public class AzureBlobStorageService {
         BlobClient blobClient = containerClient.getBlobClient(blobName);
 
         blobClient.upload(new ByteArrayInputStream(data), data.length, true);
+        blobClient.setHttpHeaders(
+                new BlobHttpHeaders().setContentType(resolveContentType(contentType, blobName))
+        );
 
         LOG.info("Uploaded report {} to container {}", blobName, containerName);
         return getReportUrl(blobName, isExport);
@@ -258,5 +265,34 @@ public class AzureBlobStorageService {
             case "exports", "export" -> exportsContainerName;
             default -> imagesContainerName;
         };
+    }
+
+    private String resolveContentType(String rawContentType, String filename) {
+        if (rawContentType != null && !rawContentType.isBlank()) {
+            return rawContentType;
+        }
+        String normalized = filename == null ? "" : filename.trim().toLowerCase();
+        if (normalized.endsWith(".png")) {
+            return "image/png";
+        }
+        if (normalized.endsWith(".jpg") || normalized.endsWith(".jpeg")) {
+            return "image/jpeg";
+        }
+        if (normalized.endsWith(".webp")) {
+            return "image/webp";
+        }
+        if (normalized.endsWith(".gif")) {
+            return "image/gif";
+        }
+        if (normalized.endsWith(".pdf")) {
+            return "application/pdf";
+        }
+        if (normalized.endsWith(".xlsx")) {
+            return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+        }
+        if (normalized.endsWith(".xls")) {
+            return "application/vnd.ms-excel";
+        }
+        return "application/octet-stream";
     }
 }

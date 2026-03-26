@@ -50,7 +50,7 @@ import java.util.regex.Pattern;
 @Service
 public class AuthService {
 
-    private static final Set<String> SUPPORTED_LANGUAGES = Set.of("es", "en", "de", "fr", "it", "pt");
+    private static final Set<String> SUPPORTED_LANGUAGES = Set.of("es", "en");
     private static final Pattern INTERNATIONAL_PHONE_PATTERN = Pattern.compile("^\\+[1-9]\\d{6,14}$");
 
     private final AuthenticationManager authenticationManager;

@@ -35,12 +35,22 @@ public class LocalFileStorageService {
 
     public String saveEvidenceImage(MultipartFile file) {
         validateImage(file);
-        return saveImage(file, "evidences", "evidence-");
+        return saveFile(file, "evidences", "evidence-");
     }
 
     public String saveWarehouseImage(MultipartFile file) {
         validateImage(file);
-        return saveImage(file, "warehouses", "warehouse-");
+        return saveFile(file, "warehouses", "warehouse-");
+    }
+
+    public String saveProfileImage(MultipartFile file) {
+        validateImage(file);
+        return saveFile(file, "profiles", "profile-");
+    }
+
+    public String saveDocumentFile(MultipartFile file) {
+        validate(file);
+        return saveFile(file, "documents", "document-");
     }
 
     public Path resolveForRead(String category, String filename) {
@@ -54,8 +64,7 @@ public class LocalFileStorageService {
         return filePath;
     }
 
-    private String saveImage(MultipartFile file, String category, String prefix) {
-        validate(file);
+    private String saveFile(MultipartFile file, String category, String prefix) {
         try {
             Path targetDir = rootPath.resolve(category);
             Files.createDirectories(targetDir);

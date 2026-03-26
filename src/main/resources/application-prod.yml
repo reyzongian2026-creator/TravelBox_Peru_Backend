@@ -11,13 +11,13 @@ spring:
         tenant-id: ${AZURE_TENANT_ID:}
       keyvault:
         secret:
-          property-source-enabled: true
+          property-source-enabled: ${AZURE_KEYVAULT_ENABLED:true}
           property-sources:
             - endpoint: ${AZURE_KEYVAULT_ENDPOINT:https://kvtravelboxpe.vault.azure.net/}
   datasource:
-    url: ${tbx-back-db-url:}
-    username: ${tbx-back-db-username:}
-    password: ${tbx-back-db-password:}
+    url: ${tbx-back-db-url:${DB_URL:}}
+    username: ${tbx-back-db-username:${DB_USERNAME:}}
+    password: ${tbx-back-db-password:${DB_PASSWORD:}}
     hikari:
       connection-timeout: 60000
       validation-timeout: 10000
@@ -28,27 +28,30 @@ spring:
   jpa:
     hibernate:
       ddl-auto: none
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
   mail:
-    host: ${tbx-back-smtp-host:}
-    port: ${tbx-back-smtp-port:587}
-    username: ${tbx-back-smtp-username:}
-    password: ${tbx-back-smtp-password:}
+    host: ${tbx-back-smtp-host:${APP_SMTP_HOST:}}
+    port: ${tbx-back-smtp-port:${APP_SMTP_PORT:587}}
+    username: ${tbx-back-smtp-username:${APP_SMTP_USERNAME:}}
+    password: ${tbx-back-smtp-password:${APP_SMTP_PASSWORD:}}
     properties:
       mail:
         smtp:
-          auth: ${tbx-back-smtp-auth:true}
+          auth: ${tbx-back-smtp-auth:${APP_SMTP_AUTH:true}}
           starttls:
-            enable: ${tbx-back-smtp-starttls:true}
+            enable: ${tbx-back-smtp-starttls:${APP_SMTP_STARTTLS:true}}
 
 app:
   cors:
-    allowed-origins: ${tbx-back-cors-allowed-origins:http://localhost:5173,http://localhost:58900,http://127.0.0.1:58900,https://travelbox.pe,https://www.travelbox.pe}
+    allowed-origins: ${tbx-back-cors-allowed-origins:http://localhost:5173,http://localhost:58900,http://127.0.0.1:58900,https://travelbox.pe,https://www.travelbox.pe,https://travelbox-frontend-prod.azurewebsites.net,https://travelbox-backend-prod.azurewebsites.net}
   security:
     jwt:
-      secret: ${tbx-back-jwt-secret:}
+      secret: ${tbx-back-jwt-secret:${APP_JWT_SECRET:}}
     encryption-key: ${tbx-back-encryption-key:}
   notifications:
-    provider: mock
+    provider: in-app
   translation:
     provider: ${APP_TRANSLATION_PROVIDER:azure}
     allow-fallback: true
@@ -57,35 +60,52 @@ app:
       api-key: ${tbx-back-translation-azure-api-key:}
       region: ${tbx-back-translation-azure-region:eastus}
     google:
-      api-key: ${tbx-back-translation-google-api-key:}
+      api-key: ${tbx-back-translation-google-api-key:${APP_TRANSLATION_GOOGLE_API_KEY:}}
   email:
-    provider: ${tbx-back-email-provider:smtp}
-    from-address: ${tbx-back-email-from-address:}
+    provider: ${tbx-back-email-provider:${APP_EMAIL_PROVIDER:smtp}}
+    from-address: ${tbx-back-email-from-address:${APP_EMAIL_FROM_ADDRESS:}}
     from-name: ${APP_EMAIL_FROM_NAME:TravelBox Peru}
     graph-tenant-id: ${tbx-back-email-graph-tenant-id:}
     graph-client-id: ${tbx-back-email-graph-client-id:}
     graph-client-secret: ${tbx-back-email-graph-client-secret:}
     queue:
-      enabled: ${tbx-back-email-queue-enabled:true}
+      enabled: ${tbx-back-email-queue-enabled:${APP_EMAIL_QUEUE_ENABLED:true}}
   auth:
-    email-provider: ${tbx-back-auth-email-provider:mock}
+    email-provider: ${tbx-back-auth-email-provider:${tbx-back-email-provider:${APP_AUTH_EMAIL_PROVIDER:smtp}}}
   routing:
     provider: ${APP_ROUTING_PROVIDER:osrm}
-    allow-mock-fallback: true
+    allow-mock-fallback: false
     azure:
-      api-key: ${tbx-back-azure-maps-api-key:}
+      api-key: ${tbx-back-azure-maps-api-key:${tbx-back-routing-azure-maps-key:}}
     google:
-      api-key: ${tbx-back-routing-google-api-key:}
+      api-key: ${tbx-back-routing-google-api-key:${APP_ROUTING_GOOGLE_API_KEY:}}
   payments:
     provider: culqi
     force-cash-only: false
     allow-mock-confirmation: false
+  bootstrap:
+    enabled: false
+    seed-operational-demo: false
+    minimal-seed-only: false
+    quick-seed: false
   firebase:
-    enabled: ${tbx-back-firebase-enabled:false}
-    project-id: ${tbx-back-firebase-project-id:}
-    storage-bucket: ${tbx-back-firebase-storage-bucket:}
+    enabled: ${tbx-back-firebase-enabled:${APP_FIREBASE_ENABLED:false}}
+    project-id: ${tbx-back-firebase-project-id:${APP_FIREBASE_PROJECT_ID:}}
+    storage-bucket: ${tbx-back-firebase-storage-bucket:${APP_FIREBASE_STORAGE_BUCKET:}}
+azure:
   storage:
     images:
-      connection-string: ${tbx-back-azure-storage-images-connection-string:}
+      connection-string: ${tbx-back-azure-storage-images-connection-string:${AZURE_STORAGE_IMAGES_CONNECTION_STRING:}}
+      url-base: ${AZURE_STORAGE_IMAGES_URL_BASE:}
+      container:
+        images: ${AZURE_STORAGE_IMAGES_CONTAINER:travelbox-images}
+        profiles: ${AZURE_STORAGE_PROFILES_CONTAINER:travelbox-profiles}
+        warehouses: ${AZURE_STORAGE_WAREHOUSES_CONTAINER:travelbox-warehouses}
+        documents: ${AZURE_STORAGE_DOCUMENTS_CONTAINER:travelbox-documents}
+        evidences: ${AZURE_STORAGE_EVIDENCES_CONTAINER:travelbox-evidences}
     reports:
-      connection-string: ${tbx-back-azure-storage-reports-connection-string:}
+      connection-string: ${tbx-back-azure-storage-reports-connection-string:${AZURE_STORAGE_REPORTS_CONNECTION_STRING:}}
+      url-base: ${AZURE_STORAGE_REPORTS_URL_BASE:}
+      container:
+        reports: ${AZURE_STORAGE_REPORTS_CONTAINER:travelbox-reports}
+        exports: ${AZURE_STORAGE_EXPORTS_CONTAINER:travelbox-exports}

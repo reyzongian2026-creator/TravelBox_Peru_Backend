@@ -9,8 +9,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-//@Component
-//@Profile("prod")
+@Component
+@Profile("prod")
 public class ProductionMockSafetyGuard {
 
     private final String notificationsProvider;
@@ -23,6 +23,9 @@ public class ProductionMockSafetyGuard {
     private final String smtpUsername;
     private final String smtpPassword;
     private final String emailFromAddress;
+    private final boolean bootstrapEnabled;
+    private final boolean bootstrapQuickSeedEnabled;
+    private final boolean bootstrapOperationalDemoEnabled;
 
     public ProductionMockSafetyGuard(
             @Value("${app.notifications.provider:mock}") String notificationsProvider,
@@ -34,7 +37,10 @@ public class ProductionMockSafetyGuard {
             @Value("${app.auth.expose-code-preview:false}") boolean authExposeCodePreview,
             @Value("${spring.mail.username:}") String smtpUsername,
             @Value("${spring.mail.password:}") String smtpPassword,
-            @Value("${app.email.from-address:}") String emailFromAddress
+            @Value("${app.email.from-address:}") String emailFromAddress,
+            @Value("${app.bootstrap.enabled:true}") boolean bootstrapEnabled,
+            @Value("${app.bootstrap.quick-seed:false}") boolean bootstrapQuickSeedEnabled,
+            @Value("${app.bootstrap.seed-operational-demo:false}") boolean bootstrapOperationalDemoEnabled
     ) {
         this.notificationsProvider = normalize(notificationsProvider);
         this.routingProvider = normalize(routingProvider);
@@ -46,6 +52,9 @@ public class ProductionMockSafetyGuard {
         this.smtpUsername = trim(smtpUsername);
         this.smtpPassword = trim(smtpPassword);
         this.emailFromAddress = trim(emailFromAddress);
+        this.bootstrapEnabled = bootstrapEnabled;
+        this.bootstrapQuickSeedEnabled = bootstrapQuickSeedEnabled;
+        this.bootstrapOperationalDemoEnabled = bootstrapOperationalDemoEnabled;
     }
 
     @PostConstruct
@@ -72,6 +81,15 @@ public class ProductionMockSafetyGuard {
         }
         if (authExposeCodePreview) {
             violations.add("app.auth.expose-code-preview=true");
+        }
+        if (bootstrapEnabled) {
+            violations.add("app.bootstrap.enabled=true");
+        }
+        if (bootstrapQuickSeedEnabled) {
+            violations.add("app.bootstrap.quick-seed=true");
+        }
+        if (bootstrapOperationalDemoEnabled) {
+            violations.add("app.bootstrap.seed-operational-demo=true");
         }
         if ("smtp".equals(authEmailProvider)) {
             if (smtpUsername.isEmpty()) {

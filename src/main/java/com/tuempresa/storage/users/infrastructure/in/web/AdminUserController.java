@@ -144,6 +144,15 @@ public class AdminUserController {
                 }));
     }
 
+    @PostMapping(value = "/profile-photo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public Mono<Map<String, String>> uploadProfilePhoto(@RequestPart("file") FilePart file) {
+        return reactiveMultipartAdapter.toMultipartFile(file)
+                .flatMap(multipartFile -> reactiveBlockingExecutor.call(() -> {
+                    String url = adminUserService.uploadProfilePhoto(multipartFile);
+                    return Map.of("url", url);
+                }));
+    }
+
     @DeleteMapping("/{id}")
     public Mono<Void> delete(@PathVariable Long id) {
         return securityUtils.currentUserOrThrowReactive()

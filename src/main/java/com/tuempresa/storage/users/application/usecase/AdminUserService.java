@@ -236,7 +236,7 @@ public class AdminUserService {
                 null,
                 null,
                 null,
-                normalizeText(request.documentPhotoPath()),
+                normalizeText(request.profilePhotoPath()),
                 null,
                 null,
                 null,
@@ -247,6 +247,7 @@ public class AdminUserService {
                 null,
                 null
         );
+        user.updateDocumentPhotoPath(normalizeText(request.documentPhotoPath()));
         if (request.warehouseIds() != null || request.roles().stream().noneMatch(WAREHOUSE_SCOPED_ROLES::contains)) {
             user.updateWarehouseAssignments(resolveWarehouseAssignments(request.roles(), request.warehouseIds()));
         }
@@ -287,7 +288,7 @@ public class AdminUserService {
                 null,
                 null,
                 null,
-                normalizeText(request.documentPhotoPath()),
+                normalizeText(request.profilePhotoPath()),
                 null,
                 null,
                 null,
@@ -298,6 +299,7 @@ public class AdminUserService {
                 null,
                 null
         );
+        user.updateDocumentPhotoPath(normalizeText(request.documentPhotoPath()));
         if (request.active() != null) {
             user.setActive(request.active());
         }
@@ -479,6 +481,13 @@ public class AdminUserService {
         return result.url();
     }
 
+    @Transactional
+    public String uploadProfilePhoto(MultipartFile file) throws Exception {
+        StorageService.UploadResult result = storageService.upload(file, FileCategory.PROFILES);
+        auditLogService.logFileUpload(result.filename(), "profiles", "admin-profile-upload");
+        return result.url();
+    }
+
     @Transactional(readOnly = true)
     public List<UserExportRow> exportUsers(String query, Role role) {
         List<User> users = findFilteredUsers(query, role);
@@ -614,6 +623,7 @@ public class AdminUserService {
                 user.getPrimaryDocumentType() == null ? null : user.getPrimaryDocumentType().name(),
                 user.getPrimaryDocumentNumber(),
                 user.getProfilePhotoPath(),
+                user.getDocumentPhotoPath(),
                 user.getVehiclePlate(),
                 user.isEmailVerified(),
                 user.isProfileCompleted(),

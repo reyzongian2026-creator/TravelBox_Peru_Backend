@@ -380,10 +380,6 @@ public class CustomerEmailService {
     private String getLocalizedText(String locale, String spanish, String english, String german, String french, String italian, String portuguese) {
         return switch (locale.toLowerCase()) {
             case "en" -> english;
-            case "de" -> german;
-            case "fr" -> french;
-            case "it" -> italian;
-            case "pt" -> portuguese;
             default -> spanish;
         };
     }

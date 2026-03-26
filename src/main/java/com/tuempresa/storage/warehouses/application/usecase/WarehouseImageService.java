@@ -1,6 +1,8 @@
 package com.tuempresa.storage.warehouses.application.usecase;
 
-import com.tuempresa.storage.shared.infrastructure.storage.LocalFileStorageService;
+import com.tuempresa.storage.shared.infrastructure.storage.StorageService;
+import com.tuempresa.storage.shared.infrastructure.storage.StorageService.DownloadResult;
+import com.tuempresa.storage.shared.infrastructure.storage.StorageService.FileCategory;
 import com.tuempresa.storage.warehouses.domain.Warehouse;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -19,8 +21,6 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URI;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Base64;
 import java.util.Locale;
 
@@ -29,10 +29,10 @@ public class WarehouseImageService {
 
     private static final String FILE_PREFIX = "/api/v1/files/";
 
-    private final LocalFileStorageService localFileStorageService;
+    private final StorageService storageService;
 
-    public WarehouseImageService(LocalFileStorageService localFileStorageService) {
-        this.localFileStorageService = localFileStorageService;
+    public WarehouseImageService(StorageService storageService) {
+        this.storageService = storageService;
     }
 
     public WarehouseImageContent loadImage(Warehouse warehouse) {
@@ -48,27 +48,71 @@ public class WarehouseImageService {
             return null;
         }
         try {
-            String normalizedPath = URI.create(photoPath).getPath();
-            if (normalizedPath == null || !normalizedPath.startsWith(FILE_PREFIX)) {
+            ResolvedStoredFile resolved = resolveStoredFile(photoPath);
+            if (resolved == null) {
                 return null;
             }
+            DownloadResult result = storageService.download(
+                    resolved.filename(),
+                    resolved.category()
+            ).orElse(null);
+            if (result == null) {
+                return null;
+            }
+            MediaType mediaType = (result.contentType() == null || result.contentType().isBlank())
+                    ? MediaType.APPLICATION_OCTET_STREAM
+                    : MediaType.parseMediaType(result.contentType());
+            return new WarehouseImageContent(result.resource().getByteArray(), mediaType);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private ResolvedStoredFile resolveStoredFile(String photoPath) {
+        URI uri = URI.create(photoPath);
+        String normalizedPath = uri.getPath();
+        if (normalizedPath != null && normalizedPath.startsWith(FILE_PREFIX)) {
             String relative = normalizedPath.substring(FILE_PREFIX.length());
             int slashIndex = relative.indexOf('/');
             if (slashIndex <= 0 || slashIndex >= relative.length() - 1) {
                 return null;
             }
-            String category = relative.substring(0, slashIndex);
-            String filename = relative.substring(slashIndex + 1);
-            Path path = localFileStorageService.resolveForRead(category, filename);
-            byte[] content = Files.readAllBytes(path);
-            String mime = Files.probeContentType(path);
-            MediaType mediaType = (mime == null || mime.isBlank())
-                    ? MediaType.APPLICATION_OCTET_STREAM
-                    : MediaType.parseMediaType(mime);
-            return new WarehouseImageContent(content, mediaType);
-        } catch (Exception ignored) {
+            FileCategory category = parseCategory(relative.substring(0, slashIndex));
+            if (category == null) {
+                return null;
+            }
+            return new ResolvedStoredFile(category, relative.substring(slashIndex + 1));
+        }
+
+        String host = uri.getHost();
+        if (host == null || !host.toLowerCase(Locale.ROOT).endsWith(".blob.core.windows.net")) {
             return null;
         }
+        String[] segments = uri.getPath() == null ? new String[0] : uri.getPath().split("/");
+        if (segments.length < 3) {
+            return null;
+        }
+        FileCategory category = switch (segments[1].trim().toLowerCase(Locale.ROOT)) {
+            case "travelbox-profiles" -> FileCategory.PROFILES;
+            case "travelbox-warehouses" -> FileCategory.WAREHOUSES;
+            case "travelbox-documents" -> FileCategory.DOCUMENTS;
+            case "travelbox-evidences" -> FileCategory.EVIDENCES;
+            default -> null;
+        };
+        if (category == null) {
+            return null;
+        }
+        return new ResolvedStoredFile(category, segments[2].trim());
+    }
+
+    private FileCategory parseCategory(String rawCategory) {
+        String normalized = rawCategory == null ? "" : rawCategory.trim().toLowerCase(Locale.ROOT);
+        for (FileCategory category : FileCategory.values()) {
+            if (category.getApiPath().equals(normalized)) {
+                return category;
+            }
+        }
+        return null;
     }
 
     private byte[] renderGeneratedImage(Warehouse warehouse) {
@@ -416,6 +460,9 @@ public class WarehouseImageService {
     }
 
     public record WarehouseImageContent(byte[] bytes, MediaType mediaType) {
+    }
+
+    private record ResolvedStoredFile(FileCategory category, String filename) {
     }
 
     private record ScenePalette(

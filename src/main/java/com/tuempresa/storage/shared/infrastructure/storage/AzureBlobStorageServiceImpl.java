@@ -4,19 +4,20 @@ import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.BlobServiceClientBuilder;
-import com.azure.storage.blob.models.UserDelegationKey;
+import com.azure.storage.blob.models.BlobHttpHeaders;
+import com.tuempresa.storage.shared.domain.exception.ApiException;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -121,25 +122,28 @@ public class AzureBlobStorageServiceImpl implements StorageService {
     
     private void validateImageFile(MultipartFile file, FileCategory category) {
         if (file == null || file.isEmpty()) {
-            throw new RuntimeException("Archivo vacio o no proporcionado");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "FILE_REQUIRED", "Debes enviar un archivo.");
         }
         
         if (category == FileCategory.PROFILES || category == FileCategory.WAREHOUSES || category == FileCategory.EVIDENCES) {
             if (file.getSize() < MIN_IMAGE_SIZE_BYTES) {
-                throw new RuntimeException("La imagen es demasiado pequena. Minimum: 5KB");
+                throw new ApiException(HttpStatus.BAD_REQUEST, "IMAGE_TOO_SMALL", "La imagen es demasiado pequena. Tamano minimo: 5KB.");
             }
             
-            try {
-                BufferedImage image = javax.imageio.ImageIO.read(file.getInputStream());
+            try (InputStream imageStream = file.getInputStream()) {
+                BufferedImage image = ImageIO.read(imageStream);
                 if (image == null) {
-                    throw new RuntimeException("No se pudo leer la imagen. Formato invalido");
+                    throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_IMAGE", "No se pudo leer la imagen. Formato invalido.");
                 }
                 if (image.getWidth() < MIN_IMAGE_DIMENSION || image.getHeight() < MIN_IMAGE_DIMENSION) {
-                    throw new RuntimeException("La imagen es demasiado pequena. Minimo: " + MIN_IMAGE_DIMENSION + "x" + MIN_IMAGE_DIMENSION + " pixels");
+                    throw new ApiException(
+                            HttpStatus.BAD_REQUEST,
+                            "IMAGE_DIMENSION_TOO_SMALL",
+                            "La imagen es demasiado pequena. Minimo: " + MIN_IMAGE_DIMENSION + "x" + MIN_IMAGE_DIMENSION + " pixels."
+                    );
                 }
-                file.getInputStream().reset();
             } catch (IOException e) {
-                throw new RuntimeException("Error al validar la imagen: " + e.getMessage());
+                throw new ApiException(HttpStatus.BAD_REQUEST, "IMAGE_READ_ERROR", "Error al validar la imagen.");
             }
         }
     }
@@ -157,9 +161,13 @@ public class AzureBlobStorageServiceImpl implements StorageService {
         String blobName = generateBlobName(filename, category);
 
         BlobContainerClient containerClient = client.getBlobContainerClient(containerName);
+        ensureContainerExists(containerClient);
         BlobClient blobClient = containerClient.getBlobClient(blobName);
 
         blobClient.upload(data, length, true);
+        blobClient.setHttpHeaders(
+                new BlobHttpHeaders().setContentType(resolveContentType(contentType, blobName))
+        );
 
         String url = getUrl(blobName, category);
         LOG.info("Uploaded file {} to container {} via Azure", blobName, containerName);
@@ -188,12 +196,13 @@ public class AzureBlobStorageServiceImpl implements StorageService {
             throw new RuntimeException("Failed to read input stream", e);
         }
         
-        String localPath;
-        if (category == FileCategory.WAREHOUSES) {
-            localPath = localFileStorageService.saveWarehouseImage(new InMemoryMultipartFile(filename, filename, contentType, bytes));
-        } else {
-            localPath = localFileStorageService.saveEvidenceImage(new InMemoryMultipartFile(filename, filename, contentType, bytes));
-        }
+        MultipartFile multipartFile = new InMemoryMultipartFile(filename, filename, contentType, bytes);
+        String localPath = switch (category) {
+            case WAREHOUSES -> localFileStorageService.saveWarehouseImage(multipartFile);
+            case PROFILES -> localFileStorageService.saveProfileImage(multipartFile);
+            case DOCUMENTS -> localFileStorageService.saveDocumentFile(multipartFile);
+            default -> localFileStorageService.saveEvidenceImage(multipartFile);
+        };
         
         String blobName = localPath.substring(localPath.lastIndexOf("/") + 1);
         return new UploadResult(blobName, localPath, contentType, length);
@@ -228,26 +237,37 @@ public class AzureBlobStorageServiceImpl implements StorageService {
     @Override
     public Optional<DownloadResult> download(String filename, FileCategory category) {
         BlobServiceClient client = getBlobServiceClient(category);
-        String containerName = getContainerName(category);
-
-        BlobContainerClient containerClient = client.getBlobContainerClient(containerName);
-        BlobClient blobClient = containerClient.getBlobClient(filename);
-
-        if (!blobClient.exists()) {
-            return Optional.empty();
+        if (client == null) {
+            return downloadFromLocalFallback(filename, category);
         }
 
-        byte[] content = blobClient.downloadContent().toBytes();
-        ByteArrayResource resource = new ByteArrayResource(content);
+        try {
+            String containerName = getContainerName(category);
+            BlobContainerClient containerClient = client.getBlobContainerClient(containerName);
+            BlobClient blobClient = containerClient.getBlobClient(filename);
 
-        return Optional.of(new DownloadResult(resource, filename,
-                blobClient.getProperties().getContentType(), content.length));
+            if (!blobClient.exists()) {
+                return Optional.empty();
+            }
+
+            byte[] content = blobClient.downloadContent().toBytes();
+            ByteArrayResource resource = new ByteArrayResource(content);
+
+            return Optional.of(new DownloadResult(resource, filename,
+                    blobClient.getProperties().getContentType(), content.length));
+        } catch (Exception ex) {
+            LOG.warn("Azure download failed for {}. Falling back to local storage: {}", filename, ex.getMessage());
+            return downloadFromLocalFallback(filename, category);
+        }
     }
 
     @Override
     public boolean delete(String filename, FileCategory category) {
         try {
             BlobServiceClient client = getBlobServiceClient(category);
+            if (client == null) {
+                return deleteFromLocalFallback(filename, category);
+            }
             String containerName = getContainerName(category);
 
             BlobContainerClient containerClient = client.getBlobContainerClient(containerName);
@@ -268,6 +288,9 @@ public class AzureBlobStorageServiceImpl implements StorageService {
     @Override
     public boolean exists(String filename, FileCategory category) {
         BlobServiceClient client = getBlobServiceClient(category);
+        if (client == null) {
+            return existsInLocalFallback(filename, category);
+        }
         String containerName = getContainerName(category);
 
         BlobContainerClient containerClient = client.getBlobContainerClient(containerName);
@@ -278,20 +301,7 @@ public class AzureBlobStorageServiceImpl implements StorageService {
 
     @Override
     public String getUrl(String filename, FileCategory category) {
-        String urlBase = getUrlBase(category);
-        if (urlBase != null && !urlBase.isBlank()) {
-            String base = urlBase.endsWith("/") ? urlBase.substring(0, urlBase.length() - 1) : urlBase;
-            return base + "/" + getContainerName(category) + "/" + filename;
-        }
-
-        BlobServiceClient client = getBlobServiceClient(category);
-        if (client == null) {
-            return "/api/v1/files/" + category.getApiPath() + "/" + filename;
-        }
-
-        BlobContainerClient containerClient = client.getBlobContainerClient(getContainerName(category));
-        BlobClient blobClient = containerClient.getBlobClient(filename);
-        return blobClient.getBlobUrl();
+        return "/api/v1/files/" + category.getApiPath() + "/" + filename;
     }
 
     @Override
@@ -345,5 +355,78 @@ public class AzureBlobStorageServiceImpl implements StorageService {
             case REPORTS, EXPORTS -> reportsUrlBase;
             default -> imagesUrlBase;
         };
+    }
+
+    private String resolveContentType(String rawContentType, String filename) {
+        if (rawContentType != null && !rawContentType.isBlank()) {
+            return rawContentType;
+        }
+        String normalized = filename == null ? "" : filename.trim().toLowerCase();
+        if (normalized.endsWith(".png")) {
+            return "image/png";
+        }
+        if (normalized.endsWith(".jpg") || normalized.endsWith(".jpeg")) {
+            return "image/jpeg";
+        }
+        if (normalized.endsWith(".webp")) {
+            return "image/webp";
+        }
+        if (normalized.endsWith(".gif")) {
+            return "image/gif";
+        }
+        if (normalized.endsWith(".pdf")) {
+            return "application/pdf";
+        }
+        return "application/octet-stream";
+    }
+
+    private void ensureContainerExists(BlobContainerClient containerClient) {
+        if (!containerClient.exists()) {
+            containerClient.create();
+            LOG.info("Created missing Azure Blob container {}", containerClient.getBlobContainerName());
+        }
+    }
+
+    private Optional<DownloadResult> downloadFromLocalFallback(String filename, FileCategory category) {
+        if (localFileStorageService == null) {
+            return Optional.empty();
+        }
+        try {
+            java.nio.file.Path path = localFileStorageService.resolveForRead(category.getApiPath(), filename);
+            byte[] content = java.nio.file.Files.readAllBytes(path);
+            String contentType = java.nio.file.Files.probeContentType(path);
+            return Optional.of(new DownloadResult(
+                    new ByteArrayResource(content),
+                    filename,
+                    contentType,
+                    content.length
+            ));
+        } catch (Exception ex) {
+            return Optional.empty();
+        }
+    }
+
+    private boolean deleteFromLocalFallback(String filename, FileCategory category) {
+        if (localFileStorageService == null) {
+            return false;
+        }
+        try {
+            java.nio.file.Path path = localFileStorageService.resolveForRead(category.getApiPath(), filename);
+            return java.nio.file.Files.deleteIfExists(path);
+        } catch (Exception ex) {
+            return false;
+        }
+    }
+
+    private boolean existsInLocalFallback(String filename, FileCategory category) {
+        if (localFileStorageService == null) {
+            return false;
+        }
+        try {
+            localFileStorageService.resolveForRead(category.getApiPath(), filename);
+            return true;
+        } catch (Exception ex) {
+            return false;
+        }
     }
 }
