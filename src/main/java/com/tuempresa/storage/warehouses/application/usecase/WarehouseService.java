@@ -388,6 +388,9 @@ public class WarehouseService {
             if (path != null && path.toLowerCase().contains(selfApiFragment)) {
                 return null;
             }
+            if (path != null && path.startsWith("/api/v1/")) {
+                trimmed = path;
+            }
         } catch (IllegalArgumentException ignored) {
             // Keep raw path if it's not a full URI and not self-referential.
         }
