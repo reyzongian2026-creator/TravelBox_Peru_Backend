@@ -13,6 +13,7 @@ public record AuthTokenResponse(
         Instant accessTokenExpiresAt,
         AuthUserSummaryResponse user,
         boolean emailVerified,
+        boolean requiresRealEmailCompletion,
         boolean profileCompleted,
         boolean requiresEmailVerification,
         String verificationCodePreview,

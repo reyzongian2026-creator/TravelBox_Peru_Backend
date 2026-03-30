@@ -9,6 +9,7 @@ import com.tuempresa.storage.auth.application.dto.PasswordResetConfirmRequest;
 import com.tuempresa.storage.auth.application.dto.PasswordResetRequest;
 import com.tuempresa.storage.auth.application.dto.PasswordResetResponse;
 import com.tuempresa.storage.auth.application.dto.RefreshRequest;
+import com.tuempresa.storage.auth.application.dto.RealEmailRequest;
 import com.tuempresa.storage.auth.application.dto.RegisterRequest;
 import com.tuempresa.storage.auth.application.dto.VerifyEmailRequest;
 import com.tuempresa.storage.auth.application.usecase.AuthService;
@@ -121,6 +122,17 @@ public class AuthController {
         return securityUtils.currentUserOrThrowReactive()
                 .flatMap(currentUser -> reactiveBlockingExecutor.call(
                         () -> authService.resendVerification(currentUser)
+                ))
+                .map(ResponseEntity::ok);
+    }
+
+    @PostMapping("/real-email/request")
+    public Mono<ResponseEntity<EmailVerificationResponse>> requestRealEmail(
+            @Valid @RequestBody RealEmailRequest request
+    ) {
+        return securityUtils.currentUserOrThrowReactive()
+                .flatMap(currentUser -> reactiveBlockingExecutor.call(
+                        () -> authService.requestRealEmailCompletion(request, currentUser)
                 ))
                 .map(ResponseEntity::ok);
     }

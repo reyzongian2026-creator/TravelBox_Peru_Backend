@@ -10,6 +10,7 @@ import com.tuempresa.storage.auth.application.dto.PasswordResetConfirmRequest;
 import com.tuempresa.storage.auth.application.dto.PasswordResetRequest;
 import com.tuempresa.storage.auth.application.dto.PasswordResetResponse;
 import com.tuempresa.storage.auth.application.dto.RefreshRequest;
+import com.tuempresa.storage.auth.application.dto.RealEmailRequest;
 import com.tuempresa.storage.auth.application.dto.RegisterRequest;
 import com.tuempresa.storage.auth.application.dto.VerifyEmailRequest;
 import com.tuempresa.storage.auth.domain.RefreshToken;
@@ -221,7 +222,8 @@ public class AuthService {
     public AuthTokenResponse socialOAuthLogin(SocialIdentity identity, String provider, boolean termsAccepted) {
         AuthProvider authProvider = resolveDirectSocialProvider(provider);
         String normalizedEmail = normalizeEmail(identity.email());
-        if (normalizedEmail == null && authProvider == AuthProvider.FACEBOOK) {
+        boolean requiresRealEmailCompletion = normalizedEmail == null && authProvider == AuthProvider.FACEBOOK;
+        if (requiresRealEmailCompletion) {
             normalizedEmail = syntheticFacebookEmail(identity);
         }
         if (normalizedEmail == null) {
@@ -234,8 +236,14 @@ public class AuthService {
 
         final String resolvedEmail = normalizedEmail;
         User user = userRepository.findByEmailIgnoreCase(resolvedEmail)
-                .map(existing -> updateDirectSocialClient(existing, identity, authProvider))
-                .orElseGet(() -> createDirectSocialClient(identity, resolvedEmail, authProvider, termsAccepted));
+                .map(existing -> updateDirectSocialClient(existing, identity, authProvider, requiresRealEmailCompletion))
+                .orElseGet(() -> createDirectSocialClient(
+                        identity,
+                        resolvedEmail,
+                        authProvider,
+                        termsAccepted,
+                        requiresRealEmailCompletion
+                ));
 
         AuthUserPrincipal principal = AuthUserPrincipal.from(user);
         refreshTokenRepository.revokeAllByUserId(user.getId());
@@ -285,6 +293,24 @@ public class AuthService {
         if (!verified) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "AUTH_EMAIL_VERIFICATION_INVALID", "Codigo de verificacion invalido o expirado.");
         }
+        if (user.requiresRealEmailCompletion()) {
+            String pendingRealEmail = normalizeEmail(user.getPendingRealEmail());
+            if (pendingRealEmail == null) {
+                throw new ApiException(
+                        HttpStatus.BAD_REQUEST,
+                        "REAL_EMAIL_REQUIRED",
+                        "Debes registrar un correo real antes de verificar."
+                );
+            }
+            userRepository.findByEmailIgnoreCase(pendingRealEmail)
+                    .filter(existing -> !existing.getId().equals(user.getId()))
+                    .ifPresent(existing -> {
+                        throw new ApiException(HttpStatus.CONFLICT, "AUTH_EMAIL_ALREADY_EXISTS", "El email ya esta registrado.");
+                    });
+            user.setEmail(pendingRealEmail);
+            user.clearPendingRealEmail();
+            user.clearRealEmailCompletionRequirement();
+        }
         userRepository.save(user);
         return new EmailVerificationResponse(true, "Correo verificado correctamente.", null, null);
     }
@@ -295,11 +321,78 @@ public class AuthService {
         if (user.isEmailVerified()) {
             return new EmailVerificationResponse(true, "El correo ya esta verificado.", null, null);
         }
-        String verificationCodePreview = issueVerificationCode(user);
+        String verificationCodePreview;
+        if (user.requiresRealEmailCompletion()) {
+            String pendingRealEmail = normalizeEmail(user.getPendingRealEmail());
+            if (pendingRealEmail == null) {
+                throw new ApiException(
+                        HttpStatus.BAD_REQUEST,
+                        "REAL_EMAIL_REQUIRED",
+                        "Debes registrar un correo real antes de solicitar otro codigo."
+                );
+            }
+            verificationCodePreview = issueVerificationCodeForPendingEmail(user, pendingRealEmail);
+        } else {
+            verificationCodePreview = issueVerificationCode(user);
+        }
         userRepository.save(user);
         return new EmailVerificationResponse(
                 false,
                 resendVerificationMessage(verificationCodePreview),
+                verificationCodePreview,
+                user.getEmailVerificationExpiresAt()
+        );
+    }
+
+    @Transactional
+    public EmailVerificationResponse requestRealEmailCompletion(
+            RealEmailRequest request,
+            AuthUserPrincipal principal
+    ) {
+        User user = requireUser(principal.getId());
+        if (!user.isClientSelfManaged()) {
+            throw new ApiException(
+                    HttpStatus.FORBIDDEN,
+                    "REAL_EMAIL_ADMIN_MANAGED",
+                    "Este perfil es administrado por un administrador y no puede completar el correo desde esta cuenta."
+            );
+        }
+        if (!user.requiresRealEmailCompletion()) {
+            throw new ApiException(
+                HttpStatus.BAD_REQUEST,
+                "REAL_EMAIL_NOT_REQUIRED",
+                "Esta cuenta ya tiene un correo real registrado."
+            );
+        }
+
+        String normalizedEmail = normalizeEmail(request.email());
+        if (normalizedEmail == null) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "AUTH_EMAIL_REQUIRED",
+                    "Debes enviar un correo valido."
+            );
+        }
+        if (normalizedEmail.endsWith("@social.inkavoy.pe")) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "REAL_EMAIL_INVALID_DOMAIN",
+                    "Debes registrar un correo real para continuar."
+            );
+        }
+
+        userRepository.findByEmailIgnoreCase(normalizedEmail)
+                .filter(existing -> !existing.getId().equals(user.getId()))
+                .ifPresent(existing -> {
+                    throw new ApiException(HttpStatus.CONFLICT, "AUTH_EMAIL_ALREADY_EXISTS", "El email ya esta registrado.");
+                });
+
+        user.setPendingRealEmail(normalizedEmail);
+        String verificationCodePreview = issueVerificationCodeForPendingEmail(user, normalizedEmail);
+        userRepository.save(user);
+        return new EmailVerificationResponse(
+                false,
+                realEmailRequestMessage(verificationCodePreview),
                 verificationCodePreview,
                 user.getEmailVerificationExpiresAt()
         );
@@ -427,6 +520,7 @@ public class AuthService {
                 jwtTokenProvider.accessTokenExpiry(),
                 toSummary(user),
                 user.isEmailVerified(),
+                user.requiresRealEmailCompletion(),
                 user.isProfileCompleted(),
                 !user.isEmailVerified(),
                 verificationCodePreview,
@@ -441,6 +535,7 @@ public class AuthService {
                 user.getFirstName(),
                 user.getLastName(),
                 user.getEmail(),
+                user.getPendingRealEmail(),
                 user.getPhone(),
                 user.getNationality(),
                 user.getPreferredLanguage(),
@@ -450,6 +545,7 @@ public class AuthService {
                 user.getVehiclePlate(),
                 user.getProfilePhotoPath(),
                 user.isEmailVerified(),
+                user.requiresRealEmailCompletion(),
                 user.isProfileCompleted(),
                 user.remainingEmailChanges(),
                 user.remainingPhoneChanges(),
@@ -461,6 +557,9 @@ public class AuthService {
     }
 
     private String accountState(User user) {
+        if (user.requiresRealEmailCompletion()) {
+            return "PENDING_REAL_EMAIL";
+        }
         if (!user.isEmailVerified()) {
             return "PENDING_EMAIL_VERIFICATION";
         }
@@ -496,6 +595,32 @@ public class AuthService {
         return shouldExposeCodePreview() ? verificationCode : null;
     }
 
+    private String issueVerificationCodeForPendingEmail(User user, String pendingEmail) {
+        String verificationCode = String.format("%06d", ThreadLocalRandom.current().nextInt(0, 1_000_000));
+        Instant expiresAt = Instant.now().plus(15, ChronoUnit.MINUTES);
+        user.prepareEmailVerification(verificationCode, expiresAt);
+        if (user.getId() != null) {
+            notificationService.notifyUser(
+                    user.getId(),
+                    "EMAIL_VERIFICATION",
+                    "Verifica tu correo",
+                    "Usa el codigo para verificar tu nuevo correo y continuar.",
+                    java.util.Map.of(
+                            "email", pendingEmail,
+                            "code", verificationCode,
+                            "expiresAt", expiresAt
+                    )
+            );
+        }
+        customerEmailService.sendEmailChangeVerification(
+                user,
+                pendingEmail,
+                verificationCode,
+                expiresAt
+        );
+        return shouldExposeCodePreview() ? verificationCode : null;
+    }
+
     private String issuePasswordResetCode(User user) {
         String resetCode = String.format("%06d", ThreadLocalRandom.current().nextInt(0, 1_000_000));
         Instant expiresAt = Instant.now().plus(15, ChronoUnit.MINUTES);
@@ -526,6 +651,13 @@ public class AuthService {
             return "Se envio un nuevo codigo de verificacion.";
         }
         return "Se envio un nuevo codigo de verificacion. Si el correo no llega, usa el codigo mostrado en pantalla.";
+    }
+
+    private String realEmailRequestMessage(String verificationCodePreview) {
+        if (verificationCodePreview == null || verificationCodePreview.isBlank()) {
+            return "Te enviamos un codigo para verificar tu correo y continuar.";
+        }
+        return "Te enviamos un codigo para verificar tu correo. Si no llega, usa el codigo mostrado en pantalla.";
     }
 
     private String passwordResetMessage(String resetCodePreview) {
@@ -604,6 +736,15 @@ public class AuthService {
     }
 
     private User updateDirectSocialClient(User existing, SocialIdentity identity, AuthProvider provider) {
+        return updateDirectSocialClient(existing, identity, provider, false);
+    }
+
+    private User updateDirectSocialClient(
+            User existing,
+            SocialIdentity identity,
+            AuthProvider provider,
+            boolean requiresRealEmailCompletion
+    ) {
         String[] names = splitDisplayName(identity.displayName(), identity.email());
         existing.updateAdminProfile(
                 names[0],
@@ -616,7 +757,13 @@ public class AuthService {
                         : existing.getPreferredLanguage()
         );
         existing.linkSocialIdentity(provider);
-        existing.markEmailVerified();
+        if (requiresRealEmailCompletion || existing.requiresRealEmailCompletion()) {
+            existing.requireRealEmailCompletion();
+            existing.markEmailPendingVerification();
+        } else {
+            existing.clearRealEmailCompletionRequirement();
+            existing.markEmailVerified();
+        }
         existing.setActive(true);
         return userRepository.save(existing);
     }
@@ -625,7 +772,8 @@ public class AuthService {
             SocialIdentity identity,
             String resolvedEmail,
             AuthProvider provider,
-            boolean termsAccepted
+            boolean termsAccepted,
+            boolean requiresRealEmailCompletion
     ) {
         if (!termsAccepted) {
             throw new ApiException(
@@ -652,7 +800,13 @@ public class AuthService {
                 null
         );
         user.linkSocialIdentity(provider);
-        user.markEmailVerified();
+        if (requiresRealEmailCompletion) {
+            user.requireRealEmailCompletion();
+            user.markEmailPendingVerification();
+        } else {
+            user.clearRealEmailCompletionRequirement();
+            user.markEmailVerified();
+        }
         user.setActive(true);
         return userRepository.save(user);
     }

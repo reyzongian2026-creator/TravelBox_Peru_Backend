@@ -72,6 +72,9 @@ public class User extends AuditableEntity {
     @Column(name = "email_verification_expires_at")
     private Instant emailVerificationExpiresAt;
 
+    @Column(name = "pending_real_email", length = 160)
+    private String pendingRealEmail;
+
     @Column(name = "password_reset_code", length = 20)
     private String passwordResetCode;
 
@@ -153,6 +156,9 @@ public class User extends AuditableEntity {
     @Column(name = "onboarding_completed", nullable = false)
     private boolean onboardingCompleted;
 
+    @Column(name = "requires_real_email_completion", nullable = false)
+    private boolean requiresRealEmailCompletion;
+
     @Column(name = "vehicle_plate", length = 30)
     private String vehiclePlate;
 
@@ -218,6 +224,10 @@ public class User extends AuditableEntity {
         this.email = normalizeEmail(email);
     }
 
+    public void setPendingRealEmail(String pendingRealEmail) {
+        this.pendingRealEmail = normalizeEmail(pendingRealEmail);
+    }
+
     public String getPasswordHash() {
         return passwordHash;
     }
@@ -256,6 +266,10 @@ public class User extends AuditableEntity {
 
     public Instant getEmailVerificationExpiresAt() {
         return emailVerificationExpiresAt;
+    }
+
+    public String getPendingRealEmail() {
+        return pendingRealEmail;
     }
 
     public String getPasswordResetCode() {
@@ -390,6 +404,10 @@ public class User extends AuditableEntity {
         return vehiclePlate;
     }
 
+    public boolean requiresRealEmailCompletion() {
+        return requiresRealEmailCompletion;
+    }
+
     public int getEmailChangeCount() {
         return emailChangeCount;
     }
@@ -518,6 +536,13 @@ public class User extends AuditableEntity {
         this.emailVerificationExpiresAt = expiresAt;
     }
 
+    public void markEmailPendingVerification() {
+        this.emailVerified = false;
+        this.emailVerificationCode = null;
+        this.emailVerificationCodeHash = null;
+        this.emailVerificationExpiresAt = null;
+    }
+
     public boolean verifyEmailCode(String verificationCode, Instant now) {
         String normalized = clean(verificationCode, 20);
         if (normalized == null) {
@@ -604,6 +629,18 @@ public class User extends AuditableEntity {
 
     public void markOnboardingCompleted() {
         this.onboardingCompleted = true;
+    }
+
+    public void requireRealEmailCompletion() {
+        this.requiresRealEmailCompletion = true;
+    }
+
+    public void clearRealEmailCompletionRequirement() {
+        this.requiresRealEmailCompletion = false;
+    }
+
+    public void clearPendingRealEmail() {
+        this.pendingRealEmail = null;
     }
 
     public void updateWarehouseAssignments(Set<Warehouse> warehouses) {
