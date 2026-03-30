@@ -19,6 +19,8 @@ import com.tuempresa.storage.shared.infrastructure.web.PagedResponse;
 import com.tuempresa.storage.users.domain.Role;
 import com.tuempresa.storage.users.domain.User;
 import com.tuempresa.storage.users.infrastructure.out.persistence.UserRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -83,38 +85,42 @@ public class IncidentService {
     ) {
         int safePage = Math.max(page, 0);
         int safeSize = clampSize(size);
-        List<IncidentSummaryResponse> filtered = listFiltered(principal, status, query, reservationId);
 
-        long totalElements = filtered.size();
-        int totalPages = totalElements == 0
-                ? 0
-                : (int) Math.ceil(totalElements / (double) safeSize);
-        int fromIndex = safePage * safeSize;
-        if (fromIndex >= filtered.size()) {
-            return new PagedResponse<>(
-                    List.of(),
-                    safePage,
-                    safeSize,
-                    totalElements,
-                    totalPages,
-                    false,
-                    safePage > 0 && totalPages > 0
-            );
+        boolean admin = warehouseAccessService.isAdmin(principal);
+        boolean scopedSupport = warehouseAccessService.isSupport(principal);
+        boolean scopedOps = warehouseAccessService.isOperatorOrCitySupervisor(principal);
+        boolean warehouseScoped = scopedSupport || scopedOps;
+        Set<Long> scopedWarehouseIds = warehouseScoped ? warehouseAccessService.assignedWarehouseIds(principal) : Set.of(-1L);
+        Long normalizedReservationId = reservationId != null && reservationId > 0 ? reservationId : null;
+        User viewer = loadUser(principal.getId());
+        boolean internalViewer = hasPrivilegedRole(principal);
+
+        String normalizedQuery = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
+        boolean hasQuery = !normalizedQuery.isEmpty();
+
+        if (hasQuery) {
+            List<IncidentSummaryResponse> filtered = listFiltered(principal, status, normalizedQuery, reservationId);
+            long totalElements = filtered.size();
+            int totalPages = totalElements == 0 ? 0 : (int) Math.ceil(totalElements / (double) safeSize);
+            int fromIndex = safePage * safeSize;
+            if (fromIndex >= filtered.size()) {
+                return new PagedResponse<>(List.of(), safePage, safeSize, totalElements, totalPages, false, safePage > 0 && totalPages > 0);
+            }
+            int toIndex = Math.min(fromIndex + safeSize, filtered.size());
+            return new PagedResponse<>(filtered.subList(fromIndex, toIndex), safePage, safeSize, totalElements, totalPages, toIndex < filtered.size(), safePage > 0);
         }
 
-        int toIndex = Math.min(fromIndex + safeSize, filtered.size());
-        List<IncidentSummaryResponse> pageItems = filtered.subList(fromIndex, toIndex);
-        boolean hasNext = toIndex < filtered.size();
-        boolean hasPrevious = safePage > 0;
-        return new PagedResponse<>(
-                pageItems,
-                safePage,
-                safeSize,
-                totalElements,
-                totalPages,
-                hasNext,
-                hasPrevious
+        PageRequest pageable = PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Page<Incident> pageResult = incidentRepository.findFiltered(
+                status, normalizedReservationId, admin,
+                admin ? Set.of(-1L) : scopedWarehouseIds,
+                principal.getId(), pageable
         );
+        List<IncidentSummaryResponse> items = pageResult.getContent().stream()
+                .map(incident -> toSummary(incident, viewer, internalViewer))
+                .toList();
+        return new PagedResponse<>(items, safePage, safeSize, pageResult.getTotalElements(),
+                pageResult.getTotalPages(), pageResult.hasNext(), pageResult.hasPrevious());
     }
 
     private List<IncidentSummaryResponse> listFiltered(

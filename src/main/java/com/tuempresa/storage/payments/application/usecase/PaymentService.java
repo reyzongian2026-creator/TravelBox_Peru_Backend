@@ -138,10 +138,13 @@ public class PaymentService {
             String ref = normalizeRef(attempt, request.providerReference(), method.label());
             attempt.fail(ref);
             attempt.registerGatewayOutcome("DECLINED", "Pago rechazado por solicitud del cliente.");
-            for (User user : userRepository.findActiveByAnyRoleAndWarehouseId(Set.of(Role.OPERATOR, Role.CITY_SUPERVISOR), attempt.getReservation().getWarehouse().getId())) {
-            notificationService.emitSilentRealtimeEvent(user.getId(), "PAYMENT_SYNC", java.util.Map.of("reservationId", attempt.getReservation().getId()));
-        }
-        notificationService.notifyPaymentRejected(attempt.getReservation().getUser().getId(), attempt.getReservation().getId(), attempt.getReservation().getQrCode(), "Rechazado por cliente");
+            List<User> operators = userRepository.findActiveByAnyRoleAndWarehouseId(Set.of(Role.OPERATOR, Role.CITY_SUPERVISOR), attempt.getReservation().getWarehouse().getId());
+            if (operators != null) {
+                for (User user : operators) {
+                    notificationService.emitSilentRealtimeEvent(user.getId(), "PAYMENT_SYNC", java.util.Map.of("reservationId", attempt.getReservation().getId()));
+                }
+            }
+            notificationService.notifyPaymentRejected(attempt.getReservation().getUser().getId(), attempt.getReservation().getId(), attempt.getReservation().getQrCode(), "Rechazado por cliente");
             return toIntentResponse(attempt, providerLabel(attempt), method.label(), "DECLINED", "Pago rechazado.", null);
         }
 
@@ -277,8 +280,11 @@ public class PaymentService {
         String message = defaultReason(reason, "Pago en caja rechazado por operador.");
         attempt.fail(ref);
         attempt.registerGatewayOutcome("OFFLINE_REJECTED_BY_OPERATOR", message);
-        for (User user : userRepository.findActiveByAnyRoleAndWarehouseId(Set.of(Role.OPERATOR, Role.CITY_SUPERVISOR), attempt.getReservation().getWarehouse().getId())) {
-            notificationService.emitSilentRealtimeEvent(user.getId(), "PAYMENT_SYNC", java.util.Map.of("reservationId", attempt.getReservation().getId()));
+        List<User> rejectOperators = userRepository.findActiveByAnyRoleAndWarehouseId(Set.of(Role.OPERATOR, Role.CITY_SUPERVISOR), attempt.getReservation().getWarehouse().getId());
+        if (rejectOperators != null) {
+            for (User user : rejectOperators) {
+                notificationService.emitSilentRealtimeEvent(user.getId(), "PAYMENT_SYNC", java.util.Map.of("reservationId", attempt.getReservation().getId()));
+            }
         }
         notificationService.notifyPaymentRejected(attempt.getReservation().getUser().getId(), attempt.getReservation().getId(), attempt.getReservation().getQrCode(), message);
         return toIntentResponse(attempt, "OFFLINE", method.label(), "OFFLINE_REJECTED_BY_OPERATOR", message, null);

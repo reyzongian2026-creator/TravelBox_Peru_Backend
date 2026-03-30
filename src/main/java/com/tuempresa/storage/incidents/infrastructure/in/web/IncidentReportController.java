@@ -89,7 +89,13 @@ public class IncidentReportController {
             if (request.status() != null && !request.status().isEmpty() && !"ALL".equalsIgnoreCase(request.status())) {
                 try {
                     status = IncidentStatus.valueOf(request.status().toUpperCase());
-                } catch (IllegalArgumentException ignored) {}
+                } catch (IllegalArgumentException ex) {
+                    throw new com.tuempresa.storage.shared.domain.exception.ApiException(
+                            org.springframework.http.HttpStatus.BAD_REQUEST,
+                            "INVALID_STATUS",
+                            "Estado de incidencia invalido: " + request.status()
+                    );
+                }
             }
             query = request.query();
             reservationId = request.reservationId();

@@ -11,6 +11,7 @@ import java.util.List;
 
 public interface TouristZoneRepository extends JpaRepository<TouristZone, Long> {
 
+    @EntityGraph(attributePaths = {"city"})
     List<TouristZone> findByCityIdOrderByNameAsc(Long cityId);
 
     @EntityGraph(attributePaths = {"city"})

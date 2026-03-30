@@ -11,10 +11,12 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.access.prepost.PreAuthorize;
 import reactor.core.publisher.Mono;
 
 @RestController
 @RequestMapping("/api/v1/sensitive-data")
+@PreAuthorize("isAuthenticated()")
 public class SensitiveDataController {
 
     private final SensitiveDataServiceApp sensitiveDataServiceApp;

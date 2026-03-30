@@ -116,7 +116,11 @@ public class AzureBlobStorageServiceImpl implements StorageService {
     @Override
     public UploadResult upload(MultipartFile file, FileCategory category) throws IOException {
         validateImageFile(file, category);
-        return upload(file.getInputStream(), file.getSize(), file.getOriginalFilename(),
+        String originalFilename = file.getOriginalFilename();
+        if (originalFilename != null && (originalFilename.contains("..") || originalFilename.contains("/") || originalFilename.contains("\\"))) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_FILENAME", "El nombre del archivo contiene caracteres no permitidos.");
+        }
+        return upload(file.getInputStream(), file.getSize(), originalFilename,
                 file.getContentType(), category);
     }
     

@@ -31,6 +31,8 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -49,6 +51,7 @@ import java.util.regex.Pattern;
 @Service
 public class AuthService {
 
+    private static final Logger LOG = LoggerFactory.getLogger(AuthService.class);
     private static final Set<String> SUPPORTED_LANGUAGES = Set.of("es", "en");
     private static final Pattern INTERNATIONAL_PHONE_PATTERN = Pattern.compile("^\\+[1-9]\\d{6,14}$");
 
@@ -759,7 +762,8 @@ public class AuthService {
                 return Optional.empty();
             }
             return userRepository.findByEmailIgnoreCase(subject).map(User::getId);
-        } catch (Exception ignored) {
+        } catch (Exception ex) {
+            LOG.warn("Failed to resolve user from refresh token: {}", ex.getMessage());
             return Optional.empty();
         }
     }
