@@ -218,6 +218,9 @@ public class AuthService {
     public AuthTokenResponse socialOAuthLogin(SocialIdentity identity, String provider, boolean termsAccepted) {
         AuthProvider authProvider = resolveDirectSocialProvider(provider);
         String normalizedEmail = normalizeEmail(identity.email());
+        if (normalizedEmail == null && authProvider == AuthProvider.FACEBOOK) {
+            normalizedEmail = syntheticFacebookEmail(identity);
+        }
         if (normalizedEmail == null) {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
@@ -705,17 +708,31 @@ public class AuthService {
     private String[] splitDisplayName(String displayName, String fallbackEmail) {
         String normalized = normalize(displayName);
         if (normalized == null) {
-            String base = fallbackEmail == null ? "Cliente TravelBox" : fallbackEmail.split("@")[0];
+            String base = fallbackEmail == null ? "Cliente InkaVoy" : fallbackEmail.split("@")[0];
             normalized = base.replace('.', ' ').replace('_', ' ').trim();
         }
         String[] parts = normalized.split("\\s+");
         if (parts.length == 1) {
-            return new String[]{parts[0], "TravelBox"};
+            return new String[]{parts[0], "InkaVoy"};
         }
         int middle = Math.max(1, parts.length / 2);
         String first = String.join(" ", Arrays.copyOfRange(parts, 0, middle));
         String last = String.join(" ", Arrays.copyOfRange(parts, middle, parts.length));
         return new String[]{normalize(first), normalize(last)};
+    }
+
+    private String syntheticFacebookEmail(SocialIdentity identity) {
+        String subject = normalize(identity.subject());
+        if (subject == null) {
+            return null;
+        }
+        String sanitizedSubject = subject
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("[^a-z0-9._-]", "");
+        if (sanitizedSubject.isBlank()) {
+            return null;
+        }
+        return "facebook-" + sanitizedSubject + "@social.inkavoy.pe";
     }
 
     private String generateSystemPassword() {

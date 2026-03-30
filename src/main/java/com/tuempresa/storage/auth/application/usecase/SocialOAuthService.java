@@ -160,7 +160,7 @@ public class SocialOAuthService {
                 .queryParam("client_id", facebookAppId)
                 .queryParam("redirect_uri", callbackUri)
                 .queryParam("response_type", "code")
-                .queryParam("scope", "email,public_profile")
+                .queryParam("scope", "public_profile")
                 .queryParam("state", state)
                 .encode()
                 .build()
