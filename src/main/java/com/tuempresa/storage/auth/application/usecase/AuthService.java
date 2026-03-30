@@ -2,8 +2,8 @@ package com.tuempresa.storage.auth.application.usecase;
 
 import com.tuempresa.storage.auth.application.dto.AuthTokenResponse;
 import com.tuempresa.storage.auth.application.dto.AuthUserSummaryResponse;
+import com.tuempresa.storage.auth.application.dto.EntraSocialAuthRequest;
 import com.tuempresa.storage.auth.application.dto.EmailVerificationResponse;
-import com.tuempresa.storage.auth.application.dto.FirebaseSocialAuthRequest;
 import com.tuempresa.storage.auth.application.dto.LoginRequest;
 import com.tuempresa.storage.auth.application.dto.LogoutRequest;
 import com.tuempresa.storage.auth.application.dto.PasswordResetConfirmRequest;
@@ -14,8 +14,6 @@ import com.tuempresa.storage.auth.application.dto.RegisterRequest;
 import com.tuempresa.storage.auth.application.dto.VerifyEmailRequest;
 import com.tuempresa.storage.auth.domain.RefreshToken;
 import com.tuempresa.storage.auth.infrastructure.out.persistence.RefreshTokenRepository;
-import com.tuempresa.storage.firebase.application.FirebaseAdminService;
-import com.tuempresa.storage.firebase.application.FirebaseClientIdentity;
 import com.tuempresa.storage.notifications.application.email.CustomerEmailService;
 import com.tuempresa.storage.notifications.application.usecase.NotificationService;
 import com.tuempresa.storage.shared.domain.exception.ApiException;
@@ -40,6 +38,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
@@ -60,10 +59,11 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final NotificationService notificationService;
     private final CustomerEmailService customerEmailService;
-    private final FirebaseAdminService firebaseAdminService;
+    private final EntraGraphIdentityService entraGraphIdentityService;
     private final String emailProvider;
     private final boolean exposeCodePreview;
     private final boolean allowInternalSelfRegister;
+    private final Set<String> internalDomains;
 
     public AuthService(
             ObjectProvider<AuthenticationManager> authenticationManagerProvider,
@@ -73,10 +73,11 @@ public class AuthService {
             PasswordEncoder passwordEncoder,
             NotificationService notificationService,
             CustomerEmailService customerEmailService,
-            FirebaseAdminService firebaseAdminService,
+            EntraGraphIdentityService entraGraphIdentityService,
             @Value("${app.auth.email-provider:mock}") String emailProvider,
             @Value("${app.auth.expose-code-preview:false}") boolean exposeCodePreview,
-            @Value("${app.auth.allow-internal-self-register:false}") boolean allowInternalSelfRegister
+            @Value("${app.auth.allow-internal-self-register:false}") boolean allowInternalSelfRegister,
+            @Value("${app.auth.internal-domains:inkavoy.pe,inkavoy.onmicrosoft.com}") String internalDomains
     ) {
         this.authenticationManager = authenticationManagerProvider.getIfAvailable();
         this.jwtTokenProvider = jwtTokenProvider;
@@ -85,10 +86,15 @@ public class AuthService {
         this.passwordEncoder = passwordEncoder;
         this.notificationService = notificationService;
         this.customerEmailService = customerEmailService;
-        this.firebaseAdminService = firebaseAdminService;
+        this.entraGraphIdentityService = entraGraphIdentityService;
         this.emailProvider = emailProvider == null ? "mock" : emailProvider.trim().toLowerCase(Locale.ROOT);
         this.exposeCodePreview = exposeCodePreview;
         this.allowInternalSelfRegister = allowInternalSelfRegister;
+        this.internalDomains = Arrays.stream(internalDomains.split(","))
+                .map(String::trim)
+                .map(domain -> domain.toLowerCase(Locale.ROOT))
+                .filter(domain -> !domain.isBlank())
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
     }
 
     @Transactional
@@ -100,7 +106,7 @@ public class AuthService {
                     throw new ApiException(
                             HttpStatus.UNAUTHORIZED,
                             "AUTH_USE_SOCIAL_LOGIN",
-                            "Este cliente debe ingresar con Google o Facebook."
+                            "Este cliente debe ingresar con su proveedor social."
                     );
                 });
 
@@ -183,12 +189,6 @@ public class AuthService {
         }
         user = userRepository.save(user);
         String verificationCodePreview = issueVerificationCode(user);
-        String firebaseUid = firebaseAdminService.syncUserAccount(user, request.password());
-        if (firebaseUid != null && !firebaseUid.equals(user.getFirebaseUid())) {
-            user.linkFirebaseIdentity(AuthProvider.LOCAL, firebaseUid);
-        }
-        user = userRepository.save(user);
-        firebaseAdminService.mirrorClientProfile(user);
 
         AuthUserPrincipal principal = AuthUserPrincipal.from(user);
         String accessToken = jwtTokenProvider.generateAccessToken(principal);
@@ -198,32 +198,38 @@ public class AuthService {
     }
 
     @Transactional
-    public AuthTokenResponse firebaseSocialLogin(FirebaseSocialAuthRequest request) {
-        FirebaseClientIdentity identity = firebaseAdminService.verifyClientIdToken(request.idToken());
-        AuthProvider expectedProvider = resolveRequestedProvider(request.provider());
-        if (identity.authProvider() != expectedProvider) {
+    public AuthTokenResponse entraSocialLogin(EntraSocialAuthRequest request) {
+        EntraGraphIdentityService.EntraUserIdentity identity = entraGraphIdentityService.resolveUser(request.accessToken());
+        AuthProvider provider = resolveEntraProvider(request.provider());
+
+        User user = userRepository.findByEmailIgnoreCase(identity.email())
+                .map(existing -> updateEntraClient(existing, identity))
+                .orElseGet(() -> createEntraClient(identity, provider, request));
+
+        AuthUserPrincipal principal = AuthUserPrincipal.from(user);
+        refreshTokenRepository.revokeAllByUserId(user.getId());
+        String accessToken = jwtTokenProvider.generateAccessToken(principal);
+        String refreshTokenValue = jwtTokenProvider.generateRefreshToken(principal);
+        refreshTokenRepository.save(RefreshToken.of(refreshTokenValue, user, jwtTokenProvider.refreshTokenExpiry()));
+        return buildAuthTokenResponse(user, principal, accessToken, refreshTokenValue, null);
+    }
+
+    @Transactional
+    public AuthTokenResponse socialOAuthLogin(SocialIdentity identity, String provider, boolean termsAccepted) {
+        AuthProvider authProvider = resolveDirectSocialProvider(provider);
+        String normalizedEmail = normalizeEmail(identity.email());
+        if (normalizedEmail == null) {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
-                    "FIREBASE_PROVIDER_MISMATCH",
-                    "El token no corresponde al proveedor solicitado."
+                    "SOCIAL_EMAIL_REQUIRED",
+                    "El proveedor social no devolvio un correo utilizable."
             );
         }
 
-        String normalizedEmail = normalizeEmail(identity.email());
-        if (normalizedEmail == null && expectedProvider == AuthProvider.FIREBASE_FACEBOOK) {
-            normalizedEmail = buildFacebookFallbackEmail(identity.uid());
-        }
-        if (normalizedEmail == null) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "FIREBASE_EMAIL_REQUIRED", "Firebase no devolvio un correo valido.");
-        }
         final String resolvedEmail = normalizedEmail;
-
-        User user = userRepository.findByFirebaseUid(identity.uid())
-                .or(() -> userRepository.findByEmailIgnoreCase(resolvedEmail))
-                .map(existing -> updateFirebaseClient(existing, identity))
-                .orElseGet(() -> createFirebaseClient(identity, resolvedEmail, request));
-
-        firebaseAdminService.mirrorClientProfile(user);
+        User user = userRepository.findByEmailIgnoreCase(resolvedEmail)
+                .map(existing -> updateDirectSocialClient(existing, identity, authProvider))
+                .orElseGet(() -> createDirectSocialClient(identity, resolvedEmail, authProvider, termsAccepted));
 
         AuthUserPrincipal principal = AuthUserPrincipal.from(user);
         refreshTokenRepository.revokeAllByUserId(user.getId());
@@ -339,7 +345,7 @@ public class AuthService {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     "AUTH_PASSWORD_RESET_SOCIAL_ONLY",
-                    "Esta cuenta usa acceso social. Debes ingresar con Google/Facebook."
+                    "Esta cuenta usa acceso social. Debes ingresar con tu proveedor social."
             );
         }
         if (!user.verifyPasswordResetCode(request.code(), Instant.now())) {
@@ -351,10 +357,6 @@ public class AuthService {
         }
 
         user.updatePasswordHash(passwordEncoder.encode(request.newPassword()));
-        String firebaseUid = firebaseAdminService.syncUserAccount(user, request.newPassword());
-        if (firebaseUid != null && !firebaseUid.equals(user.getFirebaseUid())) {
-            user.linkFirebaseIdentity(AuthProvider.LOCAL, firebaseUid);
-        }
         userRepository.save(user);
         refreshTokenRepository.revokeAllByUserId(user.getId());
         customerEmailService.sendPasswordChangedConfirmation(user);
@@ -527,19 +529,16 @@ public class AuthService {
         return "Se envio un codigo de recuperacion. Si el correo no llega, usa el codigo mostrado en pantalla.";
     }
 
-    private User updateFirebaseClient(User existing, FirebaseClientIdentity identity) {
-        if (!existing.getRoles().contains(Role.CLIENT)) {
-            throw new ApiException(
-                    HttpStatus.CONFLICT,
-                    "FIREBASE_EMAIL_CONFLICT",
-                    "El correo ya pertenece a un usuario interno administrado por la plataforma."
-            );
-        }
-        existing.linkFirebaseIdentity(identity.authProvider(), identity.uid());
+    private User updateEntraClient(User existing, EntraGraphIdentityService.EntraUserIdentity identity) {
+        existing.linkSocialIdentity(AuthProvider.MICROSOFT);
+        existing.markManagedByAdmin(isInternalRoleSet(existing.getRoles()) || existing.isManagedByAdmin());
         existing.markEmailVerified();
         existing.setActive(true);
-        if (normalize(existing.getProfilePhotoPath()) == null && normalize(identity.photoUrl()) != null) {
+        if (normalize(existing.getFirstName()) == null && normalize(identity.givenName()) != null) {
+            String[] names = splitDisplayName(identity.displayName(), identity.email());
             existing.updateProfile(
+                    names[0],
+                    names[1],
                     null,
                     null,
                     null,
@@ -547,8 +546,6 @@ public class AuthService {
                     null,
                     null,
                     null,
-                    null,
-                    identity.photoUrl(),
                     null,
                     null,
                     null,
@@ -563,52 +560,124 @@ public class AuthService {
         return userRepository.save(existing);
     }
 
-    private User createFirebaseClient(
-            FirebaseClientIdentity identity,
-            String normalizedEmail,
-            FirebaseSocialAuthRequest request
+    private User createEntraClient(
+            EntraGraphIdentityService.EntraUserIdentity identity,
+            AuthProvider provider,
+            EntraSocialAuthRequest request
     ) {
         if (!Boolean.TRUE.equals(request.termsAccepted())) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "AUTH_TERMS_REQUIRED", "Debes aceptar terminos y condiciones.");
         }
         String[] names = splitDisplayName(
                 normalize(request.displayName()) != null ? request.displayName() : identity.displayName(),
-                normalizedEmail
+                identity.email()
         );
+        String firstName = normalize(identity.givenName()) != null ? identity.givenName() : names[0];
+        String lastName = normalize(identity.surname()) != null ? identity.surname() : names[1];
+
         User user = User.of(
-                (names[0] + " " + names[1]).trim(),
-                normalizedEmail,
+                (firstName + " " + lastName).trim(),
+                identity.email(),
                 passwordEncoder.encode(generateSystemPassword()),
                 null,
                 Set.of(Role.CLIENT)
         );
-        user.linkFirebaseIdentity(identity.authProvider(), identity.uid());
+        user.linkSocialIdentity(provider);
         user.applyRegistrationDetails(
-                names[0],
-                names[1],
+                firstName,
+                lastName,
                 "Peru",
                 "es",
                 null,
                 true,
-                normalize(request.profilePhotoUrl()) != null ? request.profilePhotoUrl() : identity.photoUrl()
+                null
         );
         user.markEmailVerified();
         user.setActive(true);
         return userRepository.save(user);
     }
 
-    private AuthProvider resolveRequestedProvider(String provider) {
+    private User updateDirectSocialClient(User existing, SocialIdentity identity, AuthProvider provider) {
+        String[] names = splitDisplayName(identity.displayName(), identity.email());
+        existing.updateAdminProfile(
+                names[0],
+                names[1],
+                existing.getEmail(),
+                existing.getPhone(),
+                existing.getNationality(),
+                normalizePreferredLanguage(existing.getPreferredLanguage()) == null
+                        ? "es"
+                        : existing.getPreferredLanguage()
+        );
+        existing.linkSocialIdentity(provider);
+        existing.markEmailVerified();
+        existing.setActive(true);
+        return userRepository.save(existing);
+    }
+
+    private User createDirectSocialClient(
+            SocialIdentity identity,
+            String resolvedEmail,
+            AuthProvider provider,
+            boolean termsAccepted
+    ) {
+        if (!termsAccepted) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "AUTH_TERMS_REQUIRED",
+                    "Debes aceptar los terminos y condiciones."
+            );
+        }
+        String[] names = splitDisplayName(identity.displayName(), resolvedEmail);
+        User user = User.of(
+                String.join(" ", Arrays.stream(names).filter(name -> name != null && !name.isBlank()).toList()),
+                resolvedEmail,
+                passwordEncoder.encode(generateSystemPassword()),
+                null,
+                Set.of(Role.CLIENT)
+        );
+        user.applyRegistrationDetails(
+                names[0],
+                names[1],
+                null,
+                "es",
+                null,
+                true,
+                null
+        );
+        user.linkSocialIdentity(provider);
+        user.markEmailVerified();
+        user.setActive(true);
+        return userRepository.save(user);
+    }
+
+    private AuthProvider resolveDirectSocialProvider(String provider) {
         String normalized = normalize(provider);
         if (normalized == null) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "FIREBASE_PROVIDER_REQUIRED", "Debes indicar el proveedor.");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "SOCIAL_PROVIDER_REQUIRED", "Debes indicar el proveedor.");
         }
         return switch (normalized.toUpperCase(Locale.ROOT)) {
-            case "GOOGLE" -> AuthProvider.FIREBASE_GOOGLE;
-            case "FACEBOOK" -> AuthProvider.FIREBASE_FACEBOOK;
+            case "GOOGLE" -> AuthProvider.GOOGLE;
+            case "FACEBOOK" -> AuthProvider.FACEBOOK;
             default -> throw new ApiException(
                     HttpStatus.BAD_REQUEST,
-                    "FIREBASE_PROVIDER_UNSUPPORTED",
+                    "SOCIAL_PROVIDER_UNSUPPORTED",
                     "Solo Google o Facebook estan permitidos."
+            );
+        };
+    }
+
+    private AuthProvider resolveEntraProvider(String provider) {
+        String normalized = normalize(provider);
+        if (normalized == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "ENTRA_PROVIDER_REQUIRED", "Debes indicar el proveedor.");
+        }
+        return switch (normalized.toUpperCase(Locale.ROOT)) {
+            case "MICROSOFT", "ENTRA", "AZURE" -> AuthProvider.MICROSOFT;
+            default -> throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "ENTRA_PROVIDER_UNSUPPORTED",
+                    "Solo Microsoft Entra esta permitido."
             );
         };
     }
@@ -650,7 +719,7 @@ public class AuthService {
     }
 
     private String generateSystemPassword() {
-        return "Fb!" + UUID.randomUUID().toString().replace("-", "").substring(0, 10) + "9a";
+        return "Soc!" + UUID.randomUUID().toString().replace("-", "").substring(0, 10) + "9a";
     }
 
     private String normalize(String value) {
@@ -678,7 +747,11 @@ public class AuthService {
         }
     }
     private String buildFacebookFallbackEmail(String uid) {
-        String normalizedUid = normalize(uid);
+        return buildSocialFallbackEmail("fb", uid);
+    }
+
+    private String buildSocialFallbackEmail(String prefix, String subject) {
+        String normalizedUid = normalize(subject);
         if (normalizedUid == null) {
             return null;
         }
@@ -686,7 +759,7 @@ public class AuthService {
         if (safe.isEmpty()) {
             return null;
         }
-        return "fb-" + safe + "@facebook.local";
+        return prefix + "-" + safe + "@social.local";
     }
 
     private String normalizePreferredLanguage(String value) {
@@ -718,6 +791,9 @@ public class AuthService {
             return Set.of(Role.CLIENT);
         }
         String email = normalizedEmail.toLowerCase(Locale.ROOT);
+        if (!isCorporateEmail(email)) {
+            return Set.of(Role.CLIENT);
+        }
         if (email.startsWith("admin@")) {
             return Set.of(Role.ADMIN, Role.SUPPORT);
         }
@@ -735,5 +811,27 @@ public class AuthService {
 
     private boolean isInternalRoleSet(Set<Role> roles) {
         return roles.stream().anyMatch(role -> role != Role.CLIENT);
+    }
+
+    private boolean isCorporateEmail(String email) {
+        String normalized = normalizeEmail(email);
+        if (normalized == null) {
+            return false;
+        }
+        int atIndex = normalized.lastIndexOf('@');
+        if (atIndex < 0 || atIndex == normalized.length() - 1) {
+            return false;
+        }
+        String domain = normalized.substring(atIndex + 1);
+        return internalDomains.contains(domain);
+    }
+
+    public record SocialIdentity(
+            String subject,
+            String email,
+            String displayName,
+            String firstName,
+            String surname
+    ) {
     }
 }

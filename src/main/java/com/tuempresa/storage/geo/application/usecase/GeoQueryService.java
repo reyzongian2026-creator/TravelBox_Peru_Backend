@@ -6,6 +6,7 @@ import com.tuempresa.storage.geo.application.dto.TouristZoneResponse;
 import com.tuempresa.storage.geo.infrastructure.out.persistence.CityRepository;
 import com.tuempresa.storage.geo.infrastructure.out.persistence.TouristZoneRepository;
 import com.tuempresa.storage.warehouses.infrastructure.out.persistence.WarehouseRepository;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,6 +14,10 @@ import java.util.List;
 
 @Service
 public class GeoQueryService {
+
+    private static final int CITY_LIMIT = 8;
+    private static final int ZONE_LIMIT = 8;
+    private static final int WAREHOUSE_LIMIT = 12;
 
     private final CityRepository cityRepository;
     private final TouristZoneRepository touristZoneRepository;
@@ -56,11 +61,11 @@ public class GeoQueryService {
         if (query == null || query.isBlank()) {
             return List.of();
         }
-        String normalized = query.trim().toLowerCase();
+        String normalized = query.trim();
 
-        List<GeoSearchSuggestionResponse> cityMatches = cityRepository.findByActiveTrueOrderByNameAsc()
+        List<GeoSearchSuggestionResponse> cityMatches = cityRepository
+                .searchActiveByName(normalized, PageRequest.of(0, CITY_LIMIT))
                 .stream()
-                .filter(city -> city.getName().toLowerCase().contains(normalized))
                 .map(city -> new GeoSearchSuggestionResponse(
                         "CITY",
                         city.getId(),
@@ -72,9 +77,9 @@ public class GeoQueryService {
                 ))
                 .toList();
 
-        List<GeoSearchSuggestionResponse> zoneMatches = touristZoneRepository.findAll()
+        List<GeoSearchSuggestionResponse> zoneMatches = touristZoneRepository
+                .searchByName(normalized, PageRequest.of(0, ZONE_LIMIT))
                 .stream()
-                .filter(zone -> zone.getName().toLowerCase().contains(normalized))
                 .map(zone -> new GeoSearchSuggestionResponse(
                         "ZONE",
                         zone.getId(),
@@ -86,12 +91,9 @@ public class GeoQueryService {
                 ))
                 .toList();
 
-        List<GeoSearchSuggestionResponse> warehouseMatches = warehouseRepository.findByActiveTrueOrderByNameAsc()
+        List<GeoSearchSuggestionResponse> warehouseMatches = warehouseRepository
+                .searchSuggestions(normalized, PageRequest.of(0, WAREHOUSE_LIMIT))
                 .stream()
-                .filter(warehouse ->
-                        warehouse.getName().toLowerCase().contains(normalized)
-                        || warehouse.getAddress().toLowerCase().contains(normalized)
-                )
                 .map(warehouse -> new GeoSearchSuggestionResponse(
                         "WAREHOUSE",
                         warehouse.getId(),

@@ -28,7 +28,7 @@ Backend para plataforma de almacenamiento turistico, construido en Java 21 + Spr
 
 ## Modulos implementados
 
-- `auth`: login, refresh, logout, firebase social
+- `auth`: login, refresh, logout, OAuth Google/Facebook y Microsoft Entra
 - `profile`: perfil editable/completable + verificacion de correo
 - `users`: roles `CLIENT`, `OPERATOR`, `COURIER`, `CITY_SUPERVISOR`, `ADMIN`, `SUPPORT`
 - `geo`: ciudades, zonas, busqueda y sugerencias
@@ -59,7 +59,9 @@ Backend para plataforma de almacenamiento turistico, construido en Java 21 + Spr
 
 - `POST /api/v1/auth/login`
 - `POST /api/v1/auth/register`
-- `POST /api/v1/auth/firebase/social`
+- `POST /api/v1/auth/entra/social`
+- `GET /api/v1/auth/oauth/{provider}/start`
+- `GET /api/v1/auth/oauth/{provider}/callback`
 - `POST /api/v1/auth/refresh`
 - `POST /api/v1/auth/logout`
 - `GET /api/v1/geo/cities`
@@ -160,7 +162,7 @@ Detalle operativo y fotos de equipaje:
 - `COURIER` con acceso a sede ve ID maleta y fotos, pero no `pickupPin`.
 
 Auth cliente y limites de perfil:
-- Solo `CLIENT` usa Firebase para Google/Facebook; backend valida `idToken` y emite JWT TravelBox.
+- Clientes usan login local o social directo (`google` / `facebook`) contra el backend; usuarios internos usan correo corporativo y Microsoft Entra cuando aplique.
 - Usuarios internos (`ADMIN`, `OPERATOR`, `CITY_SUPERVISOR`, `COURIER`, `SUPPORT`) los gestiona admin.
 - Cliente puede cambiar `correo`, `telefono` y `documento` maximo 3 veces por campo.
 - `COURIER` exige `vehiclePlate` al crearse o editarse desde admin.
@@ -251,22 +253,20 @@ Archivos de entorno para Cloud Run:
 - Plin/Wallet: backend crea orden y devuelve `nextAction.orderId` + `nextAction.publicKey`.
 - Confirmacion asincrona: webhook `POST /api/v1/payments/webhooks/culqi`.
 
-## Correo SMTP (Brevo / Gmail)
+## Correo transaccional (Exchange Online / Microsoft Graph)
 
-- Proveedor: `APP_AUTH_EMAIL_PROVIDER=smtp` y `APP_EMAIL_PROVIDER=smtp`
-- Brevo (recomendado para evitar limites diarios de Gmail):
-  - `APP_SMTP_HOST=smtp-relay.brevo.com`
-  - `APP_SMTP_PORT=587`
-  - `APP_SMTP_USERNAME=<usuario_smtp_brevo>`
-  - `APP_SMTP_PASSWORD=<smtp_key_brevo>`
-  - `APP_EMAIL_FROM_ADDRESS=<remitente_verificado_en_brevo>`
-- Gmail (alternativa):
-  - `APP_SMTP_HOST=smtp.gmail.com`
-  - `APP_SMTP_PORT=587`
-  - `APP_SMTP_USERNAME=<tu_correo_personal@gmail.com>`
-  - `APP_SMTP_PASSWORD=<app_password_16_chars>`
-  - `APP_EMAIL_FROM_ADDRESS=<tu_correo_personal@gmail.com>`
-- En `profile=prod` el backend ahora falla en arranque si falta `spring.mail.username`, `spring.mail.password` o `app.email.from-address`.
+- Proveedor recomendado y por defecto en prod: `APP_AUTH_EMAIL_PROVIDER=graph` y `APP_EMAIL_PROVIDER=graph`
+- Variables requeridas:
+  - `APP_EMAIL_FROM_ADDRESS=admin@inkavoy.pe`
+  - `APP_EMAIL_FROM_NAME=Inkavoy`
+  - `APP_EMAIL_GRAPH_TENANT_ID=<tenant-id>`
+  - `APP_EMAIL_GRAPH_CLIENT_ID=<app-registration-client-id>`
+  - `APP_EMAIL_GRAPH_CLIENT_SECRET=<app-registration-client-secret>`
+- El backend usa Microsoft Graph para:
+  - verificacion de correo
+  - recuperacion de contraseña
+  - notificaciones operativas por email
+- En prod no se debe usar `mock` ni proveedores legacy.
 
 ## Reembolsos y cancelaciones
 
@@ -280,34 +280,24 @@ Archivos de entorno para Cloud Run:
 ## Fotos de almacenes
 
 - Si admin sube foto por `POST /api/v1/admin/warehouses/{id}/photo`, frontend recibe `imageUrl`, `photoUrl`, `coverImageUrl`.
-- Si Firebase Admin esta configurado, la foto se publica en Firebase Storage.
 - Si no existe foto, backend expone `GET /api/v1/warehouses/{id}/image` con portada automatica por sede/ciudad.
 
-## Firebase cliente
+## Auth social directo
 
-Variables backend:
-- `APP_FIREBASE_ENABLED=true`
-- `APP_FIREBASE_PROJECT_ID=<project-id>`
-- `APP_FIREBASE_SERVICE_ACCOUNT_JSON=<json-en-una-linea>` (recomendado cloud)
-- opcional: `APP_FIREBASE_SERVICE_ACCOUNT_FILE=<ruta-local-service-account.json>` (solo local/dev)
-- opcional: `APP_FIREBASE_STORAGE_BUCKET=<bucket.appspot.com>`
-- opcional: `APP_FIREBASE_CLIENT_PROFILE_COLLECTION=clientProfiles`
-- opcional: `APP_FIREBASE_USER_MIGRATION_ENABLED=true`
-- opcional: `APP_FIREBASE_USER_MIGRATION_FAIL_FAST=false`
-
-Uso:
-- `POST /api/v1/auth/firebase/social` recibe `idToken` emitido por Firebase Auth.
-- `POST /api/v1/auth/register` sincroniza usuario en Firebase Auth y guarda/reutiliza `firebaseUid`.
-- Backend espeja perfil cliente en Firestore (`clientProfiles`).
-- Sin `APP_FIREBASE_STORAGE_BUCKET`, login social y espejo Firestore siguen operativos.
-- Para web OAuth (Google/Facebook), agregar dominio frontend en `Firebase Console -> Authentication -> Settings -> Authorized domains`.
-- Si aparece error `proveedor social aun no esta habilitado`, activar Google/Facebook en `Firebase Console -> Authentication -> Sign-in method` con sus credenciales OAuth.
+- `GET /api/v1/auth/oauth/google/start` inicia OAuth web con Google.
+- `GET /api/v1/auth/oauth/facebook/start` inicia OAuth web con Facebook.
+- Los callbacks válidos en producción son:
+  - `https://api.inkavoy.pe/api/v1/auth/oauth/google/callback`
+  - `https://api.inkavoy.pe/api/v1/auth/oauth/facebook/callback`
+- El frontend de producción es `https://www.inkavoy.pe`.
+- Las cuentas se vinculan por email exacto.
+- Si Facebook no devuelve un email utilizable, el backend rechaza el login.
 
 ## Ruteo real (Google Routes API)
 
 Variables backend:
 - `APP_ROUTING_PROVIDER=google`
-- `APP_ROUTING_GOOGLE_API_KEY=<api-key-del-mismo-proyecto-firebase-gcp>`
+- `APP_ROUTING_GOOGLE_API_KEY=<api-key-del-proyecto-google-maps>`
 - opcional: `APP_ROUTING_GOOGLE_BASE_URL=https://routes.googleapis.com`
 - opcional: `APP_ROUTING_GOOGLE_FIELD_MASK=routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline`
 
@@ -324,9 +314,8 @@ Configuracion recomendada por entorno:
 ## Secretos para cloud
 
 - Fuente central de mapeo: `../VAULT_SECRETS_MAP.txt`
-- En cloud usar `APP_FIREBASE_SERVICE_ACCOUNT_JSON` (JSON completo desde vault).
-- `APP_FIREBASE_SERVICE_ACCOUNT_FILE` solo aplica para local/dev con archivo fisico.
-- Rotar credenciales sensibles si estuvieron expuestas (DB/JWT/Firebase/Culqi).
+- En cloud usar Azure Key Vault para secretos operativos del backend y frontend.
+- Rotar credenciales sensibles si estuvieron expuestas (DB/JWT/Google/Facebook/Graph/Culqi).
 
 ## Pruebas
 

@@ -52,17 +52,17 @@ public class EmailDispatchService {
 
     public EmailDispatchService(
             ObjectProvider<JavaMailSender> mailSenderProvider,
-            @Value("${app.email.provider:mock}") String provider,
+            @Value("${app.email.provider:graph}") String provider,
             @Value("${spring.mail.host:}") String smtpHost,
             @Value("${spring.mail.password:}") String smtpPassword,
-            @Value("${app.email.from-address:no-reply@travelbox.pe}") String fromAddress,
-            @Value("${app.email.from-name:TravelBox Peru}") String fromName,
+            @Value("${app.email.from-address:admin@inkavoy.pe}") String fromAddress,
+            @Value("${app.email.from-name:Inkavoy}") String fromName,
             @Value("${app.email.graph-tenant-id:}") String graphTenantId,
             @Value("${app.email.graph-client-id:}") String graphClientId,
             @Value("${app.email.graph-client-secret:}") String graphClientSecret
     ) {
         this.mailSenderProvider = mailSenderProvider;
-        this.provider = normalize(provider) == null ? "mock" : normalize(provider).toLowerCase(Locale.ROOT);
+        this.provider = normalize(provider) == null ? "graph" : normalize(provider).toLowerCase(Locale.ROOT);
         this.smtpHost = normalize(smtpHost) == null ? "" : normalize(smtpHost).toLowerCase(Locale.ROOT);
         this.smtpPassword = normalize(smtpPassword);
         this.fromAddress = normalize(fromAddress);
@@ -118,7 +118,7 @@ public class EmailDispatchService {
             } else if (fromAddress != null) {
                 helper.setFrom(fromAddress);
             } else {
-                helper.setFrom("no-reply@travelbox.pe");
+                helper.setFrom("admin@inkavoy.pe");
             }
             helper.setTo(recipient);
             helper.setSubject(safeSubject);

@@ -155,7 +155,7 @@ public class IncidentReportService {
 
         ColumnText.showTextAligned(
                 canvas, Element.ALIGN_RIGHT,
-                new Phrase("travelbox.pe", new Font(Font.HELVETICA, 10, Font.NORMAL, WHITE)),
+                new Phrase("inkavoy.pe", new Font(Font.HELVETICA, 10, Font.NORMAL, WHITE)),
                 document.right() - 40, document.top() + 35, 0
         );
 

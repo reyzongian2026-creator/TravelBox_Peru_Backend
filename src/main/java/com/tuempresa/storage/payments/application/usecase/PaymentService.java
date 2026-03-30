@@ -709,7 +709,7 @@ public class PaymentService {
         String email = firstNonBlank(
                 request.customerEmail(),
                 attempt.getReservation().getUser().getEmail(),
-                "cliente@travelbox.pe"
+                "cliente@inkavoy.pe"
         );
         if (!StringUtils.hasText(request.sourceTokenId())) {
             throw new ApiException(
@@ -792,7 +792,7 @@ public class PaymentService {
         String[] names = splitName(attempt.getReservation().getUser().getFullName());
         String customerFirstName = firstNonBlank(request.customerFirstName(), names[0], "Cliente");
         String customerLastName = firstNonBlank(request.customerLastName(), names[1], "TravelBox");
-        String customerEmail = firstNonBlank(request.customerEmail(), attempt.getReservation().getUser().getEmail(), "cliente@travelbox.pe");
+        String customerEmail = firstNonBlank(request.customerEmail(), attempt.getReservation().getUser().getEmail(), "cliente@inkavoy.pe");
         String customerPhone = firstNonBlank(request.customerPhone(), attempt.getReservation().getUser().getPhone(), "999999999");
 
         String orderNumber = "TBX-" + attempt.getReservation().getId() + "-" + UUID.randomUUID().toString().substring(0, 6).toUpperCase(Locale.ROOT);

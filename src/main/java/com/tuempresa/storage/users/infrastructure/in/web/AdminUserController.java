@@ -231,37 +231,4 @@ public class AdminUserController {
         return baos.toByteArray();
     }
 
-    @DeleteMapping("/firebase/account")
-    public Mono<Void> deleteFirebaseByEmail(@RequestParam(required = false) String email) {
-        return deleteFirebaseByEmailInternal(resolveEmail(email, null));
-    }
-
-    @PostMapping("/firebase/account")
-    public Mono<Void> deleteFirebaseByEmailPost(
-            @RequestParam(required = false) String email,
-            @RequestBody(required = false) DeleteFirebaseAccountRequest request
-    ) {
-        return deleteFirebaseByEmailInternal(resolveEmail(email, request));
-    }
-
-    private Mono<Void> deleteFirebaseByEmailInternal(String email) {
-        return reactiveBlockingExecutor.call(() -> {
-                    adminUserService.deleteFirebaseAccountByEmail(email);
-                    return true;
-                })
-                .then();
-    }
-
-    private String resolveEmail(String queryEmail, DeleteFirebaseAccountRequest request) {
-        if (queryEmail != null && !queryEmail.isBlank()) {
-            return queryEmail;
-        }
-        if (request != null && request.email() != null && !request.email().isBlank()) {
-            return request.email();
-        }
-        return null;
-    }
-
-    private record DeleteFirebaseAccountRequest(String email) {
-    }
 }

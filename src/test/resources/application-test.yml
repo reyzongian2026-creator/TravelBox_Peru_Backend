@@ -40,10 +40,6 @@ app:
     provider: mock
   auth:
     email-provider: mock
-  firebase:
-    enabled: false
-    user-migration:
-      enabled: false
   translation:
     provider: local
     allow-fallback: true

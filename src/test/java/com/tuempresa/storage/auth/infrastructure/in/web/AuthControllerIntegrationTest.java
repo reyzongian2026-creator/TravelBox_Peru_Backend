@@ -3,9 +3,6 @@ package com.tuempresa.storage.auth.infrastructure.in.web;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tuempresa.storage.auth.infrastructure.out.persistence.RefreshTokenRepository;
-import com.tuempresa.storage.firebase.application.FirebaseAdminService;
-import com.tuempresa.storage.firebase.application.FirebaseClientIdentity;
-import com.tuempresa.storage.users.domain.AuthProvider;
 import com.tuempresa.storage.users.infrastructure.out.persistence.UserRepository;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
@@ -14,7 +11,6 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -22,9 +18,6 @@ import java.util.UUID;
 
 import static com.tuempresa.storage.support.MockMvcReactiveSupport.perform;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -46,9 +39,6 @@ class AuthControllerIntegrationTest {
 
     @Autowired
     private RefreshTokenRepository refreshTokenRepository;
-
-    @MockitoBean
-    private FirebaseAdminService firebaseAdminService;
 
     @Test
     void shouldLoginAndRefreshToken() throws Exception {
@@ -210,69 +200,5 @@ class AuthControllerIntegrationTest {
                 .andExpect(jsonPath("$.emailVerified").value(true));
     }
 
-    @Test
-    void shouldRegisterAndPersistFirebaseUidWhenFirebaseAdapterReturnsUid() throws Exception {
-        String firebaseUid = "firebase-register-" + UUID.randomUUID().toString().substring(0, 8);
-        String email = "firebase.register+" + UUID.randomUUID().toString().substring(0, 8) + "@travelbox.pe";
-
-        when(firebaseAdminService.syncUserAccount(any(), eq("Client123!"))).thenReturn(firebaseUid);
-
-        perform(mockMvc, post("/api/v1/auth/register")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "firstName":"Firebase",
-                                  "lastName":"Register",
-                                  "email":"%s",
-                                  "password":"Client123!",
-                                  "confirmPassword":"Client123!",
-                                  "nationality":"Peru",
-                                  "preferredLanguage":"es",
-                                  "phone":"+51998877665",
-                                  "termsAccepted":true
-                                }
-                                """.formatted(email)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.roles[0]").value("CLIENT"))
-                .andExpect(jsonPath("$.user.authProvider").value("LOCAL"));
-
-        var persisted = userRepository.findByEmailIgnoreCase(email).orElseThrow();
-        assertThat(persisted.getFirebaseUid()).isEqualTo(firebaseUid);
-    }
-
-    @Test
-    void shouldLoginUsingFirebaseSocialEndpointWhenTokenIsValid() throws Exception {
-        String firebaseUid = "firebase-social-" + UUID.randomUUID().toString().substring(0, 8);
-        String email = "firebase.social+" + UUID.randomUUID().toString().substring(0, 8) + "@travelbox.pe";
-
-        when(firebaseAdminService.verifyClientIdToken("token-google-ok"))
-                .thenReturn(new FirebaseClientIdentity(
-                        firebaseUid,
-                        email,
-                        "Cliente Social",
-                        "https://cdn.travelbox.pe/avatar.png",
-                        AuthProvider.FIREBASE_GOOGLE
-                ));
-
-        perform(mockMvc, post("/api/v1/auth/firebase/social")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "idToken":"token-google-ok",
-                                  "provider":"GOOGLE",
-                                  "termsAccepted":true,
-                                  "displayName":"Cliente Social"
-                                }
-                                """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.email").value(email))
-                .andExpect(jsonPath("$.roles[0]").value("CLIENT"))
-                .andExpect(jsonPath("$.user.authProvider").value("FIREBASE_GOOGLE"))
-                .andExpect(jsonPath("$.emailVerified").value(true));
-
-        var persisted = userRepository.findByEmailIgnoreCase(email).orElseThrow();
-        assertThat(persisted.getFirebaseUid()).isEqualTo(firebaseUid);
-        assertThat(persisted.getAuthProvider()).isEqualTo(AuthProvider.FIREBASE_GOOGLE);
-    }
 }
 

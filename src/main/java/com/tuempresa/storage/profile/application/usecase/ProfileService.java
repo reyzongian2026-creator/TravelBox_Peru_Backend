@@ -2,7 +2,6 @@ package com.tuempresa.storage.profile.application.usecase;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import com.tuempresa.storage.firebase.application.FirebaseAdminService;
 import com.tuempresa.storage.notifications.application.email.CustomerEmailService;
 import com.tuempresa.storage.notifications.application.usecase.NotificationService;
 import com.tuempresa.storage.profile.application.dto.OnboardingStatusResponse;
@@ -47,7 +46,6 @@ public class ProfileService {
     private final PasswordEncoder passwordEncoder;
     private final NotificationService notificationService;
     private final CustomerEmailService customerEmailService;
-    private final FirebaseAdminService firebaseAdminService;
     private final StorageService storageService;
     private final SensitiveDataService sensitiveDataService;
     private final String emailProvider;
@@ -57,7 +55,6 @@ public class ProfileService {
             PasswordEncoder passwordEncoder,
             NotificationService notificationService,
             CustomerEmailService customerEmailService,
-            FirebaseAdminService firebaseAdminService,
             StorageService storageService,
             SensitiveDataService sensitiveDataService,
             @Value("${app.auth.email-provider:mock}") String emailProvider
@@ -66,7 +63,6 @@ public class ProfileService {
         this.passwordEncoder = passwordEncoder;
         this.notificationService = notificationService;
         this.customerEmailService = customerEmailService;
-        this.firebaseAdminService = firebaseAdminService;
         this.storageService = storageService;
         this.sensitiveDataService = sensitiveDataService;
         this.emailProvider = emailProvider == null ? "mock" : emailProvider.trim().toLowerCase(Locale.ROOT);
@@ -273,7 +269,6 @@ public class ProfileService {
             );
         }
         User saved = userRepository.save(user);
-        firebaseAdminService.mirrorClientProfile(saved);
         return toResponse(saved, null);
     }
 

@@ -636,8 +636,12 @@ public class User extends AuditableEntity {
         clearPasswordReset();
     }
 
-    public void linkFirebaseIdentity(AuthProvider authProvider, String firebaseUid) {
+    public void linkSocialIdentity(AuthProvider authProvider) {
         this.authProvider = authProvider == null ? AuthProvider.LOCAL : authProvider;
+    }
+
+    public void linkFirebaseIdentity(AuthProvider authProvider, String firebaseUid) {
+        linkSocialIdentity(authProvider);
         this.firebaseUid = clean(firebaseUid, 160);
     }
 

@@ -228,21 +228,6 @@ app:
       bag-tag-prefix: ${APP_OPS_QR_BAG_TAG_PREFIX:BAG}
   bootstrap:
     seed-operational-demo: ${APP_BOOTSTRAP_SEED_OPERATIONAL_DEMO:false}
-  firebase:
-    # Prioridad: Key Vault (tbx-*) -> env local heredada (APP_FIREBASE_*).
-    enabled: ${tbx-back-firebase-enabled:${APP_FIREBASE_ENABLED:false}}
-    project-id: ${tbx-back-firebase-project-id:${APP_FIREBASE_PROJECT_ID:}}
-    storage-bucket: ${tbx-back-firebase-storage-bucket:${APP_FIREBASE_STORAGE_BUCKET:}}
-    # Fallback opcional para local si usas archivo JSON.
-    service-account-file: ${APP_FIREBASE_SERVICE_ACCOUNT_FILE:}
-    service-account-json: '${tbx-back-firebase-sa-json:${APP_FIREBASE_SERVICE_ACCOUNT_JSON:}}'
-    # Flags no sensibles: se mantienen como config operativa.
-    user-migration:
-      enabled: ${APP_FIREBASE_USER_MIGRATION_ENABLED:false}
-      fail-fast: ${APP_FIREBASE_USER_MIGRATION_FAIL_FAST:false}
-    firestore:
-      client-profile-collection: ${APP_FIREBASE_CLIENT_PROFILE_COLLECTION:clientProfiles}
-
 azure:
   entra:
     tenant-id: ${tbx-azure-tenant-id:${APP_AZURE_TENANT_ID:}}

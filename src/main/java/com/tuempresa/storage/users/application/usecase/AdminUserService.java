@@ -17,7 +17,6 @@ import com.tuempresa.storage.users.application.dto.UpdateAdminUserRequest;
 import com.tuempresa.storage.users.application.dto.UpdateUserActiveRequest;
 import com.tuempresa.storage.users.application.dto.UpdateUserPasswordRequest;
 import com.tuempresa.storage.users.application.dto.UpdateUserRolesRequest;
-import com.tuempresa.storage.users.domain.AuthProvider;
 import com.tuempresa.storage.users.domain.DocumentType;
 import com.tuempresa.storage.users.domain.Role;
 import com.tuempresa.storage.users.domain.User;
@@ -73,7 +72,6 @@ public class AdminUserService {
     private final PasswordEncoder passwordEncoder;
     private final StorageService storageService;
     private final com.tuempresa.storage.shared.application.usecase.AuditLogService auditLogService;
-    private final com.tuempresa.storage.firebase.application.FirebaseAdminService firebaseAdminService;
 
     public AdminUserService(
             UserRepository userRepository,
@@ -82,8 +80,7 @@ public class AdminUserService {
             WarehouseRepository warehouseRepository,
             PasswordEncoder passwordEncoder,
             StorageService storageService,
-            com.tuempresa.storage.shared.application.usecase.AuditLogService auditLogService,
-            com.tuempresa.storage.firebase.application.FirebaseAdminService firebaseAdminService
+            com.tuempresa.storage.shared.application.usecase.AuditLogService auditLogService
     ) {
         this.userRepository = userRepository;
         this.deliveryOrderRepository = deliveryOrderRepository;
@@ -92,7 +89,6 @@ public class AdminUserService {
         this.passwordEncoder = passwordEncoder;
         this.storageService = storageService;
         this.auditLogService = auditLogService;
-        this.firebaseAdminService = firebaseAdminService;
     }
 
     @Transactional(readOnly = true)
@@ -352,7 +348,6 @@ public class AdminUserService {
     @Transactional
     public void delete(Long id, AuthUserPrincipal principal) {
         User user = requireUser(id);
-        String firebaseUid = user.getFirebaseUid();
         if (user.getRoles().contains(Role.ADMIN)) {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
@@ -367,7 +362,6 @@ public class AdminUserService {
             refreshTokenRepository.deleteAllByUserId(user.getId());
             userRepository.delete(user);
             userRepository.flush();
-            firebaseAdminService.deleteUserAccount(firebaseUid);
         } catch (DataIntegrityViolationException exception) {
             throw new ApiException(
                     HttpStatus.CONFLICT,
@@ -375,19 +369,6 @@ public class AdminUserService {
                     "No se puede eliminar el usuario porque ya tiene operaciones relacionadas."
             );
         }
-    }
-
-    @Transactional
-    public void deleteFirebaseAccountByEmail(String email) {
-        String normalizedEmail = normalizeEmail(email);
-        if (normalizedEmail == null) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "USER_EMAIL_REQUIRED", "Debes enviar un correo valido.");
-        }
-        firebaseAdminService.deleteUserAccountByEmail(normalizedEmail);
-        userRepository.findByEmailIgnoreCase(normalizedEmail).ifPresent(user -> {
-            user.linkFirebaseIdentity(AuthProvider.LOCAL, null);
-            userRepository.save(user);
-        });
     }
 
     @Transactional
@@ -542,12 +523,6 @@ public class AdminUserService {
     ) {}
 
     private User syncFirebase(User user, String rawPassword) {
-        String firebaseUid = firebaseAdminService.syncUserAccount(user, rawPassword);
-        if (firebaseUid != null && !firebaseUid.equals(user.getFirebaseUid())) {
-            user.linkFirebaseIdentity(user.getAuthProvider(), firebaseUid);
-            user = userRepository.save(user);
-        }
-        firebaseAdminService.mirrorClientProfile(user);
         return user;
     }
 

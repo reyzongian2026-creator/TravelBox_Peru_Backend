@@ -23,8 +23,10 @@ public interface WarehouseRepository extends JpaRepository<Warehouse, Long> {
     @Query("select w from Warehouse w where w.id = :id")
     Optional<Warehouse> findByIdWithLocation(@Param("id") Long id);
 
+    @EntityGraph(attributePaths = {"city", "zone"})
     List<Warehouse> findByActiveTrueOrderByNameAsc();
 
+    @EntityGraph(attributePaths = {"city", "zone"})
     @Query("""
             select w from Warehouse w
             where w.active = true
@@ -34,6 +36,16 @@ public interface WarehouseRepository extends JpaRepository<Warehouse, Long> {
             order by w.name asc
             """)
     List<Warehouse> search(Long cityId, String query);
+
+    @EntityGraph(attributePaths = {"city", "zone"})
+    @Query("""
+            select w from Warehouse w
+            where w.active = true
+              and (lower(w.name) like concat('%', lower(:query), '%')
+                   or lower(w.address) like concat('%', lower(:query), '%'))
+            order by w.name asc
+            """)
+    List<Warehouse> searchSuggestions(@Param("query") String query, Pageable pageable);
 
     @Query("""
             select w from Warehouse w

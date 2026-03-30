@@ -204,11 +204,6 @@ class AdminUserControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isEmpty());
 
-        perform(mockMvc, post("/api/v1/admin/users/firebase/account")
-                        .header("Authorization", "Bearer " + adminToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{}"))
-                .andExpect(status().isBadRequest());
     }
 
     private String adminAccessToken() throws Exception {

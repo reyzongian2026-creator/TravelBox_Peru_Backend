@@ -60,9 +60,3 @@ app:
   payments:
     provider: ${APP_PAYMENT_PROVIDER:culqi}
     allow-mock-confirmation: ${APP_PAYMENTS_ALLOW_MOCK_CONFIRMATION:true}
-  firebase:
-    enabled: ${tbx-back-firebase-enabled:${APP_FIREBASE_ENABLED:true}}
-    project-id: ${tbx-back-firebase-project-id:${APP_FIREBASE_PROJECT_ID:}}
-    storage-bucket: ${tbx-back-firebase-storage-bucket:${APP_FIREBASE_STORAGE_BUCKET:}}
-    service-account-file: ${APP_FIREBASE_SERVICE_ACCOUNT_FILE:}
-    service-account-json: '${tbx-back-firebase-sa-json:${APP_FIREBASE_SERVICE_ACCOUNT_JSON:}}'

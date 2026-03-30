@@ -26,15 +26,14 @@ public class OpenApiConfig {
                         .description("API REST for TravelBox Peru - Tourist Storage Platform")
                         .version("1.0.0")
                         .contact(new Contact()
-                                .name("TravelBox Support")
-                                .email("soporte@travelbox.pe"))
+                                .name("Inkavoy Support")
+                                .email("admin@inkavoy.pe"))
                         .license(new License()
                                 .name("Proprietary")
-                                .url("https://travelbox.pe/terms")))
+                                .url("https://www.inkavoy.pe/terms")))
                 .servers(List.of(
                         new Server().url("http://localhost:8080").description("Local Development"),
-                        new Server().url("https://api.travelbox.pe").description("Production"),
-                        new Server().url("https://api-qa.travelbox.pe").description("QA Environment")))
+                        new Server().url("https://api.inkavoy.pe").description("Production")))
                 .addSecurityItem(new SecurityRequirement().addList(securitySchemeName))
                 .components(new Components()
                         .addSecuritySchemes(securitySchemeName,

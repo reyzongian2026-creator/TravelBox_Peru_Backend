@@ -45,7 +45,7 @@ spring:
 
 app:
   cors:
-    allowed-origins: ${tbx-back-cors-allowed-origins:http://localhost:5173,http://localhost:58900,http://127.0.0.1:58900,https://travelbox.pe,https://www.travelbox.pe,https://travelbox-frontend-prod.azurewebsites.net,https://travelbox-backend-prod.azurewebsites.net}
+    allowed-origins: ${tbx-back-cors-allowed-origins:https://inkavoy.pe,https://www.inkavoy.pe,https://api.inkavoy.pe}
   security:
     jwt:
       secret: ${tbx-back-jwt-secret:${APP_JWT_SECRET:}}
@@ -62,7 +62,7 @@ app:
     google:
       api-key: ${tbx-back-translation-google-api-key:${APP_TRANSLATION_GOOGLE_API_KEY:}}
   email:
-    provider: ${tbx-back-email-provider:${APP_EMAIL_PROVIDER:smtp}}
+    provider: ${tbx-back-email-provider:${APP_EMAIL_PROVIDER:graph}}
     from-address: ${tbx-back-email-from-address:${APP_EMAIL_FROM_ADDRESS:}}
     from-name: ${APP_EMAIL_FROM_NAME:TravelBox Peru}
     graph-tenant-id: ${tbx-back-email-graph-tenant-id:}
@@ -71,7 +71,7 @@ app:
     queue:
       enabled: ${tbx-back-email-queue-enabled:${APP_EMAIL_QUEUE_ENABLED:true}}
   auth:
-    email-provider: ${tbx-back-auth-email-provider:${tbx-back-email-provider:${APP_AUTH_EMAIL_PROVIDER:smtp}}}
+    email-provider: ${tbx-back-auth-email-provider:${tbx-back-email-provider:${APP_AUTH_EMAIL_PROVIDER:graph}}}
   routing:
     provider: ${APP_ROUTING_PROVIDER:osrm}
     allow-mock-fallback: false
@@ -88,10 +88,6 @@ app:
     seed-operational-demo: false
     minimal-seed-only: false
     quick-seed: false
-  firebase:
-    enabled: ${tbx-back-firebase-enabled:${APP_FIREBASE_ENABLED:false}}
-    project-id: ${tbx-back-firebase-project-id:${APP_FIREBASE_PROJECT_ID:}}
-    storage-bucket: ${tbx-back-firebase-storage-bucket:${APP_FIREBASE_STORAGE_BUCKET:}}
 azure:
   storage:
     images:
