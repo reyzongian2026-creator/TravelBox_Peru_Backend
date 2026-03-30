@@ -26,6 +26,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.net.URI;
 import java.util.Comparator;
 import java.util.List;
 
@@ -210,8 +211,9 @@ public class WarehouseService {
                 resolveMoney(request.dropoffFee(), warehouse.getDropoffFee()),
                 resolveMoney(request.insuranceFee(), warehouse.getInsuranceFee())
         );
-        if (request.imageUrl() != null && !request.imageUrl().isBlank()) {
-            warehouse.updatePhoto(request.imageUrl());
+        String sanitizedPhotoPath = sanitizeStoredPhotoPath(id, request.imageUrl());
+        if (sanitizedPhotoPath != null) {
+            warehouse.updatePhoto(sanitizedPhotoPath);
         }
         return toResponse(warehouse, null);
     }
@@ -356,12 +358,37 @@ public class WarehouseService {
         long version = warehouse.getUpdatedAt() != null
                 ? warehouse.getUpdatedAt().toEpochMilli()
                 : warehouse.getId() != null ? warehouse.getId() : 0L;
-        String path = warehouse.getPhotoPath();
+        String path = sanitizeStoredPhotoPath(warehouse.getId(), warehouse.getPhotoPath());
         if (path == null || path.isBlank()) {
             path = "/api/v1/warehouses/" + warehouse.getId() + "/image";
         }
         String separator = path.contains("?") ? "&" : "?";
         return normalizeUrl(publicUrlService.absolute(path + separator + "v=" + version));
+    }
+
+    private String sanitizeStoredPhotoPath(Long warehouseId, String rawPath) {
+        if (rawPath == null || rawPath.isBlank()) {
+            return null;
+        }
+
+        String trimmed = rawPath.trim();
+        String lower = trimmed.toLowerCase();
+        String selfApiFragment = "/api/v1/warehouses/" + warehouseId + "/image";
+        if (lower.contains(selfApiFragment)) {
+            return null;
+        }
+
+        try {
+            URI uri = URI.create(trimmed);
+            String path = uri.getPath();
+            if (path != null && path.toLowerCase().contains(selfApiFragment)) {
+                return null;
+            }
+        } catch (IllegalArgumentException ignored) {
+            // Keep raw path if it's not a full URI and not self-referential.
+        }
+
+        return trimmed.replaceAll("([?&])v=[^&]*", "").replaceAll("[?&]+$", "");
     }
 
     private static String normalizeUrl(String url) {
