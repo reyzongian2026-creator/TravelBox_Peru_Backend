@@ -5,7 +5,7 @@ import com.tuempresa.storage.reservations.application.dto.BulkReservationStatusR
 import com.tuempresa.storage.reservations.application.dto.ReservationExportRow;
 import com.tuempresa.storage.reservations.application.dto.ReservationResponse;
 import com.tuempresa.storage.reservations.application.usecase.ReservationService;
-import com.tuempresa.storage.shared.application.usecase.CsvExportService;
+import com.tuempresa.storage.shared.application.usecase.ExcelExportService;
 import com.tuempresa.storage.shared.domain.exception.ApiException;
 import com.tuempresa.storage.shared.infrastructure.reactive.ReactiveBlockingExecutor;
 import com.tuempresa.storage.shared.infrastructure.security.SecurityUtils;
@@ -37,18 +37,18 @@ public class AdminReservationController {
     private final ReservationService reservationService;
     private final SecurityUtils securityUtils;
     private final ReactiveBlockingExecutor reactiveBlockingExecutor;
-    private final CsvExportService csvExportService;
+    private final ExcelExportService excelExportService;
 
     public AdminReservationController(
             ReservationService reservationService,
             SecurityUtils securityUtils,
             ReactiveBlockingExecutor reactiveBlockingExecutor,
-            CsvExportService csvExportService
+            ExcelExportService excelExportService
     ) {
         this.reservationService = reservationService;
         this.securityUtils = securityUtils;
         this.reactiveBlockingExecutor = reactiveBlockingExecutor;
-        this.csvExportService = csvExportService;
+        this.excelExportService = excelExportService;
     }
 
     @GetMapping({"", "/", "/list"})
@@ -67,30 +67,34 @@ public class AdminReservationController {
                 }));
     }
 
-    @GetMapping(value = "/export", produces = "text/csv")
+    @GetMapping(value = "/export", produces = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     public Mono<ResponseEntity<byte[]>> exportReservations() {
         return reactiveBlockingExecutor.call(() -> {
             List<ReservationExportRow> rows = reservationService.exportReservations();
             List<String> headers = ReservationExportRow.headers();
             List<Function<ReservationExportRow, String>> mappers = ReservationExportRow.dtoColumnMappers();
-            byte[] csv;
+            byte[] excel;
             try {
-                csv = exportToCsv(headers, rows, mappers);
+                excel = excelExportService.exportToExcel(
+                        "Reservas",
+                        "Exportacion de Reservas",
+                        headers,
+                        rows,
+                        mappers
+                );
             } catch (IOException e) {
-                csv = ("Error generating CSV: " + e.getMessage()).getBytes();
+                throw new ApiException(
+                        org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR,
+                        "RESERVATION_EXPORT_FAILED",
+                        "No se pudo generar el reporte Excel de reservas."
+                );
             }
-            String filename = "reservations_export_" + Instant.now().toEpochMilli() + ".csv";
+            String filename = "reservations_export_" + Instant.now().toEpochMilli() + ".xlsx";
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
-                    .contentType(MediaType.parseMediaType("text/csv; charset=UTF-8"))
-                    .body(csv);
+                    .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                    .body(excel);
         });
-    }
-
-    private <T> byte[] exportToCsv(List<String> headers, List<T> data, List<Function<T, String>> columnMappers) throws IOException {
-        java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
-        csvExportService.exportToCsvWithHeader(baos, "Exportacion de Reservas", headers, data, columnMappers);
-        return baos.toByteArray();
     }
 
     private BulkOperationResponse bulkUpdateStatusInternal(Set<Long> ids, com.tuempresa.storage.reservations.domain.ReservationStatus targetStatus) {

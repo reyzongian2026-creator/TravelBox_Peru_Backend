@@ -17,19 +17,8 @@ import com.lowagie.text.pdf.PdfWriter;
 import com.tuempresa.storage.incidents.application.dto.IncidentSummaryResponse;
 import com.tuempresa.storage.incidents.domain.IncidentStatus;
 import com.tuempresa.storage.reservations.domain.ReservationStatus;
+import com.tuempresa.storage.shared.application.usecase.ExcelExportService;
 import com.tuempresa.storage.shared.infrastructure.storage.AzureBlobStorageService;
-import org.apache.poi.ss.usermodel.BorderStyle;
-import org.apache.poi.ss.usermodel.FillPatternType;
-import org.apache.poi.ss.usermodel.HorizontalAlignment;
-import org.apache.poi.ss.usermodel.VerticalAlignment;
-import org.apache.poi.ss.util.CellRangeAddress;
-import org.apache.poi.xssf.usermodel.XSSFCell;
-import org.apache.poi.xssf.usermodel.XSSFCellStyle;
-import org.apache.poi.xssf.usermodel.XSSFFont;
-import org.apache.poi.xssf.usermodel.XSSFRow;
-import org.apache.poi.xssf.usermodel.XSSFSheet;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
-import org.apache.poi.xssf.usermodel.XSSFColor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -39,6 +28,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.function.Function;
 
 @Service
 public class IncidentReportService {
@@ -61,9 +51,14 @@ public class IncidentReportService {
             .withZone(ZoneId.of("America/Lima"));
 
     private final AzureBlobStorageService blobStorageService;
+    private final ExcelExportService excelExportService;
 
-    public IncidentReportService(AzureBlobStorageService blobStorageService) {
+    public IncidentReportService(
+            AzureBlobStorageService blobStorageService,
+            ExcelExportService excelExportService
+    ) {
         this.blobStorageService = blobStorageService;
+        this.excelExportService = excelExportService;
     }
 
     public record ReportResult(String fileName, String downloadUrl, String format) {}
@@ -100,26 +95,56 @@ public class IncidentReportService {
 
     public ReportResult generateExcelReport(List<IncidentSummaryResponse> incidents, String generatedBy) {
         try {
-            XSSFWorkbook workbook = new XSSFWorkbook();
-            XSSFSheet sheet = workbook.createSheet("Incidents");
+            List<String> headers = List.of(
+                    "ID",
+                    "Reserva",
+                    "Almacen",
+                    "Direccion almacen",
+                    "Cliente",
+                    "Correo cliente",
+                    "Telefono cliente",
+                    "Estado reserva",
+                    "Estado incidencia",
+                    "Creado",
+                    "Resuelto",
+                    "Descripcion",
+                    "Resolucion",
+                    "Generado por"
+            );
+            List<Function<IncidentSummaryResponse, String>> mappers = List.of(
+                    incident -> String.valueOf(incident.id()),
+                    incident -> safe(incident.reservationCode()),
+                    incident -> safe(incident.warehouseName()),
+                    incident -> safe(incident.warehouseAddress()),
+                    incident -> safe(incident.customerName()),
+                    incident -> safe(incident.customerEmail()),
+                    incident -> safe(incident.customerPhone()),
+                    incident -> formatReservationStatus(incident.reservationStatus()),
+                    incident -> incident.status() != null ? incident.status().name() : "-",
+                    incident -> formatInstant(incident.createdAt()),
+                    incident -> formatInstant(incident.resolvedAt()),
+                    incident -> safe(incident.description()),
+                    incident -> safe(incident.resolution()),
+                    incident -> generatedBy
+            );
 
-            addExcelHeader(sheet, workbook);
-            addExcelTitleRow(sheet, workbook);
-            addExcelMetadataRows(sheet, workbook, incidents, generatedBy);
-            addExcelColumnHeaders(sheet, workbook);
-            addExcelDataRows(sheet, workbook, incidents);
-            addExcelFooter(sheet, workbook);
+            byte[] excelBytes = excelExportService.exportToExcel(
+                    "Incidencias",
+                    "Reporte de incidencias - InkaVoy",
+                    headers,
+                    incidents,
+                    mappers
+            );
 
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            workbook.write(baos);
-            workbook.close();
-
-            byte[] excelBytes = baos.toByteArray();
             String timestamp = java.time.LocalDateTime.now().toString().replace(":", "-").replace(".", "-");
             String fileName = "incident_report_" + timestamp + ".xlsx";
 
-            String downloadUrl = blobStorageService.uploadReport(excelBytes, fileName, 
-                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", true);
+            String downloadUrl = blobStorageService.uploadReport(
+                    excelBytes,
+                    fileName,
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    true
+            );
             LOG.info("Excel report uploaded: {}", fileName);
 
             return new ReportResult(fileName, downloadUrl, "XLSX");
@@ -127,6 +152,10 @@ public class IncidentReportService {
             LOG.error("Error generating Excel report", e);
             throw new RuntimeException("Failed to generate Excel report: " + e.getMessage(), e);
         }
+    }
+
+    private String safe(String value) {
+        return value == null || value.isBlank() ? "-" : value;
     }
 
     private void addHeader(PdfWriter writer, Document document) throws DocumentException {
@@ -257,10 +286,10 @@ public class IncidentReportService {
     }
 
     private void addStatusCell(PdfPTable table, IncidentStatus status, java.awt.Color bgColor) {
-        java.awt.Color statusColor = status == IncidentStatus.OPEN ? OPEN_GREEN : 
-                           status == IncidentStatus.RESOLVED ? RESOLVED_BLUE : CANCELLED_RED;
-        String statusText = status == IncidentStatus.OPEN ? "OPEN" : 
-                           status == IncidentStatus.RESOLVED ? "RESOLVED" : "CANCELLED";
+        java.awt.Color statusColor = status == IncidentStatus.OPEN ? OPEN_GREEN :
+                status == IncidentStatus.RESOLVED ? RESOLVED_BLUE : CANCELLED_RED;
+        String statusText = status == IncidentStatus.OPEN ? "OPEN" :
+                status == IncidentStatus.RESOLVED ? "RESOLVED" : "CANCELLED";
 
         PdfPCell cell = new PdfPCell();
         cell.setBackgroundColor(bgColor);
@@ -280,20 +309,20 @@ public class IncidentReportService {
         PdfPTable footerTable = new PdfPTable(3);
         footerTable.setWidthPercentage(100);
 
-        PdfPCell leftCell = new PdfPCell(new Phrase("TravelBox Peru © " + java.time.Year.now().getValue(), 
+        PdfPCell leftCell = new PdfPCell(new Phrase("TravelBox Peru © " + java.time.Year.now().getValue(),
                 new Font(Font.HELVETICA, 7, Font.NORMAL, TEXT_BODY)));
         leftCell.setBorder(Rectangle.TOP);
         leftCell.setBorderColor(BORDER_COLOR);
         leftCell.setPaddingTop(5);
 
-        PdfPCell centerCell = new PdfPCell(new Phrase("Confidential - For internal use only", 
+        PdfPCell centerCell = new PdfPCell(new Phrase("Confidential - For internal use only",
                 new Font(Font.HELVETICA, 7, Font.ITALIC, TEXT_BODY)));
         centerCell.setBorder(Rectangle.TOP);
         centerCell.setBorderColor(BORDER_COLOR);
         centerCell.setPaddingTop(5);
         centerCell.setHorizontalAlignment(Element.ALIGN_CENTER);
 
-        PdfPCell rightCell = new PdfPCell(new Phrase("Page 1", 
+        PdfPCell rightCell = new PdfPCell(new Phrase("Page 1",
                 new Font(Font.HELVETICA, 7, Font.NORMAL, TEXT_BODY)));
         rightCell.setBorder(Rectangle.TOP);
         rightCell.setBorderColor(BORDER_COLOR);
@@ -307,272 +336,17 @@ public class IncidentReportService {
         document.add(footerTable);
     }
 
-    private XSSFColor createXssfColor(byte[] rgb) {
-        return new XSSFColor(rgb);
-    }
-
-    private XSSFColor createXssfColor(java.awt.Color awtColor) {
-        byte[] rgb = new byte[]{(byte) awtColor.getRed(), (byte) awtColor.getGreen(), (byte) awtColor.getBlue()};
-        return new XSSFColor(rgb);
-    }
-
-    private void addExcelHeader(XSSFSheet sheet, XSSFWorkbook workbook) {
-        XSSFRow headerRow = sheet.createRow(0);
-        headerRow.setHeight((short) 45);
-
-        XSSFCellStyle headerStyle = workbook.createCellStyle();
-        headerStyle.setFillForegroundColor(createXssfColor(PRIMARY_BLUE));
-        headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-        headerStyle.setAlignment(HorizontalAlignment.CENTER);
-        headerStyle.setVerticalAlignment(VerticalAlignment.CENTER);
-
-        XSSFFont headerFont = workbook.createFont();
-        headerFont.setBold(true);
-        headerFont.setColor(createXssfColor(WHITE));
-        headerFont.setFontHeight(14);
-        headerStyle.setFont(headerFont);
-
-        XSSFCell cell = headerRow.createCell(0);
-        cell.setCellValue("TravelBox Peru - Incident Management System");
-        cell.setCellStyle(headerStyle);
-        sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, 6));
-    }
-
-    private void addExcelTitleRow(XSSFSheet sheet, XSSFWorkbook workbook) {
-        XSSFRow titleRow = sheet.createRow(1);
-        titleRow.setHeight((short) 30);
-
-        XSSFCellStyle titleStyle = workbook.createCellStyle();
-        titleStyle.setFillForegroundColor(createXssfColor(PRIMARY_TEAL));
-        titleStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-        titleStyle.setAlignment(HorizontalAlignment.CENTER);
-        titleStyle.setVerticalAlignment(VerticalAlignment.CENTER);
-
-        XSSFFont titleFont = workbook.createFont();
-        titleFont.setBold(true);
-        titleFont.setColor(createXssfColor(WHITE));
-        titleFont.setFontHeight(12);
-        titleStyle.setFont(titleFont);
-
-        XSSFCell cell = titleRow.createCell(0);
-        cell.setCellValue("Incident Report - Complete Trazability");
-        cell.setCellStyle(titleStyle);
-        sheet.addMergedRegion(new CellRangeAddress(1, 1, 0, 6));
-    }
-
-    private void addExcelMetadataRows(XSSFSheet sheet, XSSFWorkbook workbook, List<IncidentSummaryResponse> incidents, String generatedBy) {
-        XSSFRow metaRow = sheet.createRow(2);
-
-        XSSFCellStyle metaLabelStyle = workbook.createCellStyle();
-        XSSFFont metaLabelFont = workbook.createFont();
-        metaLabelFont.setBold(true);
-        metaLabelFont.setFontHeight(9);
-        metaLabelFont.setColor(createXssfColor(TEXT_BODY));
-        metaLabelStyle.setFont(metaLabelFont);
-
-        XSSFCellStyle metaValueStyle = workbook.createCellStyle();
-        XSSFFont metaValueFont = workbook.createFont();
-        metaValueFont.setBold(true);
-        metaValueFont.setFontHeight(11);
-        metaValueFont.setColor(createXssfColor(PRIMARY_BLUE));
-        metaValueStyle.setFont(metaValueFont);
-
-        long openCount = incidents.stream().filter(i -> i.status() == IncidentStatus.OPEN).count();
-        long resolvedCount = incidents.stream().filter(i -> i.status() == IncidentStatus.RESOLVED).count();
-
-        metaRow.createCell(0).setCellValue("Total:");
-        metaRow.getCell(0).setCellStyle(metaLabelStyle);
-        metaRow.createCell(1).setCellValue(String.valueOf(incidents.size()));
-        metaRow.getCell(1).setCellStyle(metaValueStyle);
-
-        metaRow.createCell(2).setCellValue("Open:");
-        metaRow.getCell(2).setCellStyle(metaLabelStyle);
-        XSSFCell openCell = metaRow.createCell(3);
-        openCell.setCellValue(String.valueOf(openCount));
-        XSSFCellStyle openStyle = workbook.createCellStyle();
-        XSSFFont openFont = workbook.createFont();
-        openFont.setBold(true);
-        openFont.setFontHeight(11);
-        openFont.setColor(createXssfColor(SAND));
-        openStyle.setFont(openFont);
-        openCell.setCellStyle(openStyle);
-
-        metaRow.createCell(4).setCellValue("Resolved:");
-        metaRow.getCell(4).setCellStyle(metaLabelStyle);
-        XSSFCell resolvedCell = metaRow.createCell(5);
-        resolvedCell.setCellValue(String.valueOf(resolvedCount));
-        XSSFCellStyle resolvedStyle = workbook.createCellStyle();
-        XSSFFont resolvedFont = workbook.createFont();
-        resolvedFont.setBold(true);
-        resolvedFont.setFontHeight(11);
-        resolvedFont.setColor(createXssfColor(OPEN_GREEN));
-        resolvedStyle.setFont(resolvedFont);
-        resolvedCell.setCellStyle(resolvedStyle);
-
-        metaRow.createCell(6).setCellValue("Generated: " + generatedBy + " | " + DATE_FORMATTER.format(Instant.now()));
-        XSSFCellStyle genStyle = workbook.createCellStyle();
-        XSSFFont genFont = workbook.createFont();
-        genFont.setItalic(true);
-        genFont.setFontHeight(8);
-        genFont.setColor(createXssfColor(TEXT_BODY));
-        genStyle.setFont(genFont);
-        metaRow.getCell(6).setCellStyle(genStyle);
-
-        sheet.addMergedRegion(new CellRangeAddress(2, 2, 6, 6));
-    }
-
-    private void addExcelColumnHeaders(XSSFSheet sheet, XSSFWorkbook workbook) {
-        XSSFRow headerRow = sheet.createRow(4);
-        headerRow.setHeight((short) 25);
-
-        String[] headers = {"ID", "Reservation", "Warehouse", "Client / Email", "Reservation Status", "Incident Status", "Created At"};
-        java.awt.Color[] colors = {
-            PRIMARY_BLUE, PRIMARY_TEAL, PRIMARY_BLUE, PRIMARY_TEAL, PRIMARY_BLUE, PRIMARY_TEAL, PRIMARY_TEAL
-        };
-
-        for (int i = 0; i < headers.length; i++) {
-            XSSFCellStyle style = workbook.createCellStyle();
-            style.setFillForegroundColor(createXssfColor(colors[i]));
-            style.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-            style.setAlignment(HorizontalAlignment.CENTER);
-            style.setVerticalAlignment(VerticalAlignment.CENTER);
-            style.setBorderBottom(BorderStyle.THIN);
-            style.setBorderTop(BorderStyle.THIN);
-            style.setBorderLeft(BorderStyle.THIN);
-            style.setBorderRight(BorderStyle.THIN);
-
-            XSSFFont font = workbook.createFont();
-            font.setBold(true);
-            font.setColor(createXssfColor(WHITE));
-            font.setFontHeight(9);
-            style.setFont(font);
-
-            XSSFCell cell = headerRow.createCell(i);
-            cell.setCellValue(headers[i]);
-            cell.setCellStyle(style);
-        }
-
-        sheet.setColumnWidth(0, 2000);
-        sheet.setColumnWidth(1, 3500);
-        sheet.setColumnWidth(2, 4000);
-        sheet.setColumnWidth(3, 5000);
-        sheet.setColumnWidth(4, 3500);
-        sheet.setColumnWidth(5, 3000);
-        sheet.setColumnWidth(6, 4000);
-    }
-
-    private void addExcelDataRows(XSSFSheet sheet, XSSFWorkbook workbook, List<IncidentSummaryResponse> incidents) {
-        boolean alternate = false;
-        for (int rowNum = 0; rowNum < incidents.size(); rowNum++) {
-            IncidentSummaryResponse incident = incidents.get(rowNum);
-            XSSFRow row = sheet.createRow(5 + rowNum);
-            row.setHeight((short) 20);
-
-            java.awt.Color rowColor = alternate ? LIGHT_BG : WHITE;
-            alternate = !alternate;
-
-            XSSFCellStyle dataStyle = createDataCellStyle(workbook, TEXT_BODY, rowColor, false);
-            XSSFCellStyle altDataStyle = createDataCellStyle(workbook, TEXT_BODY, rowColor, false);
-
-            createDataCell(row, 0, String.valueOf(incident.id()), dataStyle);
-            createDataCell(row, 1, incident.reservationCode(), dataStyle);
-            createDataCell(row, 2, incident.warehouseName() + "\n" + incident.warehouseAddress(), dataStyle);
-            createDataCell(row, 3, incident.customerName() + "\n" + incident.customerEmail(), altDataStyle);
-            createDataCell(row, 4, formatReservationStatus(incident.reservationStatus()), dataStyle);
-            createStatusCell(row, 5, incident.status(), workbook, rowColor);
-            createDataCell(row, 6, formatInstant(incident.createdAt()) + 
-                    (incident.resolvedAt() != null ? "\n-> " + formatInstant(incident.resolvedAt()) : ""), altDataStyle);
-        }
-    }
-
-    private XSSFCellStyle createDataCellStyle(XSSFWorkbook workbook, java.awt.Color textColor, java.awt.Color bgColor, boolean bold) {
-        XSSFCellStyle style = workbook.createCellStyle();
-        style.setFillForegroundColor(createXssfColor(bgColor));
-        style.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-        style.setAlignment(HorizontalAlignment.LEFT);
-        style.setVerticalAlignment(VerticalAlignment.TOP);
-        style.setBorderBottom(BorderStyle.THIN);
-        style.setBorderTop(BorderStyle.THIN);
-        style.setBorderLeft(BorderStyle.THIN);
-        style.setBorderRight(BorderStyle.THIN);
-        style.setBorderColor(org.apache.poi.xssf.usermodel.extensions.XSSFCellBorder.BorderSide.RIGHT, createXssfColor(BORDER_COLOR));
-        style.setBorderColor(org.apache.poi.xssf.usermodel.extensions.XSSFCellBorder.BorderSide.LEFT, createXssfColor(BORDER_COLOR));
-        style.setBorderColor(org.apache.poi.xssf.usermodel.extensions.XSSFCellBorder.BorderSide.TOP, createXssfColor(BORDER_COLOR));
-        style.setBorderColor(org.apache.poi.xssf.usermodel.extensions.XSSFCellBorder.BorderSide.BOTTOM, createXssfColor(BORDER_COLOR));
-        style.setWrapText(true);
-
-        XSSFFont font = workbook.createFont();
-        font.setBold(bold);
-        font.setFontHeight(9);
-        font.setColor(createXssfColor(textColor));
-        style.setFont(font);
-
-        return style;
-    }
-
-    private void createDataCell(XSSFRow row, int col, String value, XSSFCellStyle style) {
-        XSSFCell cell = row.createCell(col);
-        cell.setCellValue(value != null ? value : "-");
-        cell.setCellStyle(style);
-    }
-
-    private void createStatusCell(XSSFRow row, int col, IncidentStatus status, XSSFWorkbook workbook, java.awt.Color rowColor) {
-        java.awt.Color statusColor = status == IncidentStatus.OPEN ? OPEN_GREEN :
-                           status == IncidentStatus.RESOLVED ? RESOLVED_BLUE : CANCELLED_RED;
-        String statusText = status == IncidentStatus.OPEN ? "OPEN" :
-                            status == IncidentStatus.RESOLVED ? "RESOLVED" : "CANCELLED";
-
-        XSSFCellStyle statusStyle = workbook.createCellStyle();
-        byte[] bgRgb = new byte[]{(byte) statusColor.getRed(), (byte) statusColor.getGreen(), (byte) statusColor.getBlue(), (byte) 30};
-        XSSFColor statusBgColor = new XSSFColor(bgRgb);
-        statusStyle.setFillForegroundColor(statusBgColor);
-        statusStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-        statusStyle.setAlignment(HorizontalAlignment.CENTER);
-        statusStyle.setVerticalAlignment(VerticalAlignment.CENTER);
-        statusStyle.setBorderBottom(BorderStyle.THIN);
-        statusStyle.setBorderTop(BorderStyle.THIN);
-        statusStyle.setBorderLeft(BorderStyle.THIN);
-        statusStyle.setBorderRight(BorderStyle.THIN);
-        statusStyle.setBorderColor(org.apache.poi.xssf.usermodel.extensions.XSSFCellBorder.BorderSide.RIGHT, createXssfColor(BORDER_COLOR));
-        statusStyle.setBorderColor(org.apache.poi.xssf.usermodel.extensions.XSSFCellBorder.BorderSide.LEFT, createXssfColor(BORDER_COLOR));
-        statusStyle.setBorderColor(org.apache.poi.xssf.usermodel.extensions.XSSFCellBorder.BorderSide.TOP, createXssfColor(BORDER_COLOR));
-        statusStyle.setBorderColor(org.apache.poi.xssf.usermodel.extensions.XSSFCellBorder.BorderSide.BOTTOM, createXssfColor(BORDER_COLOR));
-
-        XSSFFont font = workbook.createFont();
-        font.setBold(true);
-        font.setFontHeight(9);
-        font.setColor(createXssfColor(statusColor));
-        statusStyle.setFont(font);
-
-        XSSFCell cell = row.createCell(col);
-        cell.setCellValue(statusText);
-        cell.setCellStyle(statusStyle);
-    }
-
-    private void addExcelFooter(XSSFSheet sheet, XSSFWorkbook workbook) {
-        int lastRow = sheet.getLastRowNum() + 2;
-        XSSFRow footerRow = sheet.createRow(lastRow);
-
-        XSSFCellStyle footerStyle = workbook.createCellStyle();
-        XSSFFont footerFont = workbook.createFont();
-        footerFont.setItalic(true);
-        footerFont.setFontHeight(8);
-        footerFont.setColor(createXssfColor(TEXT_BODY));
-        footerStyle.setFont(footerFont);
-
-        XSSFCell cell = footerRow.createCell(0);
-        cell.setCellValue("TravelBox Peru © " + java.time.Year.now().getValue() + " | Confidential - For internal use only");
-        cell.setCellStyle(footerStyle);
-        sheet.addMergedRegion(new CellRangeAddress(lastRow, lastRow, 0, 6));
-    }
-
     private String formatInstant(Instant instant) {
-        if (instant == null) return "-";
+        if (instant == null) {
+            return "-";
+        }
         return DATE_FORMATTER.format(instant);
     }
 
     private String formatReservationStatus(ReservationStatus status) {
-        if (status == null) return "-";
+        if (status == null) {
+            return "-";
+        }
         return status.name().replace("_", " ");
     }
 }

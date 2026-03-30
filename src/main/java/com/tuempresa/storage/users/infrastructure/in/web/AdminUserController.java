@@ -1,6 +1,6 @@
 package com.tuempresa.storage.users.infrastructure.in.web;
 
-import com.tuempresa.storage.shared.application.usecase.CsvExportService;
+import com.tuempresa.storage.shared.application.usecase.ExcelExportService;
 import com.tuempresa.storage.shared.infrastructure.reactive.ReactiveBlockingExecutor;
 import com.tuempresa.storage.shared.infrastructure.reactive.ReactiveMultipartAdapter;
 import com.tuempresa.storage.shared.infrastructure.security.SecurityUtils;
@@ -41,6 +41,8 @@ import reactor.core.publisher.Mono;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -50,24 +52,28 @@ import java.util.function.Function;
 @PreAuthorize("hasRole('ADMIN')")
 public class AdminUserController {
 
+    private static final DateTimeFormatter EXPORT_DATE_FORMATTER = DateTimeFormatter
+            .ofPattern("yyyy-MM-dd HH:mm")
+            .withZone(ZoneId.of("America/Lima"));
+
     private final AdminUserService adminUserService;
     private final SecurityUtils securityUtils;
     private final ReactiveBlockingExecutor reactiveBlockingExecutor;
     private final ReactiveMultipartAdapter reactiveMultipartAdapter;
-    private final CsvExportService csvExportService;
+    private final ExcelExportService excelExportService;
 
     public AdminUserController(
             AdminUserService adminUserService,
             SecurityUtils securityUtils,
             ReactiveBlockingExecutor reactiveBlockingExecutor,
             ReactiveMultipartAdapter reactiveMultipartAdapter,
-            CsvExportService csvExportService
+            ExcelExportService excelExportService
     ) {
         this.adminUserService = adminUserService;
         this.securityUtils = securityUtils;
         this.reactiveBlockingExecutor = reactiveBlockingExecutor;
         this.reactiveMultipartAdapter = reactiveMultipartAdapter;
-        this.csvExportService = csvExportService;
+        this.excelExportService = excelExportService;
     }
 
     @GetMapping
@@ -184,7 +190,7 @@ public class AdminUserController {
                         adminUserService.bulkUpdateRoles(request.ids(), request.roles(), request.warehouseIds(), currentUser)));
     }
 
-    @GetMapping(value = "/export", produces = "text/csv")
+    @GetMapping(value = "/export", produces = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     public Mono<ResponseEntity<byte[]>> exportUsers(
             @RequestParam(required = false) String query,
             @RequestParam(required = false) Role role
@@ -209,26 +215,26 @@ public class AdminUserController {
                     row -> row.profileCompleted() ? "Si" : "No",
                     row -> String.valueOf(row.assignedDeliveries()),
                     row -> String.valueOf(row.completedDeliveries()),
-                    row -> row.createdAt() != null ? csvExportService.formatInstant(row.createdAt()) : ""
+                    row -> row.createdAt() != null ? EXPORT_DATE_FORMATTER.format(row.createdAt()) : ""
             );
-            byte[] csv;
+            byte[] excel;
             try {
-                csv = exportToCsv(headers, users, mappers);
+                excel = excelExportService.exportToExcel(
+                        "Usuarios",
+                        "Exportacion de Usuarios",
+                        headers,
+                        users,
+                        mappers
+                );
             } catch (IOException e) {
-                csv = ("Error generating CSV: " + e.getMessage()).getBytes();
+                throw new IllegalStateException("No se pudo generar el reporte Excel de usuarios.", e);
             }
-            String filename = "users_export_" + Instant.now().toEpochMilli() + ".csv";
+            String filename = "users_export_" + Instant.now().toEpochMilli() + ".xlsx";
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
-                    .contentType(MediaType.parseMediaType("text/csv; charset=UTF-8"))
-                    .body(csv);
+                    .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                    .body(excel);
         });
-    }
-
-    private <T> byte[] exportToCsv(List<String> headers, List<T> data, List<Function<T, String>> columnMappers) throws IOException {
-        java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
-        csvExportService.exportToCsvWithHeader(baos, "Exportacion de Usuarios", headers, data, columnMappers);
-        return baos.toByteArray();
     }
 
 }
