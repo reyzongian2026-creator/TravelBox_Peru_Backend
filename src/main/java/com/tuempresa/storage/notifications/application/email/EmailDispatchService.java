@@ -189,11 +189,16 @@ public class EmailDispatchService {
         String sendMailUrl = String.format(GRAPH_SEND_MAIL_URI_TEMPLATE, URLEncoder.encode(senderEmail, StandardCharsets.UTF_8));
 
         Map<String, Object> message = new LinkedHashMap<>();
-        Map<String, Object> from = new LinkedHashMap<>();
-        Map<String, Object> fromRecipient = new LinkedHashMap<>();
-        fromRecipient.put("emailAddress", Map.of("address", senderEmail, "name", fromName != null ? fromName : "TravelBox Peru"));
-        from.put("emailAddress", fromRecipient);
-        message.put("from", from);
+        message.put(
+                "from",
+                Map.of(
+                        "emailAddress",
+                        Map.of(
+                                "address", senderEmail,
+                                "name", fromName != null ? fromName : "InkaVoy"
+                        )
+                )
+        );
         message.put("toRecipients", List.of(Map.of("emailAddress", Map.of("address", recipient))));
         message.put("subject", subject);
 
