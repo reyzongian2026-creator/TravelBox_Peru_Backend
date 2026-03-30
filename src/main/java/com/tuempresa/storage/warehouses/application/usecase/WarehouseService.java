@@ -183,7 +183,8 @@ public class WarehouseService {
         if (!active) {
             warehouse.deactivate();
         }
-        return toResponse(warehouseRepository.save(warehouse), null);
+        Warehouse persisted = warehouseRepository.saveAndFlush(warehouse);
+        return toResponse(persisted, null);
     }
 
     @Transactional
@@ -211,11 +212,13 @@ public class WarehouseService {
                 resolveMoney(request.dropoffFee(), warehouse.getDropoffFee()),
                 resolveMoney(request.insuranceFee(), warehouse.getInsuranceFee())
         );
-        String sanitizedPhotoPath = sanitizeStoredPhotoPath(id, request.imageUrl());
+        String requestedPhotoPath = firstNonBlank(request.imageUrl(), request.coverImageUrl());
+        String sanitizedPhotoPath = sanitizeStoredPhotoPath(id, requestedPhotoPath);
         if (sanitizedPhotoPath != null) {
             warehouse.updatePhoto(sanitizedPhotoPath);
         }
-        return toResponse(warehouse, null);
+        Warehouse persisted = warehouseRepository.saveAndFlush(warehouse);
+        return toResponse(persisted, null);
     }
 
     @Transactional
@@ -224,7 +227,8 @@ public class WarehouseService {
         StorageService.UploadResult result = storageService.upload(file, FileCategory.WAREHOUSES);
         auditLogService.logFileUpload(result.filename(), "warehouses", "warehouse-" + id);
         warehouse.updatePhoto(result.url());
-        return toResponse(warehouse, null);
+        Warehouse persisted = warehouseRepository.saveAndFlush(warehouse);
+        return toResponse(persisted, null);
     }
 
     @Transactional
@@ -389,6 +393,16 @@ public class WarehouseService {
         }
 
         return trimmed.replaceAll("([?&])v=[^&]*", "").replaceAll("[?&]+$", "");
+    }
+
+    private String firstNonBlank(String primary, String secondary) {
+        if (primary != null && !primary.isBlank()) {
+            return primary;
+        }
+        if (secondary != null && !secondary.isBlank()) {
+            return secondary;
+        }
+        return null;
     }
 
     private static String normalizeUrl(String url) {
