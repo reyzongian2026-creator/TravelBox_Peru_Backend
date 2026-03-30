@@ -85,6 +85,7 @@ public class ReactiveSecurityConfig {
                 )
                 .authorizeExchange(auth -> auth
                         .pathMatchers("/", "/health").permitAll()
+                        .pathMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .pathMatchers("/api/v1/auth/**").permitAll()
                         .pathMatchers("/api/v1/payments/webhooks/**").permitAll()
                         .pathMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
@@ -111,6 +112,11 @@ public class ReactiveSecurityConfig {
                 "Accept",
                 "Origin",
                 "X-Correlation-Id",
+                "X-Requested-With",
+                "Baggage",
+                "Sentry-Trace",
+                "Traceparent",
+                "Tracestate",
                 "Cache-Control",
                 "Expires",
                 "Pragma",

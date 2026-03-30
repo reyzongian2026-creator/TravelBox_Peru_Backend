@@ -78,6 +78,7 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/", "/health").permitAll()
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers("/api/v1/payments/webhooks/**").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
@@ -144,6 +145,11 @@ public class SecurityConfig {
                 "Accept",
                 "Origin",
                 "X-Correlation-Id",
+                "X-Requested-With",
+                "Baggage",
+                "Sentry-Trace",
+                "Traceparent",
+                "Tracestate",
                 "Cache-Control",
                 "Expires",
                 "Pragma",
