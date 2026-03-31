@@ -29,6 +29,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.springframework.beans.factory.annotation.Value;
+
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Collection;
@@ -54,6 +56,7 @@ public class DeliveryService {
     private final UserRepository userRepository;
     private final WarehouseAccessService warehouseAccessService;
     private final NotificationService notificationService;
+    private final boolean allowDemoAutoAdvance;
 
     public DeliveryService(
             DeliveryOrderRepository deliveryOrderRepository,
@@ -62,7 +65,8 @@ public class DeliveryService {
             ReservationService reservationService,
             UserRepository userRepository,
             WarehouseAccessService warehouseAccessService,
-            NotificationService notificationService
+            NotificationService notificationService,
+            @Value("${app.delivery.allow-demo-auto-advance:false}") boolean allowDemoAutoAdvance
     ) {
         this.deliveryOrderRepository = deliveryOrderRepository;
         this.deliveryTrackingEventRepository = deliveryTrackingEventRepository;
@@ -71,6 +75,7 @@ public class DeliveryService {
         this.userRepository = userRepository;
         this.warehouseAccessService = warehouseAccessService;
         this.notificationService = notificationService;
+        this.allowDemoAutoAdvance = allowDemoAutoAdvance;
     }
 
     @Transactional
@@ -140,7 +145,7 @@ public class DeliveryService {
                 request.zone(),
                 cost
         );
-        initializeMockTracking(order, request.latitude(), request.longitude());
+        initializeTracking(order, request.latitude(), request.longitude());
         DeliveryOrder saved = deliveryOrderRepository.save(order);
         deliveryTrackingEventRepository.save(DeliveryTrackingEvent.of(
                 saved,
@@ -400,25 +405,34 @@ public class DeliveryService {
         return principal.roleNames().contains(Role.COURIER.name());
     }
 
-    private void initializeMockTracking(DeliveryOrder order, Double requestedLatitude, Double requestedLongitude) {
+    private void initializeTracking(DeliveryOrder order, Double requestedLatitude, Double requestedLongitude) {
         Reservation reservation = order.getReservation();
         double originLatitude = reservation.getWarehouse().getLatitude();
         double originLongitude = reservation.getWarehouse().getLongitude();
-        double[] destination = buildMockDestination(originLatitude, originLongitude, order.getAddress());
-        boolean hasRequestedDestination = requestedLatitude != null && requestedLongitude != null;
-        double targetLatitude = hasRequestedDestination ? requestedLatitude : destination[0];
-        double targetLongitude = hasRequestedDestination ? requestedLongitude : destination[1];
+
+        boolean hasRealDestination = requestedLatitude != null && requestedLongitude != null;
+        double targetLatitude;
+        double targetLongitude;
+        if (hasRealDestination) {
+            targetLatitude = requestedLatitude;
+            targetLongitude = requestedLongitude;
+        } else {
+            double[] fallbackDestination = buildMockDestination(originLatitude, originLongitude, order.getAddress());
+            targetLatitude = fallbackDestination[0];
+            targetLongitude = fallbackDestination[1];
+        }
+
         int initialEtaMinutes = estimateEtaMinutes(
-                originLatitude,
-                originLongitude,
-                targetLatitude,
-                targetLongitude
+                originLatitude, originLongitude, targetLatitude, targetLongitude
         );
+
+        // Driver/vehicle info left null until a real courier claims the order.
+        // Only the origin, destination and ETA are populated at creation time.
         order.configureMockTracking(
-                "Operador " + reservation.getWarehouse().getCity().getName(),
-                "+51991" + String.format("%05d", Math.abs(order.getAddress().hashCode()) % 100000),
-                vehicleType(order.getType()),
-                "TBX-" + String.format("%04d", Math.abs(order.getAddress().hashCode()) % 10000),
+                null,
+                null,
+                null,
+                null,
                 originLatitude,
                 originLongitude,
                 targetLatitude,
@@ -432,6 +446,9 @@ public class DeliveryService {
             return;
         }
         if (order.getStatus() == DeliveryStatus.DELIVERED || order.getStatus() == DeliveryStatus.CANCELLED) {
+            return;
+        }
+        if (!allowDemoAutoAdvance) {
             return;
         }
         int nextStage = Math.min(order.getTrackingStage() + 1, 3);

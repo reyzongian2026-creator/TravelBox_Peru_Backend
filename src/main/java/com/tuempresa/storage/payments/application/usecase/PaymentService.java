@@ -725,6 +725,17 @@ public class PaymentService {
             );
         }
 
+        String[] antifraudNames = splitName(attempt.getReservation().getUser().getFullName());
+        CulqiGatewayClient.AntifraudDetails antifraud = new CulqiGatewayClient.AntifraudDetails(
+                firstNonBlank(request.customerFirstName(), antifraudNames[0]),
+                firstNonBlank(request.customerLastName(), antifraudNames[1]),
+                firstNonBlank(request.customerPhone(), attempt.getReservation().getUser().getPhone()),
+                request.customerDocument(),
+                null,
+                null,
+                "PE"
+        );
+
         CulqiGatewayClient.CulqiChargeResult result = culqiGatewayClient.createCharge(
                 new CulqiGatewayClient.CulqiChargeRequest(
                         toCents(attempt.getAmount()),
@@ -732,7 +743,8 @@ public class PaymentService {
                         email,
                         request.sourceTokenId(),
                         "Reserva TravelBox #" + attempt.getReservation().getId(),
-                        metadata(attempt, method, principal)
+                        metadata(attempt, method, principal),
+                        antifraud
                 )
         );
 

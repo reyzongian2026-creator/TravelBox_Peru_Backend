@@ -16,6 +16,7 @@ public class ProductionMockSafetyGuard {
     private final String notificationsProvider;
     private final String routingProvider;
     private final boolean routingAllowMockFallback;
+    private final String routingAzureApiKey;
     private final String paymentsProvider;
     private final boolean paymentsAllowMockConfirmation;
     private final String authEmailProvider;
@@ -31,6 +32,7 @@ public class ProductionMockSafetyGuard {
             @Value("${app.notifications.provider:mock}") String notificationsProvider,
             @Value("${app.routing.provider:mock}") String routingProvider,
             @Value("${app.routing.allow-mock-fallback:true}") boolean routingAllowMockFallback,
+            @Value("${app.routing.azure.api-key:}") String routingAzureApiKey,
             @Value("${app.payments.provider:culqi}") String paymentsProvider,
             @Value("${app.payments.allow-mock-confirmation:true}") boolean paymentsAllowMockConfirmation,
             @Value("${app.auth.email-provider:mock}") String authEmailProvider,
@@ -45,6 +47,7 @@ public class ProductionMockSafetyGuard {
         this.notificationsProvider = normalize(notificationsProvider);
         this.routingProvider = normalize(routingProvider);
         this.routingAllowMockFallback = routingAllowMockFallback;
+        this.routingAzureApiKey = trim(routingAzureApiKey);
         this.paymentsProvider = normalize(paymentsProvider);
         this.paymentsAllowMockConfirmation = paymentsAllowMockConfirmation;
         this.authEmailProvider = normalize(authEmailProvider);
@@ -69,6 +72,9 @@ public class ProductionMockSafetyGuard {
         }
         if (routingAllowMockFallback) {
             violations.add("app.routing.allow-mock-fallback=true");
+        }
+        if ("azure".equals(routingProvider) && routingAzureApiKey.isEmpty()) {
+            violations.add("app.routing.azure.api-key is empty");
         }
         if ("mock".equals(paymentsProvider)) {
             violations.add("app.payments.provider=mock");

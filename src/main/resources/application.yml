@@ -215,6 +215,10 @@ app:
     osrm:
       base-url: ${APP_ROUTING_OSRM_BASE_URL:https://router.project-osrm.org}
       profile: ${APP_ROUTING_OSRM_PROFILE:driving}
+    azure:
+      base-url: ${APP_ROUTING_AZURE_BASE_URL:https://atlas.microsoft.com}
+      # Prioridad: Key Vault (tbx-*) -> env local heredada.
+      api-key: ${tbx-back-routing-azure-maps-key:${tbx-back-azure-maps-api-key:${APP_ROUTING_AZURE_API_KEY:}}}
     google:
       base-url: ${APP_ROUTING_GOOGLE_BASE_URL:https://routes.googleapis.com}
       # Prioridad: Key Vault (tbx-*) -> env local heredada (APP_ROUTING_GOOGLE_API_KEY).
@@ -226,6 +230,8 @@ app:
       max-pin-attempts: ${APP_OPS_QR_MAX_PIN_ATTEMPTS:5}
       pin-lock-seconds: ${APP_OPS_QR_PIN_LOCK_SECONDS:300}
       bag-tag-prefix: ${APP_OPS_QR_BAG_TAG_PREFIX:BAG}
+  delivery:
+    allow-demo-auto-advance: ${APP_DELIVERY_ALLOW_DEMO_AUTO_ADVANCE:false}
   bootstrap:
     seed-operational-demo: ${APP_BOOTSTRAP_SEED_OPERATIONAL_DEMO:false}
 azure:

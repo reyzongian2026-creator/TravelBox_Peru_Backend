@@ -101,6 +101,21 @@ public class CulqiGatewayClient {
         payload.put("description", request.description());
         payload.put("metadata", request.metadata());
 
+        if (request.antifraudDetails() != null) {
+            Map<String, Object> antifraud = new LinkedHashMap<>();
+            AntifraudDetails af = request.antifraudDetails();
+            if (StringUtils.hasText(af.firstName())) antifraud.put("first_name", af.firstName());
+            if (StringUtils.hasText(af.lastName())) antifraud.put("last_name", af.lastName());
+            if (StringUtils.hasText(af.phone())) antifraud.put("phone", af.phone());
+            if (StringUtils.hasText(af.documentNumber())) antifraud.put("document_number", af.documentNumber());
+            if (StringUtils.hasText(af.address())) antifraud.put("address", af.address());
+            if (StringUtils.hasText(af.addressCity())) antifraud.put("address_city", af.addressCity());
+            if (StringUtils.hasText(af.countryCode())) antifraud.put("country_code", af.countryCode());
+            if (!antifraud.isEmpty()) {
+                payload.put("antifraud_details", antifraud);
+            }
+        }
+
         ResponseEntity<JsonNode> entity = postJsonWithStatus("/charges", payload);
         JsonNode response = entity.getBody();
         String providerPaymentId = textAt(response, "id");
@@ -366,7 +381,29 @@ public class CulqiGatewayClient {
             String email,
             String sourceTokenId,
             String description,
-            Map<String, String> metadata
+            Map<String, String> metadata,
+            AntifraudDetails antifraudDetails
+    ) {
+        public CulqiChargeRequest(
+                long amountInCents,
+                String currencyCode,
+                String email,
+                String sourceTokenId,
+                String description,
+                Map<String, String> metadata
+        ) {
+            this(amountInCents, currencyCode, email, sourceTokenId, description, metadata, null);
+        }
+    }
+
+    public record AntifraudDetails(
+            String firstName,
+            String lastName,
+            String phone,
+            String documentNumber,
+            String address,
+            String addressCity,
+            String countryCode
     ) {
     }
 

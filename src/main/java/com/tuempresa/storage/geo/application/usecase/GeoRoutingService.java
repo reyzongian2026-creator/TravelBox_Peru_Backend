@@ -369,13 +369,19 @@ public class GeoRoutingService {
         }
 
         String travelMode = toAzureTravelMode(profile);
-        String path = "/route/directions?api-version=2024-02-01&subscription-key=" + azureApiKey + "&query=" 
-                + originLatitude + "," + originLongitude + ":" 
-                + destinationLatitude + "," + destinationLongitude 
-                + "&routeType=fastest&travelMode=" + travelMode;
-
         JsonNode response = azureMapsRestClient.get()
-                .uri(path)
+                .uri(uriBuilder -> uriBuilder
+                        .path("/route/directions/json")
+                        .queryParam("api-version", "1.0")
+                        .queryParam("subscription-key", azureApiKey)
+                        .queryParam(
+                                "query",
+                                trimCoordinate(originLatitude) + "," + trimCoordinate(originLongitude)
+                                        + ":" + trimCoordinate(destinationLatitude) + "," + trimCoordinate(destinationLongitude)
+                        )
+                        .queryParam("routeType", "fastest")
+                        .queryParam("travelMode", travelMode)
+                        .build())
                 .retrieve()
                 .body(JsonNode.class);
 
@@ -404,8 +410,7 @@ public class GeoRoutingService {
                 }
             }
             totalDistanceMeters += leg.path("summary").path("lengthInMeters").asDouble(0);
-            String durationStr = leg.path("summary").path("travelTimeInSeconds").asText("0s");
-            totalDurationSeconds += parseAzureDurationSeconds(durationStr);
+            totalDurationSeconds += readAzureDurationSeconds(leg.path("summary").path("travelTimeInSeconds"));
         }
 
         if (points.size() < 2) {
@@ -449,6 +454,16 @@ public class GeoRoutingService {
             }
         }
         return 0;
+    }
+
+    private double readAzureDurationSeconds(JsonNode node) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return 0;
+        }
+        if (node.isNumber()) {
+            return node.asDouble(0);
+        }
+        return parseAzureDurationSeconds(node.asText(""));
     }
 
     private String toGoogleTravelMode(String profile) {

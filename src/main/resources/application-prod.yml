@@ -73,10 +73,11 @@ app:
   auth:
     email-provider: ${tbx-back-auth-email-provider:${tbx-back-email-provider:${APP_AUTH_EMAIL_PROVIDER:graph}}}
   routing:
-    provider: ${APP_ROUTING_PROVIDER:osrm}
+    provider: ${APP_ROUTING_PROVIDER:azure}
     allow-mock-fallback: false
     azure:
-      api-key: ${tbx-back-azure-maps-api-key:${tbx-back-routing-azure-maps-key:}}
+      base-url: ${APP_ROUTING_AZURE_BASE_URL:https://atlas.microsoft.com}
+      api-key: ${tbx-back-routing-azure-maps-key:${tbx-back-azure-maps-api-key:}}
     google:
       api-key: ${tbx-back-routing-google-api-key:${APP_ROUTING_GOOGLE_API_KEY:}}
   payments:
