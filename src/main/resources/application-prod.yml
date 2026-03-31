@@ -64,7 +64,7 @@ app:
   email:
     provider: ${tbx-back-email-provider:${APP_EMAIL_PROVIDER:graph}}
     from-address: ${tbx-back-email-from-address:${APP_EMAIL_FROM_ADDRESS:}}
-    from-name: ${APP_EMAIL_FROM_NAME:TravelBox Peru}
+    from-name: ${APP_EMAIL_FROM_NAME:InkaVoy Peru}
     graph-tenant-id: ${tbx-back-email-graph-tenant-id:}
     graph-client-id: ${tbx-back-email-graph-client-id:}
     graph-client-secret: ${tbx-back-email-graph-client-secret:}

@@ -27,12 +27,12 @@ public class SensitiveDataNotificationService {
     public SensitiveDataNotificationService(
             EmailOutboxService emailOutboxService,
             SensitiveDataService sensitiveDataService,
-            @Value("${app.email.brand-name:TravelBox Peru}") String brandName,
+            @Value("${app.email.brand-name:InkaVoy Peru}") String brandName,
             @Value("${app.frontend-base-url:}") String frontendBaseUrl
     ) {
         this.emailOutboxService = emailOutboxService;
         this.sensitiveDataService = sensitiveDataService;
-        this.brandName = brandName != null ? brandName : "TravelBox Peru";
+        this.brandName = brandName != null ? brandName : "InkaVoy Peru";
         this.frontendBaseUrl = frontendBaseUrl != null ? frontendBaseUrl : "";
     }
 

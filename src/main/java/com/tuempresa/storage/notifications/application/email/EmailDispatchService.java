@@ -56,7 +56,7 @@ public class EmailDispatchService {
             @Value("${spring.mail.host:}") String smtpHost,
             @Value("${spring.mail.password:}") String smtpPassword,
             @Value("${app.email.from-address:admin@inkavoy.pe}") String fromAddress,
-            @Value("${app.email.from-name:Inkavoy}") String fromName,
+            @Value("${app.email.from-name:InkaVoy Peru}") String fromName,
             @Value("${app.email.graph-tenant-id:}") String graphTenantId,
             @Value("${app.email.graph-client-id:}") String graphClientId,
             @Value("${app.email.graph-client-secret:}") String graphClientSecret

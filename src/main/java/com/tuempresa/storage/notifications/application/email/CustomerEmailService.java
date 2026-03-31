@@ -34,11 +34,11 @@ public class CustomerEmailService {
     public CustomerEmailService(
             EmailOutboxService emailOutboxService,
             @Value("${app.frontend-base-url:}") String frontendBaseUrl,
-            @Value("${app.email.brand-name:TravelBox Peru}") String brandName
+            @Value("${app.email.brand-name:InkaVoy Peru}") String brandName
     ) {
         this.emailOutboxService = emailOutboxService;
         this.frontendBaseUrl = normalize(frontendBaseUrl);
-        this.brandName = normalize(brandName) == null ? "TravelBox Peru" : normalize(brandName);
+        this.brandName = normalize(brandName) == null ? "InkaVoy Peru" : normalize(brandName);
     }
 
     public void sendReservationCreated(User user, Reservation reservation) {
@@ -398,11 +398,14 @@ public class CustomerEmailService {
         if (normalize(to) == null || content == null) {
             return;
         }
+        String normalizedSubject = normalizeBrandCopy(subject);
+        String normalizedHtml = normalizeBrandCopy(content.html());
+        String normalizedText = normalizeBrandCopy(content.text());
         boolean queued = emailOutboxService.enqueue(
                 to,
-                subject,
-                content.html(),
-                content.text(),
+                normalizedSubject,
+                normalizedHtml,
+                normalizedText,
                 eventType,
                 dedupKey
         );
@@ -576,7 +579,7 @@ public class CustomerEmailService {
             String footerMessage
     ) {
         StringBuilder builder = new StringBuilder();
-        builder.append(safeText(title, "Notificacion TravelBox")).append("\n\n");
+        builder.append(safeText(title, "Notificacion " + brandName)).append("\n\n");
         builder.append(safeText(intro, "")).append("\n");
         if (detailLines != null && !detailLines.isEmpty()) {
             builder.append("\n").append(getLocalizedText(locale, "Details", "Detalles", "Details", "Details", "Details", "Detalhes") + ":\n");
@@ -600,6 +603,16 @@ public class CustomerEmailService {
         }
         builder.append("\n").append(brandName);
         return builder.toString();
+    }
+
+    private String normalizeBrandCopy(String value) {
+        String normalized = normalize(value);
+        if (normalized == null) {
+            return value;
+        }
+        return normalized
+                .replace("TravelBox Peru", brandName)
+                .replace("TravelBox", brandName);
     }
 
     private String reservationRoute(Long reservationId) {

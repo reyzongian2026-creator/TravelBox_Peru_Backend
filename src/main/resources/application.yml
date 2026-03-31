@@ -156,8 +156,8 @@ app:
     # Prioridad: Key Vault (tbx-*) -> env local heredada (APP_EMAIL_*/APP_SMTP_*).
     provider: ${tbx-back-email-provider:${APP_EMAIL_PROVIDER:smtp}}
     from-address: ${tbx-back-email-from-address:${APP_EMAIL_FROM_ADDRESS:${tbx-back-smtp-username:${APP_SMTP_USERNAME:}}}}
-    from-name: ${APP_EMAIL_FROM_NAME:TravelBox Peru}
-    brand-name: ${APP_EMAIL_BRAND_NAME:TravelBox Peru}
+    from-name: ${APP_EMAIL_FROM_NAME:InkaVoy Peru}
+    brand-name: ${APP_EMAIL_BRAND_NAME:InkaVoy Peru}
     # Graph API (Microsoft 365 / Exchange Online) configuration
     graph-tenant-id: ${tbx-back-email-graph-tenant-id:${APP_EMAIL_GRAPH_TENANT_ID:}}
     graph-client-id: ${tbx-back-email-graph-client-id:${APP_EMAIL_GRAPH_CLIENT_ID:}}

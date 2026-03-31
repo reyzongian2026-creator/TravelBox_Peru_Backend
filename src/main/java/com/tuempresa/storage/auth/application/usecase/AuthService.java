@@ -578,7 +578,7 @@ public class AuthService {
                     user.getId(),
                     "EMAIL_VERIFICATION",
                     "Verifica tu correo",
-                    "Usa el codigo para verificar tu cuenta TravelBox.",
+                    "Usa el codigo para verificar tu cuenta InkaVoy.",
                     java.util.Map.of(
                             "email", user.getEmail(),
                             "code", verificationCode,
@@ -630,7 +630,7 @@ public class AuthService {
                     user.getId(),
                     "PASSWORD_RESET",
                     "Recuperacion de contrasena",
-                    "Usa el codigo para actualizar tu contrasena de TravelBox.",
+                    "Usa el codigo para actualizar tu contrasena de InkaVoy.",
                     java.util.Map.of(
                             "email", user.getEmail(),
                             "code", resetCode,
