@@ -1,12 +1,16 @@
 package com.tuempresa.storage.incidents.application.usecase;
 
 import com.tuempresa.storage.ops.application.usecase.OpsMessageTranslationService;
+import com.tuempresa.storage.incidents.application.dto.AddIncidentMessageRequest;
 import com.tuempresa.storage.incidents.application.dto.CreateIncidentRequest;
+import com.tuempresa.storage.incidents.application.dto.IncidentMessageResponse;
 import com.tuempresa.storage.incidents.application.dto.IncidentResponse;
 import com.tuempresa.storage.incidents.application.dto.IncidentSummaryResponse;
 import com.tuempresa.storage.incidents.application.dto.ResolveIncidentRequest;
 import com.tuempresa.storage.incidents.domain.Incident;
+import com.tuempresa.storage.incidents.domain.IncidentMessage;
 import com.tuempresa.storage.incidents.domain.IncidentStatus;
+import com.tuempresa.storage.incidents.infrastructure.out.persistence.IncidentMessageRepository;
 import com.tuempresa.storage.incidents.infrastructure.out.persistence.IncidentRepository;
 import com.tuempresa.storage.notifications.application.usecase.NotificationService;
 import com.tuempresa.storage.reservations.application.usecase.ReservationService;
@@ -27,6 +31,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.LinkedHashMap;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -37,6 +42,7 @@ public class IncidentService {
     private static final int MAX_PAGE_SIZE = 100;
 
     private final IncidentRepository incidentRepository;
+    private final IncidentMessageRepository incidentMessageRepository;
     private final ReservationService reservationService;
     private final UserRepository userRepository;
     private final WarehouseAccessService warehouseAccessService;
@@ -45,6 +51,7 @@ public class IncidentService {
 
     public IncidentService(
             IncidentRepository incidentRepository,
+            IncidentMessageRepository incidentMessageRepository,
             ReservationService reservationService,
             UserRepository userRepository,
             WarehouseAccessService warehouseAccessService,
@@ -52,6 +59,7 @@ public class IncidentService {
             OpsMessageTranslationService opsMessageTranslationService
     ) {
         this.incidentRepository = incidentRepository;
+        this.incidentMessageRepository = incidentMessageRepository;
         this.reservationService = reservationService;
         this.userRepository = userRepository;
         this.warehouseAccessService = warehouseAccessService;
@@ -196,10 +204,56 @@ public class IncidentService {
         return toResponse(incident, opener, hasPrivilegedRole(principal));
     }
 
+    @Transactional(readOnly = true)
+    public List<IncidentMessageResponse> listMessages(Long incidentId, AuthUserPrincipal principal) {
+        Incident incident = requireAccessibleIncident(incidentId, principal);
+        User viewer = loadUser(principal.getId());
+        boolean internalViewer = hasPrivilegedRole(principal);
+        List<IncidentMessageResponse> items = new ArrayList<>();
+        items.add(toOpeningMessage(incident, viewer, internalViewer));
+        items.addAll(incidentMessageRepository.findByIncidentIdOrderByCreatedAtAsc(incidentId).stream()
+                .map(message -> toMessageResponse(message, viewer, internalViewer))
+                .toList());
+        return items;
+    }
+
+    @Transactional
+    public IncidentMessageResponse addMessage(
+            Long incidentId,
+            AddIncidentMessageRequest request,
+            AuthUserPrincipal principal
+    ) {
+        Incident incident = requireAccessibleIncident(incidentId, principal);
+        if (incident.getStatus() == IncidentStatus.RESOLVED) {
+            throw new ApiException(HttpStatus.CONFLICT, "INCIDENT_ALREADY_RESOLVED", "La incidencia ya fue resuelta.");
+        }
+        User author = loadUser(principal.getId());
+        IncidentMessage saved = incidentMessageRepository.save(
+                IncidentMessage.create(incident, author, request.message(), request.originalLanguage())
+        );
+
+        if (hasPrivilegedRole(principal)) {
+            notifyCustomerIncidentEvent(
+                    incident,
+                    "INCIDENT_REPLY_FROM_TEAM",
+                    "Nueva respuesta en tu ticket",
+                    "Recibiste una respuesta sobre la incidencia de tu reserva " + incident.getReservation().getQrCode() + "."
+            );
+        } else {
+            notifyIncidentAudience(
+                    incident,
+                    "INCIDENT_REPLY_FROM_CUSTOMER",
+                    "Nueva respuesta del cliente",
+                    "El cliente respondio la incidencia de la reserva " + incident.getReservation().getQrCode() + "."
+            );
+        }
+
+        return toMessageResponse(saved, author, hasPrivilegedRole(principal));
+    }
+
     @Transactional
     public IncidentResponse resolve(Long incidentId, ResolveIncidentRequest request, AuthUserPrincipal principal) {
-        Incident incident = incidentRepository.findById(incidentId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "INCIDENT_NOT_FOUND", "Incidencia no encontrada."));
+        Incident incident = requireAccessibleIncident(incidentId, principal);
         if (incident.getStatus() == IncidentStatus.RESOLVED) {
             throw new ApiException(HttpStatus.CONFLICT, "INCIDENT_ALREADY_RESOLVED", "La incidencia ya fue resuelta.");
         }
@@ -227,6 +281,25 @@ public class IncidentService {
                 "La incidencia de la reserva " + reservation.getQrCode() + " fue resuelta."
         );
         return toResponse(incident, resolver, hasPrivilegedRole(principal));
+    }
+
+    private Incident requireAccessibleIncident(Long incidentId, AuthUserPrincipal principal) {
+        Incident incident = incidentRepository.findById(incidentId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "INCIDENT_NOT_FOUND", "Incidencia no encontrada."));
+        Reservation reservation = incident.getReservation();
+        boolean admin = warehouseAccessService.isAdmin(principal);
+        boolean support = warehouseAccessService.isSupport(principal);
+        boolean ops = warehouseAccessService.isOperatorOrCitySupervisor(principal);
+        if (admin) {
+            return incident;
+        }
+        if ((support || ops) && warehouseAccessService.canAccessWarehouse(principal, reservation.getWarehouse().getId())) {
+            return incident;
+        }
+        if (reservation.belongsTo(principal.getId()) || incident.getOpenedBy().getId().equals(principal.getId())) {
+            return incident;
+        }
+        throw new ApiException(HttpStatus.FORBIDDEN, "INCIDENT_FORBIDDEN", "No tienes permiso sobre esta incidencia.");
     }
 
     private User loadUser(Long userId) {
@@ -260,6 +333,51 @@ public class IncidentService {
                 incident.getResolvedBy() != null ? incident.getResolvedBy().getId() : null,
                 incident.getResolvedAt(),
                 incident.getCreatedAt()
+        );
+    }
+
+    private IncidentMessageResponse toOpeningMessage(Incident incident, User viewer, boolean internalViewer) {
+        User customer = incident.getReservation().getUser();
+        User author = incident.getOpenedBy();
+        return new IncidentMessageResponse(
+                -incident.getId(),
+                incident.getId(),
+                author.getId(),
+                author.getFullName(),
+                primaryRole(author),
+                incident.getOriginalLanguage(),
+                incident.getDescription(),
+                translateIncidentTextForViewer(
+                        incident.getDescription(),
+                        incident.getOriginalLanguage(),
+                        customer,
+                        viewer,
+                        internalViewer
+                ),
+                incident.getCreatedAt()
+        );
+    }
+
+    private IncidentMessageResponse toMessageResponse(IncidentMessage message, User viewer, boolean internalViewer) {
+        Incident incident = message.getIncident();
+        User customer = incident.getReservation().getUser();
+        User author = message.getAuthor();
+        return new IncidentMessageResponse(
+                message.getId(),
+                incident.getId(),
+                author.getId(),
+                author.getFullName(),
+                primaryRole(author),
+                message.getOriginalLanguage(),
+                message.getMessage(),
+                translateIncidentTextForViewer(
+                        message.getMessage(),
+                        message.getOriginalLanguage(),
+                        customer,
+                        viewer,
+                        internalViewer
+                ),
+                message.getCreatedAt()
         );
     }
 
@@ -316,6 +434,28 @@ public class IncidentService {
         return warehouseAccessService.isAdmin(principal)
                 || warehouseAccessService.isSupport(principal)
                 || warehouseAccessService.isOperatorOrCitySupervisor(principal);
+    }
+
+    private String primaryRole(User user) {
+        if (user == null || user.getRoles() == null || user.getRoles().isEmpty()) {
+            return "CLIENT";
+        }
+        if (user.getRoles().contains(Role.ADMIN)) {
+            return "ADMIN";
+        }
+        if (user.getRoles().contains(Role.SUPPORT)) {
+            return "SUPPORT";
+        }
+        if (user.getRoles().contains(Role.OPERATOR)) {
+            return "OPERATOR";
+        }
+        if (user.getRoles().contains(Role.CITY_SUPERVISOR)) {
+            return "CITY_SUPERVISOR";
+        }
+        if (user.getRoles().contains(Role.COURIER)) {
+            return "COURIER";
+        }
+        return "CLIENT";
     }
 
     private boolean matchesQuery(Incident incident, String query) {

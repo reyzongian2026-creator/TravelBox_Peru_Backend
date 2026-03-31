@@ -1,6 +1,8 @@
 package com.tuempresa.storage.incidents.infrastructure.in.web;
 
 import com.tuempresa.storage.incidents.application.dto.CreateIncidentRequest;
+import com.tuempresa.storage.incidents.application.dto.AddIncidentMessageRequest;
+import com.tuempresa.storage.incidents.application.dto.IncidentMessageResponse;
 import com.tuempresa.storage.incidents.application.dto.IncidentResponse;
 import com.tuempresa.storage.incidents.application.dto.IncidentSummaryResponse;
 import com.tuempresa.storage.incidents.application.dto.ResolveIncidentRequest;
@@ -78,6 +80,29 @@ public class IncidentController {
         return securityUtils.currentUserOrThrowReactive()
                 .flatMap(currentUser -> reactiveBlockingExecutor.call(
                         () -> incidentService.open(request, currentUser)
+                ))
+                .map(ResponseEntity::ok);
+    }
+
+    @GetMapping("/{id}/messages")
+    @PreAuthorize("isAuthenticated()")
+    public Mono<ResponseEntity<List<IncidentMessageResponse>>> messages(@PathVariable Long id) {
+        return securityUtils.currentUserOrThrowReactive()
+                .flatMap(currentUser -> reactiveBlockingExecutor.call(
+                        () -> incidentService.listMessages(id, currentUser)
+                ))
+                .map(ResponseEntity::ok);
+    }
+
+    @PostMapping("/{id}/messages")
+    @PreAuthorize("isAuthenticated()")
+    public Mono<ResponseEntity<IncidentMessageResponse>> addMessage(
+            @PathVariable Long id,
+            @Valid @RequestBody AddIncidentMessageRequest request
+    ) {
+        return securityUtils.currentUserOrThrowReactive()
+                .flatMap(currentUser -> reactiveBlockingExecutor.call(
+                        () -> incidentService.addMessage(id, request, currentUser)
                 ))
                 .map(ResponseEntity::ok);
     }
