@@ -313,7 +313,11 @@ public class DeliveryService {
         }
 
         if (order.getAssignedCourier() == null) {
-            order.assignCourier(loadUser(principal.getId()));
+            throw new ApiException(
+                    HttpStatus.CONFLICT,
+                    "DELIVERY_NOT_CLAIMED",
+                    "Debes reclamar el servicio antes de actualizar el progreso."
+            );
         }
         order.updateVehicle(request.vehicleType(), request.vehiclePlate());
 

@@ -257,6 +257,7 @@ public class PaymentService {
     public PaymentIntentResponse approveCashPayment(Long paymentIntentId, String providerReference, String reason, AuthUserPrincipal principal) {
         requirePrivileged(principal);
         PaymentAttempt attempt = requirePending(paymentIntentId);
+        assertPaymentPermission(attempt.getReservation(), principal);
         PaymentMethod method = resolveMethod(attempt, null);
         if (!(method == PaymentMethod.COUNTER || method == PaymentMethod.CASH)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "PAYMENT_NOT_CASH", "Este pago no es de caja.");
@@ -272,6 +273,7 @@ public class PaymentService {
     public PaymentIntentResponse rejectCashPayment(Long paymentIntentId, String providerReference, String reason, AuthUserPrincipal principal) {
         requirePrivileged(principal);
         PaymentAttempt attempt = requirePending(paymentIntentId);
+        assertPaymentPermission(attempt.getReservation(), principal);
         PaymentMethod method = resolveMethod(attempt, null);
         if (!(method == PaymentMethod.COUNTER || method == PaymentMethod.CASH)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "PAYMENT_NOT_CASH", "Este pago no es de caja.");

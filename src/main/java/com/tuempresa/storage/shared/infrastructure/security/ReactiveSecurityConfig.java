@@ -128,10 +128,10 @@ public class ReactiveSecurityConfig {
         config.setMaxAge(3600L);
 
         CorsConfiguration wsConfig = new CorsConfiguration();
-        wsConfig.setAllowedOriginPatterns(List.of("*"));
+        wsConfig.setAllowedOriginPatterns(allowedOrigins);
         wsConfig.setAllowedMethods(List.of("GET", "POST", "OPTIONS"));
         wsConfig.setAllowedHeaders(List.of("*"));
-        wsConfig.setAllowCredentials(false);
+        wsConfig.setAllowCredentials(true);
         wsConfig.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

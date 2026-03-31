@@ -257,6 +257,9 @@ public class IncidentService {
         if (incident.getStatus() == IncidentStatus.RESOLVED) {
             throw new ApiException(HttpStatus.CONFLICT, "INCIDENT_ALREADY_RESOLVED", "La incidencia ya fue resuelta.");
         }
+        if (request.resolution() == null || request.resolution().isBlank()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "RESOLUTION_REQUIRED", "Debes proporcionar un texto de resolucion.");
+        }
         Reservation reservation = incident.getReservation();
         if (!warehouseAccessService.isAdmin(principal)
                 && !warehouseAccessService.canAccessWarehouse(principal, reservation.getWarehouse().getId())) {
