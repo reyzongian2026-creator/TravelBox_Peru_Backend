@@ -67,6 +67,7 @@ public class PaymentService {
     private final ObjectMapper objectMapper;
     private final WarehouseAccessService warehouseAccessService;
     private final UserRepository userRepository;
+    private final WebhookEventInserter webhookEventInserter;
     private final String paymentProvider;
     private final boolean forceCashOnly;
     private final boolean allowMockConfirmation;
@@ -85,6 +86,7 @@ public class PaymentService {
             ObjectMapper objectMapper,
             WarehouseAccessService warehouseAccessService,
             UserRepository userRepository,
+            WebhookEventInserter webhookEventInserter,
             @Value("${app.payments.provider:izipay}") String paymentProvider,
             @Value("${app.payments.force-cash-only:false}") boolean forceCashOnly,
             @Value("${app.payments.allow-mock-confirmation:true}") boolean allowMockConfirmation,
@@ -102,6 +104,7 @@ public class PaymentService {
         this.objectMapper = objectMapper;
         this.warehouseAccessService = warehouseAccessService;
         this.userRepository = userRepository;
+        this.webhookEventInserter = webhookEventInserter;
         this.paymentProvider = paymentProvider == null ? "izipay" : paymentProvider.trim().toLowerCase(Locale.ROOT);
         this.forceCashOnly = forceCashOnly;
         this.allowMockConfirmation = allowMockConfirmation;
@@ -202,10 +205,10 @@ public class PaymentService {
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "CARD_NOT_FOUND", "Tarjeta no encontrada."));
 
         PaymentAttempt attempt = paymentAttemptRepository.save(PaymentAttempt.pending(reservation, reservation.getTotalPrice()));
-        
-        String dateTimeTransaction = String.valueOf(Instant.now().toEpochMilli() * 1000L);
-        String transactionId = dateTimeTransaction.substring(0, Math.min(14, dateTimeTransaction.length()));
-        String orderNumber = dateTimeTransaction.substring(0, Math.min(10, dateTimeTransaction.length()));
+
+        // Combine epoch-seconds (10 digits) + last 4 digits of attemptId to guarantee uniqueness per Izipay
+        String transactionId = String.format("%010d%04d", Instant.now().getEpochSecond(), attempt.getId() % 10000);
+        String orderNumber = transactionId.substring(0, 10);
 
         Map<String, Object> request = new LinkedHashMap<>();
         request.put("transactionId", transactionId);
@@ -570,13 +573,26 @@ public class PaymentService {
             );
         }
 
-        PaymentWebhookEvent event = paymentWebhookEventRepository.save(PaymentWebhookEvent.received(
-                provider,
-                eventId,
-                eventType,
-                providerReference,
-                safePayload
-        ));
+        // insertOrGetExisting runs in REQUIRES_NEW: if a concurrent thread already holds
+        // the same (provider, eventId) row, the inner tx rolls back cleanly and we get
+        // back the existing record — the outer tx session is never poisoned.
+        PaymentWebhookEvent event = webhookEventInserter.insertOrGetExisting(
+                provider, eventId, eventType, providerReference, safePayload);
+
+        if (event.getProcessingStatus() != com.tuempresa.storage.payments.domain.PaymentWebhookProcessingStatus.RECEIVED) {
+            // Race condition: another thread already processed this event
+            return new PaymentWebhookResponse(
+                    event.isProcessed(),
+                    true,
+                    event.getEventId(),
+                    event.getEventType(),
+                    event.getProviderReference(),
+                    event.getProcessingStatus().name(),
+                    "Evento webhook ya procesado.",
+                    event.getPaymentAttemptId(),
+                    event.getReservationId()
+            );
+        }
 
         String effectiveSignature = firstNonBlank(signature, textAt(payload, "signature"));
         if (!izipayGatewayClient.validateWebhookSignature(payloadHttp, effectiveSignature)) {
@@ -853,9 +869,9 @@ public class PaymentService {
         }
 
         String[] customerNames = splitName(attempt.getReservation().getUser().getFullName());
-        String dateTimeTransaction = String.valueOf(Instant.now().toEpochMilli() * 1000L);
-        String transactionId = dateTimeTransaction.substring(0, Math.min(14, dateTimeTransaction.length()));
-        String orderNumber = dateTimeTransaction.substring(0, Math.min(10, dateTimeTransaction.length()));
+        // Combine epoch-seconds (10 digits) + last 4 digits of attemptId to guarantee uniqueness per Izipay
+        String transactionId = String.format("%010d%04d", Instant.now().getEpochSecond(), attempt.getId() % 10000);
+        String orderNumber = transactionId.substring(0, 10);
         String merchantBuyerId = "TBX-" + attempt.getReservation().getId();
 
         IzipayGatewayClient.IzipaySessionResult session = izipayGatewayClient.createSession(
@@ -877,7 +893,7 @@ public class PaymentService {
         order.put("payMethod", preferredIzipayPayMethod(method));
         order.put("processType", izipayGatewayClient.processType());
         order.put("merchantBuyerId", merchantBuyerId);
-        order.put("dateTimeTransaction", dateTimeTransaction);
+        order.put("dateTimeTransaction", transactionId);
 
         Map<String, Object> billing = buildIzipayPersonData(
                 firstNonBlank(request.customerFirstName(), customerNames[0], "Cliente"),
@@ -1263,10 +1279,8 @@ public class PaymentService {
     }
 
     private boolean webhookRejected(String eventType, String providerStatus, JsonNode payload) {
-        String code = firstNonBlank(textAt(payload, "code"), providerStatus);
-        if (StringUtils.hasText(code) && !"00".equals(code) && !"0".equals(code)) {
-            return true;
-        }
+        // NOTE: do NOT reject purely based on code != "00" — intermediate Izipay codes (e.g. 40=review,
+        // 97=3DS-pending) are non-zero but not final. The keyword check below is the reliable signal.
         String combined = (eventType + " " + providerStatus).toLowerCase(Locale.ROOT);
         if (combined.contains("rechazado")
                 || combined.contains("failed")

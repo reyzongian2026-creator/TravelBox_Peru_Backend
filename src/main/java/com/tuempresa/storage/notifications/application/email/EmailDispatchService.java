@@ -1,6 +1,7 @@
 package com.tuempresa.storage.notifications.application.email;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.mail.internet.MimeMessage;
 import jakarta.mail.MessagingException;
@@ -161,8 +162,14 @@ public class EmailDispatchService {
             );
             if (response.statusCode() >= 200 && response.statusCode() < 300) {
                 var node = objectMapper.readTree(response.body());
-                String accessToken = node.get("access_token").asText();
-                int expiresIn = node.get("expires_in").asInt();
+                JsonNode tokenNode = node.path("access_token");
+                JsonNode expiresNode = node.path("expires_in");
+                if (tokenNode.isMissingNode() || tokenNode.isNull() || expiresNode.isMissingNode()) {
+                    log.error("Graph token response missing expected fields: {}", truncate(response.body()));
+                    return null;
+                }
+                String accessToken = tokenNode.asText();
+                int expiresIn = expiresNode.asInt();
                 cachedGraphAccessToken = accessToken;
                 cachedGraphTokenExpiry = System.currentTimeMillis() + (expiresIn - 60) * 1000L;
                 return accessToken;

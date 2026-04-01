@@ -16,9 +16,15 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import static com.tuempresa.storage.support.MockMvcReactiveSupport.perform;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -273,6 +279,75 @@ class PaymentOperationsIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.paymentStatus").value("CONFIRMED"))
                 .andExpect(jsonPath("$.reservationStatus").value("CONFIRMED"));
+    }
+
+    @Test
+    void shouldBeIdempotentUnderConcurrentWebhookReplay() throws Exception {
+        String clientToken = loginAndGetAccessToken("client@travelbox.pe", "Client123!");
+        Warehouse warehouse = warehouseRepository.findByActiveTrueOrderByNameAsc().stream().findFirst().orElseThrow();
+
+        long reservationId = createReservation(clientToken, warehouse.getId(), 12);
+        JsonNode intent = createPaymentIntent(clientToken, reservationId);
+        long paymentIntentId = intent.path("id").asLong();
+        String providerReference = intent.path("providerReference").asText();
+        String eventId = "evt-race-" + UUID.randomUUID();
+
+        String payload = """
+                {
+                  "code":"00",
+                  "message":"Operacion exitosa",
+                  "messageUser":"Operacion exitosa",
+                  "transactionId":"%s",
+                  "payloadHttp":"%s",
+                  "signature":"%s",
+                  "response":{
+                    "payMethod":"CARD",
+                    "order":[{"orderNumber":"1737067728","stateMessage":"Autorizado"}],
+                    "customFields":[
+                      {"name":"field1","value":"%s"},
+                      {"name":"field2","value":"%s"},
+                      {"name":"field3","value":"card"}
+                    ]
+                  }
+                }
+                """.formatted(providerReference, eventId, eventId, paymentIntentId, reservationId);
+
+        int threads = 5;
+        CountDownLatch ready = new CountDownLatch(threads);
+        CountDownLatch go    = new CountDownLatch(1);
+        ExecutorService pool = Executors.newFixedThreadPool(threads);
+        List<Future<Integer>> futures = new ArrayList<>();
+
+        for (int i = 0; i < threads; i++) {
+            futures.add(pool.submit(() -> {
+                ready.countDown();
+                go.await();
+                MvcResult result = perform(mockMvc, post("/api/v1/payments/webhooks/izipay")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(payload))
+                        .andReturn();
+                return result.getResponse().getStatus();
+            }));
+        }
+
+        ready.await();
+        go.countDown();
+        pool.shutdown();
+
+        List<Integer> statuses = new ArrayList<>();
+        for (Future<Integer> f : futures) {
+            statuses.add(f.get());
+        }
+
+        // Every concurrent call must return 200 — no 409/500 from DataIntegrityViolation
+        assertThat(statuses).allMatch(s -> s == 200);
+
+        // Payment must be CONFIRMED exactly once
+        perform(mockMvc, get("/api/v1/payments/status")
+                        .header("Authorization", "Bearer " + clientToken)
+                        .param("paymentIntentId", String.valueOf(paymentIntentId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paymentStatus").value("CONFIRMED"));
     }
 
     private JsonNode createPaymentIntent(String token, long reservationId) throws Exception {
