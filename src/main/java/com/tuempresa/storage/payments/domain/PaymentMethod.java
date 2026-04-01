@@ -4,6 +4,7 @@ import java.util.Locale;
 
 public enum PaymentMethod {
     CARD,
+    SAVED_CARD,
     YAPE,
     PLIN,
     WALLET,
@@ -18,6 +19,7 @@ public enum PaymentMethod {
         String normalized = rawValue.trim().toLowerCase(Locale.ROOT).replace(" ", "");
         return switch (normalized) {
             case "card", "tarjeta", "visa", "mastercard" -> CARD;
+            case "saved_card", "oneclick", "tokenized" -> SAVED_CARD;
             case "yape" -> YAPE;
             case "plin" -> PLIN;
             case "wallet", "billetera", "yape/plin", "yapeplin" -> WALLET;
@@ -28,7 +30,7 @@ public enum PaymentMethod {
     }
 
     public boolean isDirectChargeFlow() {
-        return this == CARD || this == YAPE;
+        return this == CARD || this == SAVED_CARD || this == YAPE;
     }
 
     public boolean isCheckoutOrderFlow() {
@@ -36,7 +38,7 @@ public enum PaymentMethod {
     }
 
     public boolean isDigitalOnline() {
-        return this == CARD || this == YAPE || this == PLIN || this == WALLET;
+        return this == CARD || this == SAVED_CARD || this == YAPE || this == PLIN || this == WALLET;
     }
 
     public String label() {

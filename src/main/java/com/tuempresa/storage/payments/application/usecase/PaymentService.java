@@ -14,7 +14,7 @@ import com.tuempresa.storage.payments.domain.PaymentAttempt;
 import com.tuempresa.storage.payments.domain.PaymentMethod;
 import com.tuempresa.storage.payments.domain.PaymentStatus;
 import com.tuempresa.storage.payments.domain.PaymentWebhookEvent;
-import com.tuempresa.storage.payments.infrastructure.out.gateway.CulqiGatewayClient;
+import com.tuempresa.storage.payments.infrastructure.out.gateway.IzipayGatewayClient;
 import com.tuempresa.storage.payments.infrastructure.out.persistence.PaymentAttemptRepository;
 import com.tuempresa.storage.payments.infrastructure.out.persistence.PaymentWebhookEventRepository;
 import com.tuempresa.storage.reservations.application.dto.CancelReservationRequest;
@@ -48,7 +48,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
+
+import com.tuempresa.storage.payments.application.dto.SavedCardResponse;
+import com.tuempresa.storage.payments.domain.SavedCard;
+import com.tuempresa.storage.payments.infrastructure.out.persistence.SavedCardRepository;
 
 @Service
 public class PaymentService {
@@ -57,8 +60,9 @@ public class PaymentService {
 
     private final PaymentAttemptRepository paymentAttemptRepository;
     private final PaymentWebhookEventRepository paymentWebhookEventRepository;
+    private final SavedCardRepository savedCardRepository;
     private final ReservationService reservationService;
-    private final CulqiGatewayClient culqiGatewayClient;
+    private final IzipayGatewayClient izipayGatewayClient;
     private final NotificationService notificationService;
     private final ObjectMapper objectMapper;
     private final WarehouseAccessService warehouseAccessService;
@@ -74,13 +78,14 @@ public class PaymentService {
     public PaymentService(
             PaymentAttemptRepository paymentAttemptRepository,
             PaymentWebhookEventRepository paymentWebhookEventRepository,
+            SavedCardRepository savedCardRepository,
             ReservationService reservationService,
-            CulqiGatewayClient culqiGatewayClient,
+            IzipayGatewayClient izipayGatewayClient,
             NotificationService notificationService,
             ObjectMapper objectMapper,
             WarehouseAccessService warehouseAccessService,
             UserRepository userRepository,
-            @Value("${app.payments.provider:culqi}") String paymentProvider,
+            @Value("${app.payments.provider:izipay}") String paymentProvider,
             @Value("${app.payments.force-cash-only:false}") boolean forceCashOnly,
             @Value("${app.payments.allow-mock-confirmation:true}") boolean allowMockConfirmation,
             @Value("${app.payments.currency:PEN}") String currencyCode,
@@ -90,13 +95,14 @@ public class PaymentService {
     ) {
         this.paymentAttemptRepository = paymentAttemptRepository;
         this.paymentWebhookEventRepository = paymentWebhookEventRepository;
+        this.savedCardRepository = savedCardRepository;
         this.reservationService = reservationService;
-        this.culqiGatewayClient = culqiGatewayClient;
+        this.izipayGatewayClient = izipayGatewayClient;
         this.notificationService = notificationService;
         this.objectMapper = objectMapper;
         this.warehouseAccessService = warehouseAccessService;
         this.userRepository = userRepository;
-        this.paymentProvider = paymentProvider == null ? "culqi" : paymentProvider.trim().toLowerCase(Locale.ROOT);
+        this.paymentProvider = paymentProvider == null ? "izipay" : paymentProvider.trim().toLowerCase(Locale.ROOT);
         this.forceCashOnly = forceCashOnly;
         this.allowMockConfirmation = allowMockConfirmation;
         this.currencyCode = currencyCode == null ? "PEN" : currencyCode.trim().toUpperCase(Locale.ROOT);
@@ -148,7 +154,7 @@ public class PaymentService {
             return toIntentResponse(attempt, providerLabel(attempt), method.label(), "DECLINED", "Pago rechazado.", null);
         }
 
-        if (!"culqi".equals(paymentProvider)) {
+        if (!"izipay".equals(paymentProvider)) {
             if (!allowMockConfirmation) {
                 throw new ApiException(
                         HttpStatus.SERVICE_UNAVAILABLE,
@@ -163,13 +169,73 @@ public class PaymentService {
             return toIntentResponse(attempt, "MOCK", method.label(), "DIRECT_CONFIRMATION", "Pago confirmado en modo mock.", null);
         }
 
-        if (method.isDirectChargeFlow()) {
-            return confirmCulqiCharge(attempt, method, request, principal);
-        }
-        if (method.isCheckoutOrderFlow()) {
-            return createCulqiOrder(attempt, method, request, principal);
+        if (method.isDigitalOnline()) {
+            return openIzipayCheckout(attempt, method, request, principal);
         }
         throw new ApiException(HttpStatus.BAD_REQUEST, "PAYMENT_METHOD_UNSUPPORTED", "Metodo no soportado.");
+    }
+
+    @Transactional(readOnly = true)
+    public List<SavedCardResponse> listSavedCards(AuthUserPrincipal principal) {
+        return savedCardRepository.findByUserIdAndActiveTrueOrderByLastUsedAtDesc(principal.getId())
+                .stream()
+                .map(card -> new SavedCardResponse(
+                        card.getId(),
+                        card.getCardAlias(),
+                        card.getCardBrand(),
+                        card.getLastFourDigits(),
+                        card.getExpirationMonth(),
+                        card.getExpirationYear(),
+                        card.getCreatedAt(),
+                        card.getLastUsedAt()
+                ))
+                .toList();
+    }
+
+    @Transactional
+    public PaymentIntentResponse payWithSavedCard(Long reservationId, Long savedCardId, AuthUserPrincipal principal) {
+        Reservation reservation = reservationService.requireReservation(reservationId);
+        assertPaymentPermission(reservation, principal);
+        
+        SavedCard card = savedCardRepository.findById(savedCardId)
+                .filter(c -> c.getUser().getId().equals(principal.getId()) && c.isActive())
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "CARD_NOT_FOUND", "Tarjeta no encontrada."));
+
+        PaymentAttempt attempt = paymentAttemptRepository.save(PaymentAttempt.pending(reservation, reservation.getTotalPrice()));
+        
+        String dateTimeTransaction = String.valueOf(Instant.now().toEpochMilli() * 1000L);
+        String transactionId = dateTimeTransaction.substring(0, Math.min(14, dateTimeTransaction.length()));
+        String orderNumber = dateTimeTransaction.substring(0, Math.min(10, dateTimeTransaction.length()));
+
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("transactionId", transactionId);
+        request.put("orderNumber", orderNumber);
+        request.put("amount", formatIzipayAmount(attempt.getAmount()));
+        request.put("token", card.getToken());
+        request.put("merchantCode", izipayGatewayClient.merchantCode());
+
+        try {
+            JsonNode response = izipayGatewayClient.payWithToken(request);
+            String code = textAt(response, "code");
+            String message = textAt(response, "message");
+
+            if ("00".equals(code) || "0".equals(code)) {
+                attempt.confirm(transactionId);
+                attempt.registerGatewayOutcome("APPROVED_ONE_CLICK", "Pago One-Click procesado exitosamente.");
+                reservationService.markPaymentConfirmed(reservation.getId(), PaymentMethod.SAVED_CARD.label());
+                card.setLastUsedAt(Instant.now());
+                savedCardRepository.save(card);
+                return toIntentResponse(attempt, "IZIPAY", PaymentMethod.SAVED_CARD.label(), "ONE_CLICK", "Pago exitoso.", null);
+            } else {
+                attempt.fail(transactionId);
+                attempt.registerGatewayOutcome("REJECTED_ONE_CLICK", firstNonBlank(message, "Pago One-Click rechazado."));
+                return toIntentResponse(attempt, "IZIPAY", PaymentMethod.SAVED_CARD.label(), "ONE_CLICK_REJECTED", message, null);
+            }
+        } catch (Exception ex) {
+            attempt.fail(transactionId);
+            attempt.registerGatewayOutcome("ERROR_ONE_CLICK", ex.getMessage());
+            throw new ApiException(HttpStatus.BAD_GATEWAY, "PAYMENT_ONE_CLICK_FAILED", "Error en pago One-Click: " + ex.getMessage());
+        }
     }
 
     @Transactional(readOnly = true)
@@ -200,6 +266,48 @@ public class PaymentService {
                 attempt.getGatewayMessage(),
                 attempt.getCreatedAt(),
                 attempt.getReservation().getExpiresAt()
+        );
+    }
+
+    @Transactional
+    public PaymentIntentResponse syncStatus(Long paymentIntentId, AuthUserPrincipal principal) {
+        PaymentAttempt attempt = paymentAttemptRepository.findById(paymentIntentId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "PAYMENT_NOT_FOUND", "Pago no encontrado."));
+        
+        requirePrivileged(principal);
+
+        if (!attempt.isPending()) {
+            throw new ApiException(HttpStatus.CONFLICT, "PAYMENT_NOT_PENDING", "Solo se pueden sincronizar pagos pendientes.");
+        }
+
+        String providerRef = attempt.getProviderReference();
+        if ("izipay".equals(paymentProvider) && StringUtils.hasText(providerRef) && !providerRef.startsWith("OFFLINE")) {
+            try {
+                // Asumimos que la referencia guardada (transactionId) sirve como orderNumber o se puede consultar
+                JsonNode statusResponse = izipayGatewayClient.checkOrderStatus(providerRef);
+                String code = textAt(statusResponse, "code");
+                String stateMessage = textAt(statusResponse, "message");
+                
+                if ("00".equals(code) || "0".equals(code)) {
+                    attempt.confirm(providerRef);
+                    attempt.registerGatewayOutcome("APPROVED_BY_SYNC", "Pago confirmado mediante sincronizacion manual.");
+                    reservationService.markPaymentConfirmed(attempt.getReservation().getId(), resolveMethod(attempt, null).label());
+                } else if (StringUtils.hasText(code) && code.startsWith("REJECT")) {
+                    attempt.fail(providerRef);
+                    attempt.registerGatewayOutcome("REJECTED_BY_SYNC", firstNonBlank(stateMessage, "Pago rechazado verificado manualmente."));
+                }
+            } catch (Exception ex) {
+                throw new ApiException(HttpStatus.BAD_GATEWAY, "SYNC_FAILED", "No se pudo sincronizar con Izipay: " + ex.getMessage());
+            }
+        }
+
+        return toIntentResponse(
+                attempt,
+                providerLabel(attempt),
+                resolveMethod(attempt, null).label(),
+                flowLabel(attempt, resolveMethod(attempt, null)),
+                attempt.getGatewayMessage(),
+                null
         );
     }
 
@@ -324,28 +432,43 @@ public class PaymentService {
 
         String normalizedReason = defaultReason(reason, "Reembolso solicitado por operacion.");
         String providerReference = attempt.getProviderReference();
-        String providerMessage = "Reembolso aplicado.";
-        String flow = "REFUND_EXECUTED";
+        String providerMessage = "Reembolso aplicado en modo interno.";
+        String flow = "REFUND_EXECUTED_INTERNAL";
 
-        if ("culqi".equals(paymentProvider) && culqiGatewayClient.isConfigured()) {
-            String chargeId = resolveCulqiChargeId(providerReference);
-            if (chargeId != null) {
-                CulqiGatewayClient.CulqiRefundResult result = culqiGatewayClient.createRefund(
-                        new CulqiGatewayClient.CulqiRefundRequest(
-                                chargeId,
-                                toCents(refundAmount),
-                                normalizedReason
-                        )
+        // Si el proveedor es Izipay, ejecutamos el reembolso real a traves de su API
+        if ("izipay".equals(paymentProvider) && StringUtils.hasText(providerReference)) {
+            try {
+                JsonNode refundResponse = izipayGatewayClient.refund(
+                        providerReference,
+                        formatIzipayAmount(refundAmount),
+                        normalizedReason
                 );
-                providerMessage = firstNonBlank(result.message(), providerMessage);
-                flow = "REFUND_EXECUTED_CULQI";
-            } else {
-                flow = "REFUND_EXECUTED_INTERNAL";
-                providerMessage = "Reembolso aplicado internamente (sin chargeId directo de Culqi).";
+                // Verificar que Izipay confirmo el reembolso (code "00" o "0")
+                String refundCode = textAt(refundResponse, "code");
+                if (refundCode != null && !"00".equals(refundCode) && !"0".equals(refundCode)) {
+                    String errorMsg = firstNonBlank(
+                            textAt(refundResponse, "message"),
+                            textAt(refundResponse, "answer.errorMessage"),
+                            "Reembolso rechazado por Izipay (codigo: " + refundCode + ")."
+                    );
+                    throw new ApiException(HttpStatus.BAD_GATEWAY, "PAYMENT_REFUND_PROVIDER_FAILED", errorMsg);
+                }
+                providerMessage = firstNonBlank(
+                        textAt(refundResponse, "message"),
+                        textAt(refundResponse, "response.message"),
+                        "Reembolso procesado exitosamente por Izipay."
+                );
+                flow = "REFUND_EXECUTED_IZIPAY";
+            } catch (ApiException ex) {
+                throw ex;
+            } catch (Exception ex) {
+                // Si falla el reembolso real, lanzamos error para no marcarlo como reembolsado en BD
+                throw new ApiException(
+                        HttpStatus.BAD_GATEWAY,
+                        "PAYMENT_REFUND_PROVIDER_FAILED",
+                        "No se pudo procesar el reembolso en Izipay: " + ex.getMessage()
+                );
             }
-        } else {
-            flow = "REFUND_EXECUTED_INTERNAL";
-            providerMessage = "Reembolso aplicado en modo interno.";
         }
 
         String summaryMessage = buildRefundSummary(providerMessage, refundAmount, fee);
@@ -383,7 +506,7 @@ public class PaymentService {
     }
 
     @Transactional
-    public PaymentWebhookResponse processCulqiWebhook(String rawPayload, String signature) {
+    public PaymentWebhookResponse processIzipayWebhook(String rawPayload, String signature) {
         String safePayload = rawPayload == null ? "" : rawPayload;
         JsonNode payload;
         try {
@@ -402,35 +525,33 @@ public class PaymentService {
             );
         }
 
-        String provider = "culqi";
-        String eventType = firstNonBlank(textAt(payload, "type"), textAt(payload, "event_type"), "unknown");
-        String eventId = firstNonBlank(textAt(payload, "id"), textAt(payload, "event_id"));
-        if (!StringUtils.hasText(eventId)) {
-            eventId = "sha256:" + culqiGatewayClient.sha256Hex(safePayload);
-        }
+        String provider = "izipay";
+        String eventType = firstNonBlank(
+                textAt(payload, "code"),
+                textAt(payload, "response.order.0.stateMessage"),
+                textAt(payload, "message"),
+                "unknown"
+        );
+        String payloadHttp = firstNonBlank(textAt(payload, "payloadHttp"), safePayload);
+        String eventId = "sha256:" + izipayGatewayClient.sha256Hex(payloadHttp);
 
         String providerReference = firstNonBlank(
-                textAt(payload, "data.object.id"),
-                textAt(payload, "data.id"),
-                textAt(payload, "data.object.order_id"),
-                textAt(payload, "data.object.charge_id"),
-                textAt(payload, "data.object.metadata.providerReference"),
-                textAt(payload, "data.object.metadata.paymentReference")
+                textAt(payload, "transactionId"),
+                textAt(payload, "response.transactionId"),
+                customFieldValue(payload, "field1")
         );
 
         String providerStatus = firstNonBlank(
-                textAt(payload, "data.object.outcome.type"),
-                textAt(payload, "data.object.status"),
-                textAt(payload, "data.object.state"),
-                textAt(payload, "status"),
+                textAt(payload, "code"),
+                textAt(payload, "response.order.0.stateMessage"),
+                textAt(payload, "message"),
                 eventType
         );
 
         String providerMessage = firstNonBlank(
-                textAt(payload, "data.object.outcome.user_message"),
-                textAt(payload, "data.object.user_message"),
-                textAt(payload, "data.object.response_message"),
+                textAt(payload, "messageUser"),
                 textAt(payload, "message"),
+                textAt(payload, "response.order.0.stateMessage"),
                 "Webhook procesado."
         );
 
@@ -457,7 +578,8 @@ public class PaymentService {
                 safePayload
         ));
 
-        if (!culqiGatewayClient.validateWebhookSignature(safePayload, signature)) {
+        String effectiveSignature = firstNonBlank(signature, textAt(payload, "signature"));
+        if (!izipayGatewayClient.validateWebhookSignature(payloadHttp, effectiveSignature)) {
             event.markFailed("Firma webhook invalida.", null, null);
             return new PaymentWebhookResponse(
                     false,
@@ -492,6 +614,7 @@ public class PaymentService {
             Long paymentIntentId = attempt.getId();
             Long reservationId = attempt.getReservation().getId();
             String effectiveReference = StringUtils.hasText(providerReference) ? providerReference : attempt.getProviderReference();
+            String resolvedMethod = resolveWebhookMethod(payload, attempt).label();
 
             if (!attempt.isPending()) {
                 event.markIgnored("Intento de pago ya procesado.", paymentIntentId, reservationId);
@@ -511,7 +634,14 @@ public class PaymentService {
             if (webhookApproved(eventType, providerStatus, payload)) {
                 attempt.confirm(effectiveReference);
                 attempt.registerGatewayOutcome(firstNonBlank(providerStatus, eventType), providerMessage);
-                reservationService.markPaymentConfirmed(reservationId, resolveMethod(attempt, null).label());
+                reservationService.markPaymentConfirmed(reservationId, resolvedMethod);
+                
+                // Extraer y guardar token de tarjeta para One-Click
+                String cardToken = textAt(payload, "response.token");
+                if (StringUtils.hasText(cardToken)) {
+                    saveCardToken(attempt.getReservation().getUser(), cardToken, payload);
+                }
+                
                 event.markProcessed(paymentIntentId, reservationId);
                 return new PaymentWebhookResponse(
                         true,
@@ -708,146 +838,96 @@ public class PaymentService {
         }
     }
 
-    private PaymentIntentResponse confirmCulqiCharge(
+    private PaymentIntentResponse openIzipayCheckout(
             PaymentAttempt attempt,
             PaymentMethod method,
             ConfirmPaymentRequest request,
             AuthUserPrincipal principal
     ) {
-        String email = firstNonBlank(
-                request.customerEmail(),
-                attempt.getReservation().getUser().getEmail(),
-                "cliente@inkavoy.pe"
-        );
-        if (!StringUtils.hasText(request.sourceTokenId())) {
+        if (!izipayGatewayClient.isConfigured()) {
             throw new ApiException(
-                    HttpStatus.BAD_REQUEST,
-                    "PAYMENT_SOURCE_TOKEN_REQUIRED",
-                    "Debe enviar sourceTokenId para pago con tarjeta o yape."
+                    HttpStatus.PRECONDITION_REQUIRED,
+                    "PAYMENT_PROVIDER_NOT_CONFIGURED",
+                    "Falta configurar merchantCode/publicKey de Izipay."
             );
         }
 
-        String[] antifraudNames = splitName(attempt.getReservation().getUser().getFullName());
-        CulqiGatewayClient.AntifraudDetails antifraud = new CulqiGatewayClient.AntifraudDetails(
-                firstNonBlank(request.customerFirstName(), antifraudNames[0]),
-                firstNonBlank(request.customerLastName(), antifraudNames[1]),
-                firstNonBlank(request.customerPhone(), attempt.getReservation().getUser().getPhone()),
-                request.customerDocument(),
-                null,
-                null,
-                "PE"
-        );
+        String[] customerNames = splitName(attempt.getReservation().getUser().getFullName());
+        String dateTimeTransaction = String.valueOf(Instant.now().toEpochMilli() * 1000L);
+        String transactionId = dateTimeTransaction.substring(0, Math.min(14, dateTimeTransaction.length()));
+        String orderNumber = dateTimeTransaction.substring(0, Math.min(10, dateTimeTransaction.length()));
+        String merchantBuyerId = "TBX-" + attempt.getReservation().getId();
 
-        CulqiGatewayClient.CulqiChargeResult result = culqiGatewayClient.createCharge(
-                new CulqiGatewayClient.CulqiChargeRequest(
-                        toCents(attempt.getAmount()),
-                        currencyCode,
-                        email,
-                        request.sourceTokenId(),
-                        "Reserva TravelBox #" + attempt.getReservation().getId(),
-                        metadata(attempt, method, principal),
-                        antifraud
-                )
-        );
-
-        String reference = firstNonBlank(result.providerPaymentId(), normalizeRef(attempt, request.providerReference(), method.label()));
-        attempt.registerGatewayOutcome(result.providerStatus(), result.message());
-        if (result.approved()) {
-            attempt.confirm(reference);
-            reservationService.markPaymentConfirmed(attempt.getReservation().getId(), method.label());
-            return toIntentResponse(
-                    attempt,
-                    "CULQI",
-                    method.label(),
-                    "DIRECT_CHARGE",
-                    firstNonBlank(result.message(), "Pago confirmado."),
-                    null
-            );
-        }
-
-        if (result.requires3ds()) {
-            attempt.registerProviderReference(reference);
-            attempt.registerGatewayOutcome("REQUIRES_3DS_AUTH", firstNonBlank(result.message(), "Pago pendiente de autenticacion 3DS."));
-            Map<String, Object> nextAction = new LinkedHashMap<>();
-            nextAction.put("type", "AUTHENTICATE_3DS");
-            nextAction.put("provider", "CULQI");
-            nextAction.put("paymentIntentId", attempt.getId());
-            nextAction.put("reservationId", attempt.getReservation().getId());
-            if (result.actionData() != null && !result.actionData().isEmpty()) {
-                nextAction.put("providerPayload", result.actionData());
-            }
-            return toIntentResponse(
-                    attempt,
-                    "CULQI",
-                    method.label(),
-                    "REQUIRES_3DS_AUTH",
-                    firstNonBlank(result.message(), "Pago pendiente de autenticacion 3DS."),
-                    nextAction
-            );
-        }
-
-        attempt.fail(reference);
-        notificationService.notifyPaymentRejected(
-                attempt.getReservation().getUser().getId(),
-                attempt.getReservation().getId(),
-                attempt.getReservation().getQrCode(),
-                firstNonBlank(result.message(), "Pago rechazado por pasarela.")
-        );
-        return toIntentResponse(
-                attempt,
-                "CULQI",
-                method.label(),
-                "DIRECT_CHARGE_REJECTED",
-                firstNonBlank(result.message(), "Pago rechazado."),
-                null
-        );
-    }
-
-    private PaymentIntentResponse createCulqiOrder(
-            PaymentAttempt attempt,
-            PaymentMethod method,
-            ConfirmPaymentRequest request,
-            AuthUserPrincipal principal
-    ) {
-        String[] names = splitName(attempt.getReservation().getUser().getFullName());
-        String customerFirstName = firstNonBlank(request.customerFirstName(), names[0], "Cliente");
-        String customerLastName = firstNonBlank(request.customerLastName(), names[1], "TravelBox");
-        String customerEmail = firstNonBlank(request.customerEmail(), attempt.getReservation().getUser().getEmail(), "cliente@inkavoy.pe");
-        String customerPhone = firstNonBlank(request.customerPhone(), attempt.getReservation().getUser().getPhone(), "999999999");
-
-        String orderNumber = "TBX-" + attempt.getReservation().getId() + "-" + UUID.randomUUID().toString().substring(0, 6).toUpperCase(Locale.ROOT);
-        CulqiGatewayClient.CulqiOrderResult result = culqiGatewayClient.createOrder(
-                new CulqiGatewayClient.CulqiOrderRequest(
-                        toCents(attempt.getAmount()),
-                        currencyCode,
-                        "Reserva TravelBox #" + attempt.getReservation().getId(),
+        IzipayGatewayClient.IzipaySessionResult session = izipayGatewayClient.createSession(
+                new IzipayGatewayClient.IzipaySessionRequest(
+                        transactionId,
                         orderNumber,
-                        culqiGatewayClient.defaultOrderExpirationEpochSeconds(),
-                        customerFirstName,
-                        customerLastName,
-                        customerEmail,
-                        customerPhone,
-                        metadata(attempt, method, principal)
+                        formatIzipayAmount(attempt.getAmount()),
+                        izipayGatewayClient.requestSource()
                 )
         );
 
-        String orderId = firstNonBlank(result.orderId(), normalizeRef(attempt, request.providerReference(), method.label()));
-        attempt.registerProviderReference(orderId);
-        attempt.registerGatewayOutcome(firstNonBlank(result.providerStatus(), "ORDER_CREATED"), result.message());
+        attempt.registerProviderReference(transactionId);
+        attempt.registerGatewayOutcome("WAITING_IZIPAY_CHECKOUT", "Checkout Izipay listo para completar el pago.");
+
+        Map<String, Object> order = new LinkedHashMap<>();
+        order.put("orderNumber", orderNumber);
+        order.put("currency", currencyCode);
+        order.put("amount", formatIzipayAmount(attempt.getAmount()));
+        order.put("payMethod", preferredIzipayPayMethod(method));
+        order.put("processType", izipayGatewayClient.processType());
+        order.put("merchantBuyerId", merchantBuyerId);
+        order.put("dateTimeTransaction", dateTimeTransaction);
+
+        Map<String, Object> billing = buildIzipayPersonData(
+                firstNonBlank(request.customerFirstName(), customerNames[0], "Cliente"),
+                firstNonBlank(request.customerLastName(), customerNames[1], "TravelBox"),
+                firstNonBlank(request.customerEmail(), attempt.getReservation().getUser().getEmail(), "cliente@inkavoy.pe"),
+                firstNonBlank(request.customerPhone(), attempt.getReservation().getUser().getPhone(), "999999999"),
+                request.customerDocument()
+        );
+
+        Map<String, Object> checkoutConfig = new LinkedHashMap<>();
+        checkoutConfig.put("transactionId", transactionId);
+        checkoutConfig.put("action", "pay");
+        checkoutConfig.put("merchantCode", session.merchantCode());
+        checkoutConfig.put("order", order);
+        checkoutConfig.put("billing", billing);
+        checkoutConfig.put("shipping", new LinkedHashMap<>(billing));
+        checkoutConfig.put("appearance", izipayAppearance(method));
+        checkoutConfig.put("customFields", izipayCustomFields(attempt, method, principal));
+        
+        // Habilitar registro de tarjeta para pagos One-Click
+        checkoutConfig.put("tokenize", true);
+        
+        // Habilitar billeteras digitales (Yape, Plin) si el método seleccionado lo permite
+        if (method == PaymentMethod.YAPE || method == PaymentMethod.PLIN || method == PaymentMethod.WALLET) {
+            checkoutConfig.put("showWallet", true);
+        }
 
         Map<String, Object> nextAction = new LinkedHashMap<>();
-        nextAction.put("type", "OPEN_CULQI_CHECKOUT");
-        nextAction.put("orderId", orderId);
-        nextAction.put("publicKey", result.publicKey());
-        nextAction.put("amountInCents", toCents(attempt.getAmount()));
-        nextAction.put("currencyCode", currencyCode);
+        nextAction.put("type", "OPEN_IZIPAY_CHECKOUT");
+        nextAction.put("provider", "IZIPAY");
+        nextAction.put("paymentIntentId", attempt.getId());
         nextAction.put("reservationId", attempt.getReservation().getId());
+        nextAction.put("providerReference", transactionId);
+        nextAction.put("authorization", session.token());
+        nextAction.put("keyRSA", session.keyRsa());
+        nextAction.put("scriptUrl", session.checkoutScriptUrl());
+        nextAction.put("checkoutConfig", checkoutConfig);
+        nextAction.put("providerPayload", Map.of(
+                "transactionId", transactionId,
+                "orderNumber", orderNumber,
+                "merchantBuyerId", merchantBuyerId,
+                "requires3DS", true // Forzar manejo de 3DS en el frontend
+        ));
+
         return toIntentResponse(
                 attempt,
-                "CULQI",
+                "IZIPAY",
                 method.label(),
-                "ORDER_CHECKOUT",
-                firstNonBlank(result.message(), "Orden creada. Completa el pago en checkout."),
+                "OPEN_IZIPAY_CHECKOUT",
+                "Continua el pago en Izipay para confirmar tu reserva.",
                 nextAction
         );
     }
@@ -881,17 +961,17 @@ public class PaymentService {
             }
         }
 
-        Long paymentIntentId = longAt(payload, "data.object.metadata.paymentIntentId");
+        Long paymentIntentId = longAt(payload, "paymentIntentId");
         if (paymentIntentId == null) {
-            paymentIntentId = longAt(payload, "data.object.metadata.payment_intent_id");
+            paymentIntentId = parseLong(customFieldValue(payload, "field1"));
         }
         if (paymentIntentId != null) {
             return paymentAttemptRepository.findById(paymentIntentId).orElse(null);
         }
 
-        Long reservationId = longAt(payload, "data.object.metadata.reservationId");
+        Long reservationId = longAt(payload, "reservationId");
         if (reservationId == null) {
-            reservationId = longAt(payload, "data.object.metadata.reservation_id");
+            reservationId = parseLong(customFieldValue(payload, "field2"));
         }
         if (reservationId != null) {
             PaymentAttempt pending = paymentAttemptRepository
@@ -1007,8 +1087,8 @@ public class PaymentService {
         if (reference.startsWith("mock-")) {
             return "MOCK";
         }
-        if ("culqi".equals(paymentProvider)) {
-            return "CULQI";
+        if ("izipay".equals(paymentProvider)) {
+            return "IZIPAY";
         }
         return paymentProvider.toUpperCase(Locale.ROOT);
     }
@@ -1020,8 +1100,8 @@ public class PaymentService {
         if (attempt.getStatus() == PaymentStatus.PENDING && (method == PaymentMethod.COUNTER || method == PaymentMethod.CASH)) {
             return "WAITING_OFFLINE_VALIDATION";
         }
-        if (attempt.getStatus() == PaymentStatus.PENDING && method.isCheckoutOrderFlow()) {
-            return "ORDER_CHECKOUT";
+        if (attempt.getStatus() == PaymentStatus.PENDING && method.isDigitalOnline()) {
+            return "OPEN_IZIPAY_CHECKOUT";
         }
         if (attempt.getStatus() == PaymentStatus.REFUNDED) {
             return "REFUND_EXECUTED";
@@ -1043,8 +1123,8 @@ public class PaymentService {
         if ("counter".equalsIgnoreCase(method) || "cash".equalsIgnoreCase(method)) {
             return "OFFLINE-" + methodCode + "-" + attempt.getId();
         }
-        if ("culqi".equals(paymentProvider)) {
-            return "CULQI-" + methodCode + "-" + attempt.getId();
+        if ("izipay".equals(paymentProvider)) {
+            return "IZIPAY-" + methodCode + "-" + attempt.getId();
         }
         return "MOCK-" + methodCode + "-" + attempt.getId();
     }
@@ -1140,42 +1220,6 @@ public class PaymentService {
         return fee;
     }
 
-    private String resolveCulqiChargeId(String providerReference) {
-        if (!StringUtils.hasText(providerReference)) {
-            return null;
-        }
-        String value = providerReference.trim();
-        String lower = value.toLowerCase(Locale.ROOT);
-        if (lower.startsWith("chr_") || lower.startsWith("ch_")) {
-            return value;
-        }
-        if (lower.contains("chr_")) {
-            int start = lower.indexOf("chr_");
-            return safeTokenSlice(value, start);
-        }
-        if (lower.contains("ch_")) {
-            int start = lower.indexOf("ch_");
-            return safeTokenSlice(value, start);
-        }
-        return null;
-    }
-
-    private String safeTokenSlice(String value, int startIndex) {
-        if (value == null || startIndex < 0 || startIndex >= value.length()) {
-            return null;
-        }
-        int end = value.length();
-        for (int i = startIndex; i < value.length(); i++) {
-            char current = value.charAt(i);
-            if (Character.isWhitespace(current) || current == ',' || current == ';' || current == '"' || current == '\'') {
-                end = i;
-                break;
-            }
-        }
-        String token = value.substring(startIndex, end).trim();
-        return token.isEmpty() ? null : token;
-    }
-
     private String buildRefundSummary(String providerMessage, BigDecimal refundAmount, BigDecimal fee) {
         BigDecimal normalizedRefund = normalizeMoney(refundAmount);
         BigDecimal normalizedFee = normalizeMoney(fee);
@@ -1218,21 +1262,31 @@ public class PaymentService {
     }
 
     private boolean webhookApproved(String eventType, String providerStatus, JsonNode payload) {
+        String code = firstNonBlank(textAt(payload, "code"), providerStatus);
+        if ("00".equals(code) || "0".equals(code)) {
+            return true;
+        }
         String combined = (eventType + " " + providerStatus).toLowerCase(Locale.ROOT);
-        if (combined.contains("paid")
+        if (combined.contains("autorizado")
+                || combined.contains("paid")
                 || combined.contains("succeed")
                 || combined.contains("approved")
                 || combined.contains("captured")
                 || combined.contains("successful")) {
             return true;
         }
-        String paidFlag = textAt(payload, "data.object.paid");
-        return "true".equalsIgnoreCase(paidFlag);
+        String stateMessage = textAt(payload, "response.order.0.stateMessage");
+        return stateMessage != null && stateMessage.toLowerCase(Locale.ROOT).contains("autorizado");
     }
 
     private boolean webhookRejected(String eventType, String providerStatus, JsonNode payload) {
+        String code = firstNonBlank(textAt(payload, "code"), providerStatus);
+        if (StringUtils.hasText(code) && !"00".equals(code) && !"0".equals(code)) {
+            return true;
+        }
         String combined = (eventType + " " + providerStatus).toLowerCase(Locale.ROOT);
-        if (combined.contains("failed")
+        if (combined.contains("rechazado")
+                || combined.contains("failed")
                 || combined.contains("declined")
                 || combined.contains("canceled")
                 || combined.contains("cancelled")
@@ -1240,8 +1294,8 @@ public class PaymentService {
                 || combined.contains("reject")) {
             return true;
         }
-        String paidFlag = textAt(payload, "data.object.paid");
-        return "false".equalsIgnoreCase(paidFlag) && combined.contains("charge");
+        String stateMessage = textAt(payload, "response.order.0.stateMessage");
+        return stateMessage != null && stateMessage.toLowerCase(Locale.ROOT).contains("rechaz");
     }
 
     private String textAt(JsonNode node, String dottedPath) {
@@ -1252,6 +1306,14 @@ public class PaymentService {
         for (String part : dottedPath.split("\\.")) {
             if (current == null || current.isMissingNode() || current.isNull()) {
                 return null;
+            }
+            if (current.isArray()) {
+                try {
+                    current = current.path(Integer.parseInt(part));
+                    continue;
+                } catch (NumberFormatException ignored) {
+                    return null;
+                }
             }
             current = current.path(part);
         }
@@ -1265,7 +1327,10 @@ public class PaymentService {
     }
 
     private Long longAt(JsonNode node, String dottedPath) {
-        String value = textAt(node, dottedPath);
+        return parseLong(textAt(node, dottedPath));
+    }
+
+    private Long parseLong(String value) {
         if (!StringUtils.hasText(value)) {
             return null;
         }
@@ -1274,6 +1339,164 @@ public class PaymentService {
         } catch (NumberFormatException ex) {
             return null;
         }
+    }
+
+    private String formatIzipayAmount(BigDecimal amount) {
+        return normalizeMoney(amount).setScale(2, RoundingMode.HALF_UP).toPlainString();
+    }
+
+    private String preferredIzipayPayMethod(PaymentMethod method) {
+        return switch (method) {
+            case CARD -> "CARD";
+            case YAPE -> "YAPE_CODE";
+            case PLIN, WALLET -> "QR";
+            default -> "ALL";
+        };
+    }
+
+    private Map<String, Object> buildIzipayPersonData(
+            String firstName,
+            String lastName,
+            String email,
+            String phone,
+            String document
+    ) {
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("firstName", firstNonBlank(firstName, "Cliente"));
+        data.put("lastName", firstNonBlank(lastName, "TravelBox"));
+        data.put("email", firstNonBlank(email, "cliente@inkavoy.pe"));
+        data.put("phoneNumber", firstNonBlank(phone, "999999999"));
+        data.put("street", "Av. Jose Larco 123");
+        data.put("city", "Lima");
+        data.put("state", "Lima");
+        data.put("country", "PE");
+        data.put("postalCode", "15074");
+        if (StringUtils.hasText(document)) {
+            data.put("documentType", inferDocumentType(document));
+            data.put("document", document.trim());
+        }
+        return data;
+    }
+
+    private Map<String, Object> izipayAppearance(PaymentMethod selectedMethod) {
+        Map<String, Object> visibility = new LinkedHashMap<>();
+        visibility.put("hideTestCards", true);
+        visibility.put("hideResultScreen", true);
+
+        Map<String, Object> customize = new LinkedHashMap<>();
+        customize.put("visibility", visibility);
+        customize.put("elements", izipayPaymentMethodOrder(selectedMethod));
+
+        Map<String, Object> appearance = new LinkedHashMap<>();
+        appearance.put("customize", customize);
+        return appearance;
+    }
+
+    private List<Map<String, Object>> izipayPaymentMethodOrder(PaymentMethod selectedMethod) {
+        List<Map<String, Object>> elements = new ArrayList<>();
+        List<String> preferredOrder = switch (selectedMethod) {
+            case CARD -> List.of("CARD", "YAPE_CODE", "QR");
+            case YAPE -> List.of("YAPE_CODE", "CARD", "QR");
+            case PLIN, WALLET -> List.of("QR", "CARD", "YAPE_CODE");
+            default -> List.of("CARD", "YAPE_CODE", "QR");
+        };
+        int order = 1;
+        for (String payMethod : preferredOrder) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("paymentMethod", payMethod);
+            item.put("order", order++);
+            elements.add(item);
+        }
+        return elements;
+    }
+
+    private List<Map<String, Object>> izipayCustomFields(
+            PaymentAttempt attempt,
+            PaymentMethod method,
+            AuthUserPrincipal principal
+    ) {
+        List<Map<String, Object>> fields = new ArrayList<>();
+        fields.add(customField("field1", String.valueOf(attempt.getId())));
+        fields.add(customField("field2", String.valueOf(attempt.getReservation().getId())));
+        fields.add(customField("field3", method.label()));
+        fields.add(customField("field4", String.valueOf(principal.getId())));
+        return fields;
+    }
+
+    private Map<String, Object> customField(String name, String value) {
+        Map<String, Object> field = new LinkedHashMap<>();
+        field.put("name", name);
+        field.put("value", value);
+        return field;
+    }
+
+    private String customFieldValue(JsonNode payload, String fieldName) {
+        JsonNode customFields = payload.path("response").path("customFields");
+        if (!customFields.isArray()) {
+            return null;
+        }
+        for (JsonNode field : customFields) {
+            String name = textAt(field, "name");
+            if (fieldName.equalsIgnoreCase(firstNonBlank(name, ""))) {
+                return textAt(field, "value");
+            }
+        }
+        return null;
+    }
+
+    private PaymentMethod resolveWebhookMethod(JsonNode payload, PaymentAttempt attempt) {
+        PaymentMethod fromCustomField = PaymentMethod.from(customFieldValue(payload, "field3"));
+        if (fromCustomField != PaymentMethod.UNKNOWN) {
+            return fromCustomField;
+        }
+        PaymentMethod fromPayload = PaymentMethod.from(firstNonBlank(
+                textAt(payload, "response.payMethod"),
+                textAt(payload, "response.order.0.payMethodAuthorization")
+        ));
+        if (fromPayload != PaymentMethod.UNKNOWN) {
+            return fromPayload;
+        }
+        return resolveMethod(attempt, null);
+    }
+
+    private void saveCardToken(User user, String token, JsonNode payload) {
+        if (user == null || !StringUtils.hasText(token)) {
+            return;
+        }
+        
+        // Evitar duplicados
+        if (savedCardRepository.findByUserIdAndTokenAndActiveTrue(user.getId(), token).isPresent()) {
+            return;
+        }
+
+        String brand = textAt(payload, "response.brand");
+        String pan = textAt(payload, "response.pan");
+        String lastFour = "";
+        if (StringUtils.hasText(pan) && pan.length() >= 4) {
+            lastFour = pan.substring(pan.length() - 4);
+        }
+        
+        String alias = (brand != null ? brand : "Tarjeta") + " **** " + lastFour;
+        
+        SavedCard card = SavedCard.of(
+            user,
+            token,
+            alias,
+            brand,
+            lastFour,
+            textAt(payload, "response.expirationMonth"),
+            textAt(payload, "response.expirationYear")
+        );
+        
+        savedCardRepository.save(card);
+    }
+
+    private String inferDocumentType(String document) {
+        String normalized = document == null ? "" : document.trim();
+        if (normalized.length() == 8) {
+            return "DNI";
+        }
+        return "CE";
     }
 
     private String firstNonBlank(String... values) {

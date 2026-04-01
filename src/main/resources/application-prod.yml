@@ -81,9 +81,19 @@ app:
     google:
       api-key: ${tbx-back-routing-google-api-key:${APP_ROUTING_GOOGLE_API_KEY:}}
   payments:
-    provider: culqi
-    force-cash-only: false
-    allow-mock-confirmation: false
+    provider: ${APP_PAYMENT_PROVIDER:izipay}
+    force-cash-only: ${APP_PAYMENTS_FORCE_CASH_ONLY:false}
+    allow-mock-confirmation: ${APP_PAYMENTS_ALLOW_MOCK_CONFIRMATION:false}
+    izipay:
+      merchant-code: ${tbx-back-payments-izipay-merchant-code:}
+      public-key: ${tbx-back-payments-izipay-public-key:}
+      hash-key: ${tbx-back-payments-izipay-hash-key:}
+      api-user: ${tbx-back-payments-izipay-api-user:}
+      api-password: ${tbx-back-payments-izipay-api-password:}
+      api-base-url: ${tbx-back-payments-izipay-api-base-url:https://api.micuentaweb.pe}
+      checkout-script-url: ${tbx-back-payments-izipay-checkout-script-url:https://static.micuentaweb.pe/static/js/krypton-client/V4.0/stable/kr-payment-form.min.js}
+      request-source: ${APP_IZIPAY_REQUEST_SOURCE:EC}
+      token-path: ${APP_IZIPAY_TOKEN_PATH:/v1/tokens/session}
   bootstrap:
     enabled: false
     seed-operational-demo: false

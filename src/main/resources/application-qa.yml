@@ -58,5 +58,13 @@ app:
   notifications:
     provider: ${APP_NOTIFICATION_PROVIDER:mock}
   payments:
-    provider: ${APP_PAYMENT_PROVIDER:culqi}
+    provider: ${APP_PAYMENT_PROVIDER:izipay}
     allow-mock-confirmation: ${APP_PAYMENTS_ALLOW_MOCK_CONFIRMATION:true}
+    izipay:
+      merchant-code: ${APP_IZIPAY_MERCHANT_CODE:80100650} # Placeholder Sandbox
+      public-key: ${APP_IZIPAY_PUBLIC_KEY:80100650} # Placeholder Sandbox
+      hash-key: ${APP_IZIPAY_HASH_KEY:your_izipay_hash_key}
+      api-base-url: ${APP_IZIPAY_API_BASE_URL:https://qa-api-pw.izipay.pe}
+      checkout-script-url: ${APP_IZIPAY_CHECKOUT_SCRIPT_URL:https://checkout.izipay.pe/payments/v1/js/index.js}
+      request-source: ${APP_IZIPAY_REQUEST_SOURCE:EC}
+      token-path: ${APP_IZIPAY_TOKEN_PATH:/v1/tokens/session}

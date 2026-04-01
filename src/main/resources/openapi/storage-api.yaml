@@ -53,9 +53,9 @@ paths:
   /api/v1/payments/cash/{paymentIntentId}/reject:
     post:
       summary: Rechazar pago en caja
-  /api/v1/payments/webhooks/culqi:
+  /api/v1/payments/webhooks/izipay:
     post:
-      summary: Webhook Culqi
+      summary: Webhook Izipay
   /api/v1/notifications/my:
     get:
       summary: Notificaciones del usuario autenticado

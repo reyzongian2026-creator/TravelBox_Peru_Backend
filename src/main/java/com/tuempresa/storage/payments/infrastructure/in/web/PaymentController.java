@@ -8,8 +8,12 @@ import com.tuempresa.storage.payments.application.dto.PaymentHistoryItemResponse
 import com.tuempresa.storage.payments.application.dto.PaymentIntentResponse;
 import com.tuempresa.storage.payments.application.dto.RefundPaymentRequest;
 import com.tuempresa.storage.payments.application.dto.PaymentStatusResponse;
+import com.tuempresa.storage.payments.application.dto.PaymentStatusResponse;
 import com.tuempresa.storage.payments.application.dto.PaymentWebhookResponse;
+import com.tuempresa.storage.payments.application.dto.SavedCardResponse;
 import com.tuempresa.storage.payments.application.usecase.PaymentService;
+import java.util.List;
+
 import com.tuempresa.storage.payments.domain.PaymentStatus;
 import com.tuempresa.storage.shared.infrastructure.reactive.ReactiveBlockingExecutor;
 import com.tuempresa.storage.shared.infrastructure.security.SecurityUtils;
@@ -71,6 +75,36 @@ public class PaymentController {
         return securityUtils.currentUserOrThrowReactive()
                 .flatMap(currentUser -> reactiveBlockingExecutor.call(
                         () -> paymentService.status(paymentIntentId, reservationId, currentUser)
+                ))
+                .map(ResponseEntity::ok);
+    }
+
+    @PostMapping("/{paymentIntentId}/sync")
+    public Mono<ResponseEntity<PaymentIntentResponse>> syncStatus(@PathVariable Long paymentIntentId) {
+        return securityUtils.currentUserOrThrowReactive()
+                .flatMap(currentUser -> reactiveBlockingExecutor.call(
+                        () -> paymentService.syncStatus(paymentIntentId, currentUser)
+                ))
+                .map(ResponseEntity::ok);
+    }
+
+    @GetMapping("/cards")
+    public Mono<ResponseEntity<List<SavedCardResponse>>> listSavedCards() {
+        return securityUtils.currentUserOrThrowReactive()
+                .flatMap(currentUser -> reactiveBlockingExecutor.call(
+                        () -> paymentService.listSavedCards(currentUser)
+                ))
+                .map(ResponseEntity::ok);
+    }
+
+    @PostMapping("/one-click")
+    public Mono<ResponseEntity<PaymentIntentResponse>> payWithSavedCard(
+            @RequestParam Long reservationId,
+            @RequestParam Long savedCardId
+    ) {
+        return securityUtils.currentUserOrThrowReactive()
+                .flatMap(currentUser -> reactiveBlockingExecutor.call(
+                        () -> paymentService.payWithSavedCard(reservationId, savedCardId, currentUser)
                 ))
                 .map(ResponseEntity::ok);
     }
@@ -141,14 +175,13 @@ public class PaymentController {
                 .map(ResponseEntity::ok);
     }
 
-    @PostMapping("/webhooks/culqi")
-    public Mono<ResponseEntity<PaymentWebhookResponse>> culqiWebhook(
+    @PostMapping("/webhooks/izipay")
+    public Mono<ResponseEntity<PaymentWebhookResponse>> izipayWebhook(
             @RequestBody(required = false) String payload,
-            @RequestHeader(name = "X-Culqi-Webhook-Secret", required = false) String webhookSecret,
-            @RequestHeader(name = "X-Culqi-Signature", required = false) String signature
+            @RequestHeader(name = "X-Izipay-Signature", required = false) String signature
     ) {
-        String secret = StringUtils.hasText(webhookSecret) ? webhookSecret : signature;
-        return reactiveBlockingExecutor.call(() -> paymentService.processCulqiWebhook(payload, secret))
+        String effectiveSignature = StringUtils.hasText(signature) ? signature : null;
+        return reactiveBlockingExecutor.call(() -> paymentService.processIzipayWebhook(payload, effectiveSignature))
                 .map(ResponseEntity::ok);
     }
 }

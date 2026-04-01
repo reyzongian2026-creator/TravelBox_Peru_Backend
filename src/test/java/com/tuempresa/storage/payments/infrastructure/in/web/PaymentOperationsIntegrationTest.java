@@ -223,19 +223,36 @@ class PaymentOperationsIntegrationTest {
 
         String payload = """
                 {
-                  "id":"%s",
-                  "type":"order.paid",
-                  "data":{
-                    "object":{
-                      "id":"%s",
-                      "status":"paid",
-                      "paid":true
-                    }
+                  "code":"00",
+                  "message":"Operacion exitosa",
+                  "messageUser":"Operacion exitosa",
+                  "transactionId":"%s",
+                  "payloadHttp":"%s",
+                  "signature":"%s",
+                  "response":{
+                    "payMethod":"CARD",
+                    "order":[
+                      {
+                        "orderNumber":"1737067728",
+                        "stateMessage":"Autorizado"
+                      }
+                    ],
+                    "customFields":[
+                      {"name":"field1","value":"%s"},
+                      {"name":"field2","value":"%s"},
+                      {"name":"field3","value":"card"}
+                    ]
                   }
                 }
-                """.formatted(eventId, providerReference);
+                """.formatted(
+                providerReference,
+                eventId,
+                eventId,
+                paymentIntentId,
+                reservationId
+        );
 
-        perform(mockMvc, post("/api/v1/payments/webhooks/culqi")
+        perform(mockMvc, post("/api/v1/payments/webhooks/izipay")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(payload))
                 .andExpect(status().isOk())
@@ -243,7 +260,7 @@ class PaymentOperationsIntegrationTest {
                 .andExpect(jsonPath("$.idempotent").value(false))
                 .andExpect(jsonPath("$.paymentIntentId").value(paymentIntentId));
 
-        perform(mockMvc, post("/api/v1/payments/webhooks/culqi")
+        perform(mockMvc, post("/api/v1/payments/webhooks/izipay")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(payload))
                 .andExpect(status().isOk())

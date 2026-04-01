@@ -33,7 +33,7 @@ public class ProductionMockSafetyGuard {
             @Value("${app.routing.provider:mock}") String routingProvider,
             @Value("${app.routing.allow-mock-fallback:true}") boolean routingAllowMockFallback,
             @Value("${app.routing.azure.api-key:}") String routingAzureApiKey,
-            @Value("${app.payments.provider:culqi}") String paymentsProvider,
+            @Value("${app.payments.provider:izipay}") String paymentsProvider,
             @Value("${app.payments.allow-mock-confirmation:true}") boolean paymentsAllowMockConfirmation,
             @Value("${app.auth.email-provider:mock}") String authEmailProvider,
             @Value("${app.auth.expose-code-preview:false}") boolean authExposeCodePreview,

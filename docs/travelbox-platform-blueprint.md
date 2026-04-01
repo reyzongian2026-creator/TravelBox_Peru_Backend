@@ -6,7 +6,7 @@
 - Frontend Flutter validado con `flutter analyze`, `flutter test` y `flutter build web --release`: OK.
 - En backend ya existen `auth`, `profile`, `users`, `geo`, `warehouses`, `reservations`, `payments`, `delivery`, `incidents`, `notifications`, `reports`, `files`.
 - En frontend ya existen login/registro, verificacion de correo, perfil editable/completable, discovery mapa/lista, reserva, checkout, tracking, incidencias y vistas admin/operativas.
-- Culqi real ya tiene adaptador backend Java en `payments.infrastructure.out.gateway.CulqiGatewayClient`.
+- Izipay real ya tiene adaptador backend Java en `payments.infrastructure.out.gateway.IzipayGatewayClient`.
 - Desde este turno el flujo real queda preparado para `REQUIRES_3DS_AUTH` en lugar de tratar ese caso como rechazo definitivo.
 - Plataformas validadas en esta maquina: backend Java, Flutter web.
 - Plataformas no validadas por toolchain local:
@@ -21,14 +21,14 @@ TravelBox Peru debe operar como una plataforma multiproducto:
 - App cliente Flutter para Android, iOS y Web.
 - Backoffice Flutter Web para administracion y operacion.
 - Backend Java 21 + Spring Boot como monolito modular con hexagonal interna.
-- Integracion de pagos con Culqi usando backend Java, frontend tokenizando con componentes oficiales de Culqi cuando se activen llaves reales.
+- Integracion de pagos con Izipay usando backend Java, frontend tokenizando con componentes oficiales de Izipay cuando se activen llaves reales.
 - Modo local/mock desde el dia 1 para registro, perfil, mapa, reservas, tracking, notificaciones y pagos.
 
 La estrategia correcta para este repositorio es:
 
 - Mantener un monolito modular porque el MVP todavia requiere mucha coordinacion transaccional entre reservas, pagos, tracking y operacion.
 - Mantener un solo repo Flutter para la experiencia cliente y el backoffice del MVP, con guards de rol y despliegues separados por flavor/entrypoint.
-- Mantener todas las integraciones externas detras de contratos de adaptador para no acoplar el dominio a Culqi, Firebase, correo ni mapas.
+- Mantener todas las integraciones externas detras de contratos de adaptador para no acoplar el dominio a Izipay, Firebase, correo ni mapas.
 - Tratar admin y operativo como producto en espanol fijo.
 - Tratar cliente como experiencia internacionalizable desde el MVP con `es` y `en`.
 
@@ -49,9 +49,8 @@ Disponible para Android, iOS y Web:
 - Zoom, desplazamiento y seleccion de marcador.
 - Detalle de almacen con horario, precio y disponibilidad.
 - Reserva por horas o dias.
-- Pago con tarjeta Culqi.
-- Flujo Yape segun integracion habilitada.
-- Plin modelado como wallet/QR opcional, no como flujo cerrado del MVP.
+- Pago con tarjeta e Izipay Checkout.
+- Flujo Yape/Plin a traves de Izipay.
 - Estado de reserva, QR/codigo y confirmacion.
 - Solicitud de recojo o entrega.
 - Tracking en tiempo real o mock.
@@ -143,7 +142,7 @@ Disponible para Flutter Web, siempre en espanol:
 - RF-24: consultar estado e historial.
 - RF-25: reintentar pago pendiente o fallido.
 - RF-26: soportar pago en caja para operacion local.
-- RF-27: soportar tarjeta Culqi.
+- RF-27: soportar tarjeta Izipay.
 - RF-28: soportar Yape segun disponibilidad de llaves/componentes.
 - RF-29: dejar Plin como wallet/QR opcional pendiente de definicion comercial final.
 - RF-30: registrar webhook, conciliacion basica y auditoria.
@@ -193,7 +192,7 @@ Disponible para Flutter Web, siempre en espanol:
 - RN-07: solo una ventana horaria valida por reserva; no se permiten rangos invertidos ni vacios.
 - RN-08: no se confirma reserva sin pago confirmado, salvo flujo de caja pendiente para validacion operativa.
 - RN-09: un pago `PENDING` puede terminar en `CONFIRMED`, `FAILED` o `REQUIRES_3DS_AUTH` sin cerrar la reserva.
-- RN-10: si Culqi devuelve necesidad de autenticacion 3DS, el intento no se marca fallido; queda pendiente.
+- RN-10: si Izipay devuelve necesidad de autenticacion 3DS, el intento no se marca fallido; queda pendiente.
 - RN-11: Yape debe seguir la documentacion oficial disponible del entorno habilitado.
 - RN-12: Plin no debe prometerse como flujo cerrado del MVP si no existe componente oficial/productizado equivalente al caso de Yape.
 - RN-13: una orden de delivery debe asociarse a una reserva existente y pagada.
@@ -264,7 +263,7 @@ Disponible para Flutter Web, siempre en espanol:
 
 - Actor: cliente.
 - Flujo principal:
-  - frontend abre experiencia Yape soportada por Culqi.
+  - frontend abre experiencia Yape soportada por Izipay.
   - recibe `sourceTokenId` u `orderId` segun integracion habilitada.
   - backend confirma o espera webhook.
 - Alternos:
@@ -609,7 +608,7 @@ Ya existentes o directamente alineadas en el repo:
 - admin incidents
 - operator dashboard
 
-## 10. Integracion Culqi
+## 10. Integracion Izipay
 
 ### Referencia oficial usada
 
@@ -620,26 +619,26 @@ Base de referencia oficial:
 - Yape.
 - billeteras moviles / QR.
 - webhooks.
-- Culqi 3DS.
+- Izipay 3DS.
 - API docs.
 
 ### Principio de integracion
 
 - El frontend no usa `secret key`.
-- El frontend usa componentes oficiales de Culqi para obtener `sourceTokenId` o abrir checkout/order segun el flujo.
+- El frontend usa componentes oficiales de Izipay para obtener `sourceTokenId` o abrir checkout/order segun el flujo.
 - El backend Java usa `secret key` para `/charges`, `/orders`, validacion de webhook y conciliacion.
 
 ### Flujo tarjeta
 
-- frontend solicita token fuente con Culqi.
+- frontend solicita token fuente con Izipay.
 - backend `POST /payments/intents`.
 - backend `POST /payments/confirm` con `sourceTokenId`.
-- si Culqi aprueba:
+- si Izipay aprueba:
   - `PaymentAttempt = CONFIRMED`
   - `Reservation = CONFIRMED`
-- si Culqi rechaza:
+- si Izipay rechaza:
   - `PaymentAttempt = FAILED`
-- si Culqi requiere 3DS:
+- si Izipay requiere 3DS:
   - `PaymentAttempt = PENDING`
   - `paymentFlow = REQUIRES_3DS_AUTH`
   - `nextAction.type = AUTHENTICATE_3DS`
@@ -648,7 +647,7 @@ Base de referencia oficial:
 
 Segun documentacion oficial consultada:
 
-- Culqi publica Yape como integracion soportada en pagos online.
+- Izipay publica Yape como integracion soportada en pagos online.
 - Para el MVP, Yape debe modelarse como uno de dos caminos:
   - token directo tipo `sourceTokenId` si el componente habilitado lo entrega.
   - order/checkout si el ambiente comercial lo define asi.
@@ -665,7 +664,7 @@ Lo correcto para MVP:
 
 ### 3DS
 
-Segun documentacion oficial de Culqi 3DS:
+Segun documentacion oficial de Izipay 3DS:
 
 - un cargo puede devolver respuesta de autenticacion en vez de aprobacion final.
 - el backend no debe marcar eso como rechazo.
@@ -711,8 +710,8 @@ Para el MVP:
   - `REFUNDED`
   - `REFUND_FAILED`
 
-Detalle Culqi implementado:
-- El backend normaliza `reason` de refund a valores aceptados por Culqi:
+Detalle Izipay implementado:
+- El backend normaliza `reason` de refund a valores aceptados por Izipay:
   - `solicitud_comprador`
   - `duplicidad`
   - `fraudulenta`
@@ -1130,7 +1129,7 @@ Con el mismo contrato de aplicacion.
 
 ### Sprint 3
 
-- Culqi tarjeta/Yape test.
+- Izipay tarjeta/Yape test.
 - webhooks.
 - historial y notificaciones.
 
@@ -1147,7 +1146,7 @@ Con el mismo contrato de aplicacion.
 
 ## 20. Riesgos
 
-- integracion Culqi puede cambiar detalles de frontend/tokenizacion por producto habilitado.
+- integracion Izipay puede cambiar detalles de frontend/tokenizacion por producto habilitado.
 - Plin puede generar expectativas mayores que el soporte comercial real disponible.
 - sin Android SDK/Visual Studio no hay validacion local completa de todas las plataformas.
 - mapas OSM pueden quedarse cortos si el volumen crece mucho.
@@ -1166,13 +1165,15 @@ Con el mismo contrato de aplicacion.
 - conciliacion financiera avanzada.
 - observabilidad con dashboards y alertas.
 
-## Referencias oficiales Culqi usadas
+## Referencias oficiales Izipay usadas
 
 - SDK Java backend: https://docs.culqi.com/es/documentacion/librerias/backend/sdk_java
 - Tarjetas de prueba: https://docs.culqi.com/es/documentacion/pagos-online/tarjetas-de-prueba
 - Yape: https://docs.culqi.com/es/documentacion/pagos-online/yape/
 - Billeteras moviles / QR: https://docs.culqi.com/es/documentacion/pagos-online/otros-metodos-pago/billeteras-moviles/
 - Webhooks: https://docs.culqi.com/es/documentacion/pagos-online/webhooks/
-- Culqi 3DS: https://docs.culqi.com/es/documentacion/culqi-3ds/culqi-3ds/
+- Izipay 3DS: https://docs.culqi.com/es/documentacion/culqi-3ds/culqi-3ds/
 - Flujo de cargos 3DS: https://docs.culqi.com/es/documentacion/culqi-3ds/flujo-de-cargos-3ds/
+- API docs: https://apidocs.culqi.com/
+lqi-3ds/flujo-de-cargos-3ds/
 - API docs: https://apidocs.culqi.com/

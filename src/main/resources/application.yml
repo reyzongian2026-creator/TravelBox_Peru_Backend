@@ -180,7 +180,7 @@ app:
       thread-ttl-seconds: ${APP_BLOCKING_THREAD_TTL_SECONDS:60}
       timeout-ms: ${APP_BLOCKING_TIMEOUT_MS:120000}
   payments:
-    provider: ${APP_PAYMENT_PROVIDER:culqi}
+    provider: ${APP_PAYMENT_PROVIDER:izipay}
     force-cash-only: ${APP_PAYMENTS_FORCE_CASH_ONLY:false}
     allow-mock-confirmation: ${APP_PAYMENTS_ALLOW_MOCK_CONFIRMATION:true}
     currency: ${APP_PAYMENT_CURRENCY:PEN}
@@ -188,11 +188,16 @@ app:
       commission-grace-minutes: ${APP_PAYMENT_REFUND_COMMISSION_GRACE_MINUTES:60}
       commission-percent-after-grace: ${APP_PAYMENT_REFUND_COMMISSION_PERCENT_AFTER_GRACE:4.50}
       minimum-fee: ${APP_PAYMENT_REFUND_MINIMUM_FEE:0.00}
-    culqi:
-      base-url: ${APP_CULQI_BASE_URL:https://api.culqi.com/v2}
-      public-key: ${APP_CULQI_PUBLIC_KEY:}
-      secret-key: ${APP_CULQI_SECRET_KEY:}
-      webhook-secret: ${APP_CULQI_WEBHOOK_SECRET:}
+    izipay:
+      api-base-url: ${APP_IZIPAY_API_BASE_URL:https://qa-api-pw.izipay.pe}
+      token-path: ${APP_IZIPAY_TOKEN_PATH:/security/v1/Token/Generate}
+      merchant-code: ${APP_IZIPAY_MERCHANT_CODE:}
+      public-key: ${APP_IZIPAY_PUBLIC_KEY:}
+      hash-key: ${APP_IZIPAY_HASH_KEY:}
+      key-rsa: ${APP_IZIPAY_KEY_RSA:RSA}
+      request-source: ${APP_IZIPAY_REQUEST_SOURCE:ECOMMERCE}
+      process-type: ${APP_IZIPAY_PROCESS_TYPE:AT}
+      checkout-script-url: ${APP_IZIPAY_CHECKOUT_SCRIPT_URL:https://sandbox-checkout.izipay.pe/payments/v1/js/index.js}
   reservations:
     expiration-check-ms: ${APP_RESERVATION_EXPIRATION_CHECK_MS:300000}
     duplicate-window-seconds: ${APP_RESERVATION_DUPLICATE_WINDOW_SECONDS:60}

@@ -2,7 +2,7 @@ package com.tuempresa.storage.payments.infrastructure.in.web;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.tuempresa.storage.payments.infrastructure.out.gateway.CulqiGatewayClient;
+import com.tuempresa.storage.payments.infrastructure.out.gateway.IzipayGatewayClient;
 import com.tuempresa.storage.warehouses.domain.Warehouse;
 import com.tuempresa.storage.warehouses.infrastructure.out.persistence.WarehouseRepository;
 import org.junit.jupiter.api.Disabled;
@@ -18,7 +18,6 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.Map;
 
 import static com.tuempresa.storage.support.MockMvcReactiveSupport.perform;
 import static org.mockito.ArgumentMatchers.any;
@@ -28,11 +27,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest(properties = "app.payments.provider=culqi")
+@SpringBootTest(properties = "app.payments.provider=izipay")
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Disabled("Requires database infrastructure")
-class PaymentCulqi3dsIntegrationTest {
+class PaymentIzipayCheckoutIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
@@ -44,21 +43,23 @@ class PaymentCulqi3dsIntegrationTest {
     private WarehouseRepository warehouseRepository;
 
     @MockitoBean
-    private CulqiGatewayClient culqiGatewayClient;
+    private IzipayGatewayClient izipayGatewayClient;
 
     @Test
-    void shouldKeepPaymentPendingWhenCulqiRequires3dsAuthentication() throws Exception {
-        when(culqiGatewayClient.createCharge(any())).thenReturn(
-                new CulqiGatewayClient.CulqiChargeResult(
-                        "chr_test_3ds_001",
-                        "REQUIRES_AUTHENTICATION",
-                        "Se requiere autenticacion 3DS.",
-                        false,
-                        true,
-                        Map.of(
-                                "authenticationTransactionId", "auth3ds-001",
-                                "authenticationUrl", "https://3ds.test/challenge"
-                        )
+    void shouldKeepPaymentPendingWhileIzipayCheckoutIsOpen() throws Exception {
+        when(izipayGatewayClient.isConfigured()).thenReturn(true);
+        when(izipayGatewayClient.requestSource()).thenReturn("ECOMMERCE");
+        when(izipayGatewayClient.processType()).thenReturn("AT");
+        when(izipayGatewayClient.createSession(any())).thenReturn(
+                new IzipayGatewayClient.IzipaySessionResult(
+                        "session-token-123",
+                        "17370677285350",
+                        "1737067728",
+                        "4001061",
+                        "PUBLIC_KEY",
+                        "RSA",
+                        "https://sandbox-checkout.izipay.pe/payments/v1/js/index.js",
+                        objectMapper.createObjectNode()
                 )
         );
 
@@ -76,16 +77,16 @@ class PaymentCulqi3dsIntegrationTest {
                                 {
                                   "paymentIntentId": %s,
                                   "paymentMethod": "card",
-                                  "approved": true,
-                                  "sourceTokenId": "tok_test_requires_3ds"
+                                  "approved": true
                                 }
                                 """.formatted(paymentIntentId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("PENDING"))
-                .andExpect(jsonPath("$.paymentFlow").value("REQUIRES_3DS_AUTH"))
-                .andExpect(jsonPath("$.nextAction.type").value("AUTHENTICATE_3DS"))
-                .andExpect(jsonPath("$.nextAction.provider").value("CULQI"))
-                .andExpect(jsonPath("$.nextAction.providerPayload.authenticationTransactionId").value("auth3ds-001"));
+                .andExpect(jsonPath("$.paymentFlow").value("OPEN_IZIPAY_CHECKOUT"))
+                .andExpect(jsonPath("$.nextAction.type").value("OPEN_IZIPAY_CHECKOUT"))
+                .andExpect(jsonPath("$.nextAction.provider").value("IZIPAY"))
+                .andExpect(jsonPath("$.nextAction.authorization").value("session-token-123"))
+                .andExpect(jsonPath("$.nextAction.checkoutConfig.action").value("pay"));
 
         perform(mockMvc, get("/api/v1/payments/status")
                         .header("Authorization", "Bearer " + clientToken)
@@ -144,4 +145,3 @@ class PaymentCulqi3dsIntegrationTest {
         return loginJson.get("accessToken").asText();
     }
 }
-

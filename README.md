@@ -240,18 +240,18 @@ Archivos de entorno para Cloud Run:
 - Guia de consumo:
   - `docs/java-frontend-consumption.md`
 
-## Pagos reales (Culqi)
+## Pagos reales (Izipay)
 
-- Activar: `APP_PAYMENT_PROVIDER=culqi`
-- Para mantener Culqi habilitado pero operar solo efectivo: `APP_PAYMENTS_FORCE_CASH_ONLY=true`
+- Activar: `APP_PAYMENT_PROVIDER=izipay`
+- Para mantener Izipay habilitado pero operar solo efectivo: `APP_PAYMENTS_FORCE_CASH_ONLY=true`
 - Configurar:
-  - `APP_CULQI_SECRET_KEY`
-  - `APP_CULQI_PUBLIC_KEY`
-  - opcional `APP_CULQI_WEBHOOK_SECRET`
-- Tarjeta/Yape: enviar `sourceTokenId` generado por Culqi Checkout.
+  - `APP_IZIPAY_MERCHANT_CODE`
+  - `APP_IZIPAY_PUBLIC_KEY`
+  - `APP_IZIPAY_HASH_KEY`
+  - `APP_IZIPAY_API_BASE_URL` (ej: https://qa-api-pw.izipay.pe)
+- Flujo: El backend genera una sesión y el frontend abre el SDK de Izipay.
 - `POST /api/v1/reservations/checkout` evita reservas fantasma (rollback completo si falla pago).
-- Plin/Wallet: backend crea orden y devuelve `nextAction.orderId` + `nextAction.publicKey`.
-- Confirmacion asincrona: webhook `POST /api/v1/payments/webhooks/culqi`.
+- Confirmacion asincrona: webhook `POST /api/v1/payments/webhooks/izipay`.
 
 ## Correo transaccional (Exchange Online / Microsoft Graph)
 
@@ -324,3 +324,4 @@ Configuracion recomendada por entorno:
 ```
 
 Resultado actual: `BUILD SUCCESS` con pruebas de auth, reservas, pagos (status/history/caja/webhook), notificaciones, inventory, disponibilidad GPS y contexto.
+nibilidad GPS y contexto.

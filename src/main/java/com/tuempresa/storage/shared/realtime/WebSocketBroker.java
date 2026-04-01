@@ -37,14 +37,14 @@ public class WebSocketBroker {
         try {
             if (totalConnections.get() >= MAX_TOTAL_CONNECTIONS) {
                 log.warn("WebSocket rejected: max connections reached");
-                session.close().subscribe();
+                closeSessionSafely(session);
                 return;
             }
 
             Long userIdLong = jwtTokenProvider.extractUserId(token);
             if (userIdLong == null) {
                 log.warn("WebSocket rejected: invalid token");
-                session.close().subscribe();
+                closeSessionSafely(session);
                 return;
             }
             String userId = userIdLong.toString();
@@ -52,7 +52,7 @@ public class WebSocketBroker {
             Set<WebSocketSession> existingSessions = sessionsByUserId.computeIfAbsent(userId, k -> ConcurrentHashMap.newKeySet());
             if (existingSessions.size() >= MAX_CONNECTIONS_PER_USER) {
                 log.warn("WebSocket rejected: max connections per user reached for userId={}", userId);
-                session.close().subscribe();
+                closeSessionSafely(session);
                 return;
             }
 
@@ -78,7 +78,7 @@ public class WebSocketBroker {
 
         } catch (Exception e) {
             log.error("WebSocket connection error", e);
-            session.close().subscribe();
+            closeSessionSafely(session);
         }
     }
 
@@ -154,7 +154,8 @@ public class WebSocketBroker {
     }
 
     public void broadcast(String eventType, Map<String, Object> payload) {
-        for (String userId : sessionsByUserId.keySet()) {
+        List<String> userIds = new ArrayList<>(sessionsByUserId.keySet());
+        for (String userId : userIds) {
             sendToUser(userId, eventType, payload);
         }
     }
@@ -167,10 +168,18 @@ public class WebSocketBroker {
                         log.error("Failed to send WebSocket message to session {}: {}", session.getId(), e.getMessage());
                         disconnect(session);
                     })
+                    .onErrorResume(e -> Mono.empty())
                     .subscribe();
         } catch (Exception e) {
             log.error("Error serializing WebSocket message: {}", e.getMessage());
         }
+    }
+
+    private void closeSessionSafely(WebSocketSession session) {
+        session.close()
+                .doOnError(e -> log.warn("Error closing WebSocket session {}: {}", session.getId(), e.getMessage()))
+                .onErrorResume(e -> Mono.empty())
+                .subscribe();
     }
 
     public int getConnectionCount() {
