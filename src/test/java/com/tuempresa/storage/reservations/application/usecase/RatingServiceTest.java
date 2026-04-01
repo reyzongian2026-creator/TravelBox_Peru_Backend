@@ -1,6 +1,5 @@
 package com.tuempresa.storage.reservations.application.usecase;
 
-import com.tuempresa.storage.reservations.application.dto.AdminRatingResponse;
 import com.tuempresa.storage.reservations.application.dto.CreateRatingRequest;
 import com.tuempresa.storage.reservations.application.dto.WarehouseRatingSummary;
 import com.tuempresa.storage.reservations.domain.Rating;
