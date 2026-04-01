@@ -15,6 +15,7 @@ import java.util.UUID;
 public class ReactiveCorrelationIdWebFilter implements WebFilter {
 
     @Override
+    @SuppressWarnings("null")
     public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
         String correlationId = Optional.ofNullable(exchange.getRequest().getHeaders().getFirst(CorrelationIdFilter.HEADER_NAME))
                 .filter(value -> !value.isBlank())

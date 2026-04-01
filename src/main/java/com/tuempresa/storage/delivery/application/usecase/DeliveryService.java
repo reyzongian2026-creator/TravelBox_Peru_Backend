@@ -418,8 +418,8 @@ public class DeliveryService {
         double targetLatitude;
         double targetLongitude;
         if (hasRealDestination) {
-            targetLatitude = requestedLatitude;
-            targetLongitude = requestedLongitude;
+            targetLatitude = requestedLatitude == null ? 0.0 : requestedLatitude.doubleValue();
+            targetLongitude = requestedLongitude == null ? 0.0 : requestedLongitude.doubleValue();
         } else {
             double[] fallbackDestination = buildMockDestination(originLatitude, originLongitude, order.getAddress());
             targetLatitude = fallbackDestination[0];
@@ -582,17 +582,6 @@ public class DeliveryService {
         double targetLatitude = originLatitude + ((hash % 2 == 0) ? latOffset : -latOffset);
         double targetLongitude = originLongitude + ((hash % 3 == 0) ? lngOffset : -lngOffset);
         return new double[]{targetLatitude, targetLongitude};
-    }
-
-    private String vehicleType(String requestType) {
-        String normalized = requestType == null ? "" : requestType.trim().toUpperCase(Locale.ROOT);
-        if (normalized.contains("BUS")) {
-            return "BUS";
-        }
-        if (normalized.contains("AUTO")) {
-            return "AUTO";
-        }
-        return "MOTO";
     }
 
     private String trackingMessage(DeliveryOrder order, DeliveryStatus status) {

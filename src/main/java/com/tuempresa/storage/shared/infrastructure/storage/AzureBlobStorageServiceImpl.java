@@ -1,10 +1,13 @@
 package com.tuempresa.storage.shared.infrastructure.storage;
 
+import com.azure.identity.DefaultAzureCredentialBuilder;
 import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.BlobServiceClientBuilder;
 import com.azure.storage.blob.models.BlobHttpHeaders;
+import com.azure.storage.blob.sas.BlobSasPermission;
+import com.azure.storage.blob.sas.BlobServiceSasSignatureValues;
 import com.tuempresa.storage.shared.domain.exception.ApiException;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
@@ -18,6 +21,8 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -85,6 +90,12 @@ public class AzureBlobStorageServiceImpl implements StorageService {
     @Value("${azure.storage.sas.expiry-minutes:60}")
     private int sasExpiryMinutes;
 
+    @Value("${azure.storage.images.endpoint:}")
+    private String imagesEndpoint;
+
+    @Value("${azure.storage.reports.endpoint:}")
+    private String reportsEndpoint;
+
     private BlobServiceClient imagesBlobServiceClient;
     private BlobServiceClient reportsBlobServiceClient;
 
@@ -98,7 +109,13 @@ public class AzureBlobStorageServiceImpl implements StorageService {
             imagesBlobServiceClient = new BlobServiceClientBuilder()
                     .connectionString(imagesConnectionString)
                     .buildClient();
-            LOG.info("Azure Blob Storage for images initialized");
+            LOG.info("Azure Blob Storage for images initialized (connection string)");
+        } else if (imagesEndpoint != null && !imagesEndpoint.isBlank()) {
+            imagesBlobServiceClient = new BlobServiceClientBuilder()
+                    .endpoint(imagesEndpoint)
+                    .credential(new DefaultAzureCredentialBuilder().build())
+                    .buildClient();
+            LOG.info("Azure Blob Storage for images initialized (Managed Identity, endpoint: {})", imagesEndpoint);
         } else {
             LOG.warn("Azure Blob Storage for images NOT configured");
         }
@@ -107,7 +124,13 @@ public class AzureBlobStorageServiceImpl implements StorageService {
             reportsBlobServiceClient = new BlobServiceClientBuilder()
                     .connectionString(reportsConnectionString)
                     .buildClient();
-            LOG.info("Azure Blob Storage for reports initialized");
+            LOG.info("Azure Blob Storage for reports initialized (connection string)");
+        } else if (reportsEndpoint != null && !reportsEndpoint.isBlank()) {
+            reportsBlobServiceClient = new BlobServiceClientBuilder()
+                    .endpoint(reportsEndpoint)
+                    .credential(new DefaultAzureCredentialBuilder().build())
+                    .buildClient();
+            LOG.info("Azure Blob Storage for reports initialized (Managed Identity, endpoint: {})", reportsEndpoint);
         } else {
             LOG.warn("Azure Blob Storage for reports NOT configured");
         }
@@ -212,6 +235,7 @@ public class AzureBlobStorageServiceImpl implements StorageService {
         return new UploadResult(blobName, localPath, contentType, length);
     }
     
+    @SuppressWarnings("null")
     private record InMemoryMultipartFile(
             String name,
             String originalFilename,
@@ -310,7 +334,26 @@ public class AzureBlobStorageServiceImpl implements StorageService {
 
     @Override
     public String getUrlWithSas(String filename, FileCategory category, int expiryMinutes) {
-        return getUrl(filename, category);
+        BlobServiceClient client = getBlobServiceClient(category);
+        if (client == null) {
+            return getUrl(filename, category);
+        }
+        try {
+            String containerName = getContainerName(category);
+            BlobContainerClient containerClient = client.getBlobContainerClient(containerName);
+            BlobClient blobClient = containerClient.getBlobClient(filename);
+            int ttl = expiryMinutes > 0 ? expiryMinutes : sasExpiryMinutes;
+            OffsetDateTime expiresOn = OffsetDateTime.now(ZoneOffset.UTC).plusMinutes(ttl);
+            OffsetDateTime startsOn = OffsetDateTime.now(ZoneOffset.UTC).minusMinutes(2);
+            BlobSasPermission permission = new BlobSasPermission().setReadPermission(true);
+            BlobServiceSasSignatureValues sasValues = new BlobServiceSasSignatureValues(expiresOn, permission)
+                    .setStartTime(startsOn);
+            String sasToken = blobClient.generateSas(sasValues);
+            return blobClient.getBlobUrl() + "?" + sasToken;
+        } catch (Exception ex) {
+            LOG.warn("Could not generate SAS URL for {}; returning proxy URL: {}", filename, ex.getMessage());
+            return getUrl(filename, category);
+        }
     }
 
     @Override
@@ -351,13 +394,6 @@ public class AzureBlobStorageServiceImpl implements StorageService {
             case EVIDENCES -> evidencesContainerName;
             case REPORTS -> reportsContainerName;
             case EXPORTS -> exportsContainerName;
-        };
-    }
-
-    private String getUrlBase(FileCategory category) {
-        return switch (category) {
-            case REPORTS, EXPORTS -> reportsUrlBase;
-            default -> imagesUrlBase;
         };
     }
 

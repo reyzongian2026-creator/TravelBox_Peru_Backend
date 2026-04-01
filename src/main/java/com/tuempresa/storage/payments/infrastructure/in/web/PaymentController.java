@@ -8,7 +8,6 @@ import com.tuempresa.storage.payments.application.dto.PaymentHistoryItemResponse
 import com.tuempresa.storage.payments.application.dto.PaymentIntentResponse;
 import com.tuempresa.storage.payments.application.dto.RefundPaymentRequest;
 import com.tuempresa.storage.payments.application.dto.PaymentStatusResponse;
-import com.tuempresa.storage.payments.application.dto.PaymentStatusResponse;
 import com.tuempresa.storage.payments.application.dto.PaymentWebhookResponse;
 import com.tuempresa.storage.payments.application.dto.SavedCardResponse;
 import com.tuempresa.storage.payments.application.usecase.PaymentService;

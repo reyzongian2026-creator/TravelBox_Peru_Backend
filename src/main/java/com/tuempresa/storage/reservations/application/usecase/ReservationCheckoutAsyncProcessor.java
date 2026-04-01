@@ -31,7 +31,7 @@ public class ReservationCheckoutAsyncProcessor {
                 safeWorkers,
                 runnable -> {
                     Thread thread = new Thread(runnable);
-                    thread.setName("reservation-checkout-async-" + thread.getId());
+                    thread.setName("reservation-checkout-async-" + thread.threadId());
                     thread.setDaemon(true);
                     return thread;
                 }

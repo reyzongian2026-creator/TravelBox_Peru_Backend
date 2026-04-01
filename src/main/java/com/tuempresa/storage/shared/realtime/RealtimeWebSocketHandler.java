@@ -18,6 +18,7 @@ public class RealtimeWebSocketHandler implements WebSocketHandler {
     }
 
     @Override
+    @SuppressWarnings("null")
     public Mono<Void> handle(WebSocketSession session) {
         String query = session.getHandshakeInfo().getUri().getQuery();
         String token = extractToken(query);

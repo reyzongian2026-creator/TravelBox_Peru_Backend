@@ -373,7 +373,6 @@ public class GeoRoutingService {
                 .uri(uriBuilder -> uriBuilder
                         .path("/route/directions/json")
                         .queryParam("api-version", "1.0")
-                        .queryParam("subscription-key", azureApiKey)
                         .queryParam(
                                 "query",
                                 trimCoordinate(originLatitude) + "," + trimCoordinate(originLongitude)
@@ -382,6 +381,7 @@ public class GeoRoutingService {
                         .queryParam("routeType", "fastest")
                         .queryParam("travelMode", travelMode)
                         .build())
+                .header("subscription-key", azureApiKey)
                 .retrieve()
                 .body(JsonNode.class);
 

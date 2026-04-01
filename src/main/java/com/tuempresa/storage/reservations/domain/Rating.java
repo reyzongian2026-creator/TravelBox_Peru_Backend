@@ -13,7 +13,6 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import org.springframework.http.HttpStatus;
 
-import java.math.BigDecimal;
 import java.util.UUID;
 
 @Entity

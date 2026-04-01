@@ -3,7 +3,6 @@ package com.tuempresa.storage.auth.infrastructure.in.web;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tuempresa.storage.auth.infrastructure.out.persistence.RefreshTokenRepository;
-import com.tuempresa.storage.users.infrastructure.out.persistence.UserRepository;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,9 +32,6 @@ class AuthControllerIntegrationTest {
 
     @Autowired
     private ObjectMapper objectMapper;
-
-    @Autowired
-    private UserRepository userRepository;
 
     @Autowired
     private RefreshTokenRepository refreshTokenRepository;

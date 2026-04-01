@@ -5,7 +5,6 @@ import com.tuempresa.storage.notifications.application.dto.NotificationStreamRes
 import com.tuempresa.storage.notifications.application.usecase.NotificationService;
 import com.tuempresa.storage.notifications.application.usecase.NotificationTopicBroker;
 import com.tuempresa.storage.shared.infrastructure.reactive.ReactiveBlockingExecutor;
-import com.tuempresa.storage.shared.infrastructure.security.AuthUserPrincipal;
 import com.tuempresa.storage.shared.infrastructure.security.SecurityUtils;
 import com.tuempresa.storage.shared.infrastructure.web.PagedResponse;
 import org.springframework.http.MediaType;

@@ -24,7 +24,7 @@ public class CustomerEmailService {
     private static final Logger log = LoggerFactory.getLogger(CustomerEmailService.class);
     private static final ZoneId LIMA_ZONE = ZoneId.of("America/Lima");
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")
-            .withLocale(new Locale("es", "PE"))
+            .withLocale(Locale.of("es", "PE"))
             .withZone(LIMA_ZONE);
 
     private final EmailOutboxService emailOutboxService;
@@ -384,10 +384,6 @@ public class CustomerEmailService {
         };
     }
 
-    private String getLocalizedText(String locale, String key, String spanish, String english, String german, String french, String italian, String portuguese) {
-        return getLocalizedText(locale, spanish, english, german, french, italian, portuguese);
-    }
-
     private void send(
             String to,
             String subject,
@@ -679,7 +675,7 @@ public class CustomerEmailService {
         if (amount == null) {
             return "S/ 0.00";
         }
-        NumberFormat formatter = NumberFormat.getCurrencyInstance(new Locale("es", "PE"));
+        NumberFormat formatter = NumberFormat.getCurrencyInstance(Locale.of("es", "PE"));
         formatter.setCurrency(java.util.Currency.getInstance("PEN"));
         return formatter.format(amount);
     }

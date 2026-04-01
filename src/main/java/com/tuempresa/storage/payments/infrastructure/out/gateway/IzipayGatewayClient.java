@@ -39,14 +39,12 @@ public class IzipayGatewayClient {
     private final String keyRsa;
     private final String requestSource;
     private final String processType;
-    private final String tokenPath;
     private final String checkoutScriptUrl;
 
     public IzipayGatewayClient(
             RestClient.Builder restClientBuilder,
             ObjectMapper objectMapper,
             @Value("${app.payments.izipay.api-base-url:https://api.micuentaweb.pe}") String apiBaseUrl,
-            @Value("${app.payments.izipay.token-path:/v1/Charge/CreatePayment}") String tokenPath,
             @Value("${app.payments.izipay.merchant-code:}") String merchantCode,
             @Value("${app.payments.izipay.public-key:}") String publicKey,
             @Value("${app.payments.izipay.hash-key:}") String hashKey,
@@ -59,7 +57,6 @@ public class IzipayGatewayClient {
     ) {
         this.restClient = restClientBuilder.baseUrl(safe(apiBaseUrl)).build();
         this.objectMapper = objectMapper;
-        this.tokenPath = safe(tokenPath);
         this.merchantCode = safe(merchantCode);
         this.publicKey = safe(publicKey);
         this.hashKey = safe(hashKey);

@@ -103,6 +103,7 @@ azure:
   storage:
     images:
       connection-string: ${tbx-back-azure-storage-images-connection-string:${AZURE_STORAGE_IMAGES_CONNECTION_STRING:}}
+      endpoint: ${tbx-back-azure-storage-images-endpoint:${AZURE_STORAGE_IMAGES_ENDPOINT:}}
       url-base: ${AZURE_STORAGE_IMAGES_URL_BASE:}
       container:
         images: ${AZURE_STORAGE_IMAGES_CONTAINER:travelbox-images}
@@ -112,6 +113,7 @@ azure:
         evidences: ${AZURE_STORAGE_EVIDENCES_CONTAINER:travelbox-evidences}
     reports:
       connection-string: ${tbx-back-azure-storage-reports-connection-string:${AZURE_STORAGE_REPORTS_CONNECTION_STRING:}}
+      endpoint: ${tbx-back-azure-storage-reports-endpoint:${AZURE_STORAGE_REPORTS_ENDPOINT:}}
       url-base: ${AZURE_STORAGE_REPORTS_URL_BASE:}
       container:
         reports: ${AZURE_STORAGE_REPORTS_CONTAINER:travelbox-reports}

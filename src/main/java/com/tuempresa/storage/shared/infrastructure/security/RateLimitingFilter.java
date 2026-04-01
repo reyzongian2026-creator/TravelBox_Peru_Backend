@@ -2,7 +2,6 @@ package com.tuempresa.storage.shared.infrastructure.security;
 
 import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.Bucket;
-import io.github.bucket4j.Refill;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -52,10 +51,14 @@ public class RateLimitingFilter extends OncePerRequestFilter {
         int perMinute = isAdminEndpoint ? ADMIN_REQUESTS_PER_MINUTE : REQUESTS_PER_MINUTE;
         int perHour = isAdminEndpoint ? ADMIN_REQUESTS_PER_HOUR : REQUESTS_PER_HOUR;
         
-        Bandwidth perMinuteLimit = Bandwidth.classic(perMinute, 
-            Refill.greedy(perMinute, Duration.ofMinutes(1)));
-        Bandwidth perHourLimit = Bandwidth.classic(perHour, 
-            Refill.greedy(perHour, Duration.ofHours(1)));
+        Bandwidth perMinuteLimit = Bandwidth.builder()
+            .capacity(perMinute)
+            .refillGreedy(perMinute, Duration.ofMinutes(1))
+            .build();
+        Bandwidth perHourLimit = Bandwidth.builder()
+            .capacity(perHour)
+            .refillGreedy(perHour, Duration.ofHours(1))
+            .build();
         
         return Bucket.builder()
             .addLimit(perMinuteLimit)

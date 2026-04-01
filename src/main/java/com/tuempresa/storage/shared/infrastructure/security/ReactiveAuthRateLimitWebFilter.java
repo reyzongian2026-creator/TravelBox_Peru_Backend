@@ -60,6 +60,7 @@ public class ReactiveAuthRateLimitWebFilter implements WebFilter {
     }
 
     @Override
+    @SuppressWarnings("null")
     public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
         if (!enabled) {
             return chain.filter(exchange);

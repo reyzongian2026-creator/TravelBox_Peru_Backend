@@ -2,8 +2,6 @@ package com.tuempresa.storage.notifications.application.email;
 
 import com.tuempresa.storage.users.domain.User;
 import com.tuempresa.storage.shared.infrastructure.security.SensitiveDataService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -16,24 +14,20 @@ import java.util.Map;
 @Service
 public class SensitiveDataNotificationService {
 
-    private static final Logger LOG = LoggerFactory.getLogger(SensitiveDataNotificationService.class);
     private static final ZoneId LIMA_ZONE = ZoneId.of("America/Lima");
 
     private final EmailOutboxService emailOutboxService;
     private final SensitiveDataService sensitiveDataService;
     private final String brandName;
-    private final String frontendBaseUrl;
 
     public SensitiveDataNotificationService(
             EmailOutboxService emailOutboxService,
             SensitiveDataService sensitiveDataService,
-            @Value("${app.email.brand-name:InkaVoy Peru}") String brandName,
-            @Value("${app.frontend-base-url:}") String frontendBaseUrl
+            @Value("${app.email.brand-name:InkaVoy Peru}") String brandName
     ) {
         this.emailOutboxService = emailOutboxService;
         this.sensitiveDataService = sensitiveDataService;
         this.brandName = brandName != null ? brandName : "InkaVoy Peru";
-        this.frontendBaseUrl = frontendBaseUrl != null ? frontendBaseUrl : "";
     }
 
     public void sendSensitiveDataChangedNotification(User user, Map<String, String> changes) {
@@ -46,7 +40,7 @@ public class SensitiveDataNotificationService {
         templateData.put("userName", user.getFullName());
         templateData.put("changes", changes);
         templateData.put("timestamp", DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")
-                .withLocale(new Locale(locale))
+                .withLocale(Locale.of(locale))
                 .withZone(LIMA_ZONE)
                 .format(java.time.Instant.now()));
 
@@ -84,7 +78,7 @@ public class SensitiveDataNotificationService {
         templateData.put("newEmail", maskedNewEmail);
         templateData.put("oldEmail", sensitiveDataService.maskEmail(user.getEmail()));
         templateData.put("timestamp", DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")
-                .withLocale(new Locale(locale))
+                .withLocale(Locale.of(locale))
                 .withZone(LIMA_ZONE)
                 .format(java.time.Instant.now()));
 
@@ -153,7 +147,7 @@ public class SensitiveDataNotificationService {
         templateData.put("action", action);
         templateData.put("reason", reason != null ? reason : "No especificada");
         templateData.put("timestamp", DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")
-                .withLocale(new Locale(locale))
+                .withLocale(Locale.of(locale))
                 .withZone(LIMA_ZONE)
                 .format(java.time.Instant.now()));
 

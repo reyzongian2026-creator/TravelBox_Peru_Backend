@@ -1,7 +1,6 @@
 package com.tuempresa.storage.reservations.application.dto;
 
 import com.tuempresa.storage.reservations.domain.Reservation;
-import com.tuempresa.storage.reservations.domain.ReservationStatus;
 
 import java.math.BigDecimal;
 import java.time.Instant;

@@ -3,7 +3,6 @@ package com.tuempresa.storage.auth.application;
 import com.tuempresa.storage.auth.application.dto.EmailChangeRequest;
 import com.tuempresa.storage.auth.application.dto.EmailChangeResponse;
 import com.tuempresa.storage.auth.application.dto.EmailChangeVerifyRequest;
-import com.tuempresa.storage.auth.application.usecase.AuthService;
 import com.tuempresa.storage.notifications.application.email.CustomerEmailService;
 import com.tuempresa.storage.shared.domain.exception.ApiException;
 import com.tuempresa.storage.shared.infrastructure.security.AuthUserPrincipal;
@@ -27,20 +26,17 @@ public class EmailChangeService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-    private final AuthService authService;
     private final CustomerEmailService customerEmailService;
     private final SensitiveDataService sensitiveDataService;
 
     public EmailChangeService(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
-            AuthService authService,
             CustomerEmailService customerEmailService,
             SensitiveDataService sensitiveDataService
     ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
-        this.authService = authService;
         this.customerEmailService = customerEmailService;
         this.sensitiveDataService = sensitiveDataService;
     }

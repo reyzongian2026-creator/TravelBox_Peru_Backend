@@ -1,5 +1,6 @@
 package com.tuempresa.storage.shared.realtime;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tuempresa.storage.shared.infrastructure.security.JwtTokenProvider;
 import org.slf4j.Logger;
@@ -84,7 +85,7 @@ public class WebSocketBroker {
 
     private void handleMessage(WebSocketSession session, String text) {
         try {
-            Map<String, Object> json = objectMapper.readValue(text, Map.class);
+            Map<String, Object> json = objectMapper.readValue(text, new TypeReference<Map<String, Object>>() {});
             String type = json.get("type") != null ? json.get("type").toString() : "";
             
             switch (type) {

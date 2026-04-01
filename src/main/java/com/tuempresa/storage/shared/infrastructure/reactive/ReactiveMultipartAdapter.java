@@ -25,9 +25,10 @@ public class ReactiveMultipartAdapter {
                     byte[] bytes = new byte[dataBuffer.readableByteCount()];
                     dataBuffer.read(bytes);
                     DataBufferUtils.release(dataBuffer);
-                    String contentType = filePart.headers().getContentType() == null
+                    MediaType mediaType = filePart.headers().getContentType();
+                    String contentType = mediaType == null
                             ? MediaType.APPLICATION_OCTET_STREAM_VALUE
-                            : filePart.headers().getContentType().toString();
+                            : mediaType.toString();
                     return new InMemoryMultipartFile(
                             filePart.name(),
                             filePart.filename(),
@@ -46,6 +47,7 @@ public class ReactiveMultipartAdapter {
                 .collectList();
     }
 
+    @SuppressWarnings("null")
     private static final class InMemoryMultipartFile implements MultipartFile {
 
         private final String name;

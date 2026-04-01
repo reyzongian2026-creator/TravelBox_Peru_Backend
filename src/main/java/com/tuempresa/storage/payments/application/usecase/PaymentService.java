@@ -1165,13 +1165,6 @@ public class PaymentService {
         }
     }
 
-    private long toCents(BigDecimal amount) {
-        if (amount == null) {
-            return 0L;
-        }
-        return amount.multiply(BigDecimal.valueOf(100)).setScale(0, RoundingMode.HALF_UP).longValue();
-    }
-
     private BigDecimal normalizePercent(BigDecimal value) {
         if (value == null) {
             return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
@@ -1229,16 +1222,6 @@ public class PaymentService {
                 + ". Comision: S/"
                 + normalizedFee
                 + ".").trim();
-    }
-
-    private Map<String, String> metadata(PaymentAttempt attempt, PaymentMethod method, AuthUserPrincipal principal) {
-        Map<String, String> metadata = new LinkedHashMap<>();
-        metadata.put("paymentIntentId", String.valueOf(attempt.getId()));
-        metadata.put("reservationId", String.valueOf(attempt.getReservation().getId()));
-        metadata.put("userId", String.valueOf(attempt.getReservation().getUser().getId()));
-        metadata.put("paymentMethod", method.label());
-        metadata.put("requestedBy", String.valueOf(principal.getId()));
-        return metadata;
     }
 
     private String[] splitName(String fullName) {

@@ -6,7 +6,6 @@ import com.tuempresa.storage.reservations.application.dto.UpdateRatingRequest;
 import com.tuempresa.storage.reservations.application.usecase.RatingService;
 import com.tuempresa.storage.reservations.application.usecase.ReservationService;
 import com.tuempresa.storage.shared.infrastructure.reactive.ReactiveBlockingExecutor;
-import com.tuempresa.storage.shared.infrastructure.security.SecurityUtils;
 import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -32,18 +31,15 @@ public class AdminReportController {
 
     private final ReservationService reservationService;
     private final RatingService ratingService;
-    private final SecurityUtils securityUtils;
     private final ReactiveBlockingExecutor reactiveBlockingExecutor;
 
     public AdminReportController(
             ReservationService reservationService,
             RatingService ratingService,
-            SecurityUtils securityUtils,
             ReactiveBlockingExecutor reactiveBlockingExecutor
     ) {
         this.reservationService = reservationService;
         this.ratingService = ratingService;
-        this.securityUtils = securityUtils;
         this.reactiveBlockingExecutor = reactiveBlockingExecutor;
     }
 

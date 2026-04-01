@@ -1,6 +1,5 @@
 package com.tuempresa.storage.reports.application.dto;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 

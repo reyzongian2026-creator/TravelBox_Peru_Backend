@@ -735,10 +735,6 @@ public class AuthService {
         return userRepository.save(user);
     }
 
-    private User updateDirectSocialClient(User existing, SocialIdentity identity, AuthProvider provider) {
-        return updateDirectSocialClient(existing, identity, provider, false);
-    }
-
     private User updateDirectSocialClient(
             User existing,
             SocialIdentity identity,
@@ -921,22 +917,6 @@ public class AuthService {
             return Optional.empty();
         }
     }
-    private String buildFacebookFallbackEmail(String uid) {
-        return buildSocialFallbackEmail("fb", uid);
-    }
-
-    private String buildSocialFallbackEmail(String prefix, String subject) {
-        String normalizedUid = normalize(subject);
-        if (normalizedUid == null) {
-            return null;
-        }
-        String safe = normalizedUid.replaceAll("[^a-zA-Z0-9._-]", "").toLowerCase(Locale.ROOT);
-        if (safe.isEmpty()) {
-            return null;
-        }
-        return prefix + "-" + safe + "@social.local";
-    }
-
     private String normalizePreferredLanguage(String value) {
         String normalized = normalize(value);
         if (normalized == null) {

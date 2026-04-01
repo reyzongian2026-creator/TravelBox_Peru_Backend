@@ -44,6 +44,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
+@SuppressWarnings("unchecked") // CacheEntry<T> casts from Map<String, Object> are type-safe by cache key convention
 public class AdminDashboardService {
 
     private static final Logger log = LoggerFactory.getLogger(AdminDashboardService.class);

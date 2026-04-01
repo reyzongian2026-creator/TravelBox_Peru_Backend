@@ -1,12 +1,10 @@
 package com.tuempresa.storage.reports.application.usecase;
 
-import com.tuempresa.storage.delivery.domain.DeliveryStatus;
 import com.tuempresa.storage.delivery.infrastructure.out.persistence.DeliveryOrderRepository;
 import com.tuempresa.storage.incidents.domain.IncidentStatus;
 import com.tuempresa.storage.incidents.infrastructure.out.persistence.IncidentRepository;
 import com.tuempresa.storage.payments.domain.PaymentStatus;
 import com.tuempresa.storage.payments.infrastructure.out.persistence.PaymentAttemptRepository;
-import com.tuempresa.storage.reservations.domain.ReservationStatus;
 import com.tuempresa.storage.reservations.infrastructure.out.persistence.ReservationRepository;
 import com.tuempresa.storage.users.infrastructure.out.persistence.UserRepository;
 import com.tuempresa.storage.warehouses.infrastructure.out.persistence.WarehouseRepository;
@@ -19,9 +17,7 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.util.Collections;
-import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;

@@ -32,7 +32,6 @@ public class OpsMessageTranslationService {
     private final String googleApiKey;
     private final String googleModel;
     private final String azureApiKey;
-    private final String azureRegion;
     private final long cacheSeconds;
     private final ConcurrentMap<String, CacheEntry> translationCache = new ConcurrentHashMap<>();
 
@@ -52,6 +51,7 @@ public class OpsMessageTranslationService {
         this.azureTranslationClient = restClientBuilder
                 .baseUrl(azureBaseUrl)
                 .defaultHeader("Ocp-Apim-Subscription-Key", azureApiKey == null ? "" : azureApiKey.trim())
+                .defaultHeader("Ocp-Apim-Subscription-Region", azureRegion == null ? "eastus" : azureRegion.trim())
                 .defaultHeader("Content-Type", "application/json")
                 .build();
         this.provider = provider == null ? "local" : provider.trim().toLowerCase(Locale.ROOT);
@@ -59,7 +59,6 @@ public class OpsMessageTranslationService {
         this.googleApiKey = googleApiKey == null ? "" : googleApiKey.trim();
         this.googleModel = StringUtils.hasText(googleModel) ? googleModel.trim() : "nmt";
         this.azureApiKey = azureApiKey == null ? "" : azureApiKey.trim();
-        this.azureRegion = StringUtils.hasText(azureRegion) ? azureRegion.trim() : "eastus";
         this.cacheSeconds = Math.max(60L, cacheSeconds);
     }
 
@@ -108,7 +107,7 @@ public class OpsMessageTranslationService {
             }
         }
 
-        String resolved = StringUtils.hasText(translated)
+        String resolved = (translated != null && StringUtils.hasText(translated))
                 ? translated.trim()
                 : translateUsingLocalFallback(source, fromLanguage, toLanguage);
         if (StringUtils.hasText(resolved)) {

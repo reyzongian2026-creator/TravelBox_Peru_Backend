@@ -5,7 +5,6 @@ import com.tuempresa.storage.incidents.application.usecase.IncidentReportService
 import com.tuempresa.storage.incidents.application.usecase.IncidentReportService.ReportResult;
 import com.tuempresa.storage.incidents.application.usecase.IncidentService;
 import com.tuempresa.storage.incidents.domain.IncidentStatus;
-import com.tuempresa.storage.reservations.domain.ReservationStatus;
 import com.tuempresa.storage.shared.infrastructure.reactive.ReactiveBlockingExecutor;
 import com.tuempresa.storage.shared.infrastructure.security.AuthUserPrincipal;
 import com.tuempresa.storage.shared.infrastructure.security.SecurityUtils;
