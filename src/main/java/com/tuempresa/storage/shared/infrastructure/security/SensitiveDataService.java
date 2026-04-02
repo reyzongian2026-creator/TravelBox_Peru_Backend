@@ -70,7 +70,7 @@ public class SensitiveDataService {
     public void init() {
         if (encryptionKeyBase64 == null || encryptionKeyBase64.isBlank()) {
             LOG.warn("No encryption key configured. Using default key for development only!");
-            encryptionKeyBase64 = "dGhpcy1pcy1hLTMyLWJ5dGUtc2VjcmV0LWtleSE=";
+            encryptionKeyBase64 = "ZGV2LWRlZmF1bHQta2V5LWZvci10ZXN0aW5nLW9ubHk=";
         }
         
         byte[] keyBytes = Base64.getDecoder().decode(encryptionKeyBase64);
