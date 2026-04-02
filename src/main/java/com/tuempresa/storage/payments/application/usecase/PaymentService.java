@@ -928,6 +928,7 @@ public class PaymentService {
         nextAction.put("reservationId", attempt.getReservation().getId());
         nextAction.put("providerReference", transactionId);
         nextAction.put("authorization", session.token());
+        nextAction.put("publicKey", session.publicKey());
         nextAction.put("keyRSA", session.keyRsa());
         nextAction.put("scriptUrl", session.checkoutScriptUrl());
         nextAction.put("checkoutConfig", checkoutConfig);
