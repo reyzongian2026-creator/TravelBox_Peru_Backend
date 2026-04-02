@@ -42,4 +42,14 @@ deployment.err
 backend_out.log
 local_test_env.sh
 nul
-nul
+
+# Azure migration temp files
+arm-body.json
+azure-settings-backup.json
+azure-settings-linux.json
+cert-create.json
+test_api_flow.ps1
+test_results.txt
+
+# Office temp files
+~$*
