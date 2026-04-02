@@ -69,7 +69,8 @@ public class IzipayGatewayClient {
     }
 
     public boolean isConfigured() {
-        return StringUtils.hasText(apiUser) && StringUtils.hasText(apiPassword);
+        return StringUtils.hasText(apiUser) && StringUtils.hasText(apiPassword)
+                && StringUtils.hasText(merchantCode) && StringUtils.hasText(publicKey);
     }
 
     public boolean hasHashKey() {
