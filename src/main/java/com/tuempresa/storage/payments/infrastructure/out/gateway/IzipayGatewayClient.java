@@ -53,7 +53,7 @@ public class IzipayGatewayClient {
             @Value("${app.payments.izipay.key-rsa:RSA}") String keyRsa,
             @Value("${app.payments.izipay.request-source:ECOMMERCE}") String requestSource,
             @Value("${app.payments.izipay.process-type:AT}") String processType,
-            @Value("${app.payments.izipay.checkout-script-url:https://static.micuentaweb.pe/static/js/krypton-client/V4.0/stable/kr-payment-form.min.js}") String checkoutScriptUrl
+            @Value("${app.payments.izipay.checkout-script-url:https://checkout.izipay.pe/payments/v1/js/index.js}") String checkoutScriptUrl
     ) {
         this.restClient = restClientBuilder.baseUrl(safe(apiBaseUrl)).build();
         this.objectMapper = objectMapper;
