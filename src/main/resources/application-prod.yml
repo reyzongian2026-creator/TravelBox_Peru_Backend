@@ -1,3 +1,4 @@
+# Production profile (Azure App Service)
 spring:
   config:
     activate:
