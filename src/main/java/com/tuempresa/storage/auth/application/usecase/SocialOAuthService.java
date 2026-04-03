@@ -64,10 +64,10 @@ public class SocialOAuthService {
             ObjectMapper objectMapper,
             PublicUrlService publicUrlService,
             @Value("${app.security.jwt.secret}") String jwtSecret,
-            @Value("${tbx-auth-google-web-client-id:}") String googleClientId,
-            @Value("${tbx-auth-google-web-client-secret:}") String googleClientSecret,
-            @Value("${tbx-auth-facebook-app-id:}") String facebookAppId,
-            @Value("${tbx-auth-facebook-app-secret:}") String facebookAppSecret,
+            @Value("${tbx-auth-google-web-client-id:${APP_GOOGLE_CLIENT_ID:}}") String googleClientId,
+            @Value("${tbx-auth-google-web-client-secret:${APP_GOOGLE_CLIENT_SECRET:}}") String googleClientSecret,
+            @Value("${tbx-auth-facebook-app-id:${APP_FACEBOOK_APP_ID:}}") String facebookAppId,
+            @Value("${tbx-auth-facebook-app-secret:${APP_FACEBOOK_APP_SECRET:}}") String facebookAppSecret,
             @Value("${app.frontend-base-url:}") String configuredFrontendBaseUrl
     ) {
         this.authService = authService;
@@ -160,7 +160,7 @@ public class SocialOAuthService {
                 .queryParam("client_id", facebookAppId)
                 .queryParam("redirect_uri", callbackUri)
                 .queryParam("response_type", "code")
-                .queryParam("scope", "public_profile")
+                .queryParam("scope", "public_profile,email")
                 .queryParam("state", state)
                 .encode()
                 .build()

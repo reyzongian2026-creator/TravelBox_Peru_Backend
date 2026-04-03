@@ -92,7 +92,7 @@ app:
       api-user: ${tbx-back-payments-izipay-api-user:}
       api-password: ${tbx-back-payments-izipay-api-password:}
       api-base-url: ${tbx-back-payments-izipay-api-base-url:https://api.micuentaweb.pe}
-      checkout-script-url: ${tbx-back-payments-izipay-checkout-script-url:https://checkout.izipay.pe/payments/v1/js/index.js}
+      checkout-script-url: ${tbx-back-payments-izipay-checkout-script-url:https://static.micuentaweb.pe/static/js/krypton-client/V4.0/stable/kr-payment-form.min.js}
       request-source: ${APP_IZIPAY_REQUEST_SOURCE:EC}
       token-path: ${APP_IZIPAY_TOKEN_PATH:/v1/tokens/session}
   bootstrap:

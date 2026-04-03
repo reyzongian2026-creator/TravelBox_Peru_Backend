@@ -197,7 +197,7 @@ app:
       key-rsa: ${APP_IZIPAY_KEY_RSA:RSA}
       request-source: ${APP_IZIPAY_REQUEST_SOURCE:ECOMMERCE}
       process-type: ${APP_IZIPAY_PROCESS_TYPE:AT}
-      checkout-script-url: ${APP_IZIPAY_CHECKOUT_SCRIPT_URL:https://sandbox-checkout.izipay.pe/payments/v1/js/index.js}
+      checkout-script-url: ${APP_IZIPAY_CHECKOUT_SCRIPT_URL:https://static.micuentaweb.pe/static/js/krypton-client/V4.0/stable/kr-payment-form.min.js}
   reservations:
     expiration-check-ms: ${APP_RESERVATION_EXPIRATION_CHECK_MS:300000}
     duplicate-window-seconds: ${APP_RESERVATION_DUPLICATE_WINDOW_SECONDS:60}

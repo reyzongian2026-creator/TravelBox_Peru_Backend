@@ -65,6 +65,6 @@ app:
       public-key: ${APP_IZIPAY_PUBLIC_KEY:80100650} # Placeholder Sandbox
       hash-key: ${APP_IZIPAY_HASH_KEY:your_izipay_hash_key}
       api-base-url: ${APP_IZIPAY_API_BASE_URL:https://qa-api-pw.izipay.pe}
-      checkout-script-url: ${APP_IZIPAY_CHECKOUT_SCRIPT_URL:https://checkout.izipay.pe/payments/v1/js/index.js}
+      checkout-script-url: ${APP_IZIPAY_CHECKOUT_SCRIPT_URL:https://static.micuentaweb.pe/static/js/krypton-client/V4.0/stable/kr-payment-form.min.js}
       request-source: ${APP_IZIPAY_REQUEST_SOURCE:EC}
       token-path: ${APP_IZIPAY_TOKEN_PATH:/v1/tokens/session}

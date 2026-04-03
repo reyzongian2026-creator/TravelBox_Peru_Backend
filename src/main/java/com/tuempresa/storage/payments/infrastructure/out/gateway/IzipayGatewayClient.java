@@ -53,9 +53,9 @@ public class IzipayGatewayClient {
             @Value("${app.payments.izipay.key-rsa:RSA}") String keyRsa,
             @Value("${app.payments.izipay.request-source:ECOMMERCE}") String requestSource,
             @Value("${app.payments.izipay.process-type:AT}") String processType,
-            @Value("${app.payments.izipay.checkout-script-url:https://checkout.izipay.pe/payments/v1/js/index.js}") String checkoutScriptUrl
+            @Value("${app.payments.izipay.checkout-script-url:https://static.micuentaweb.pe/static/js/krypton-client/V4.0/stable/kr-payment-form.min.js}") String checkoutScriptUrl
     ) {
-        this.restClient = restClientBuilder.baseUrl(safe(apiBaseUrl)).build();
+        this.restClient = restClientBuilder.clone().baseUrl(safe(apiBaseUrl)).build();
         this.objectMapper = objectMapper;
         this.merchantCode = safe(merchantCode);
         this.publicKey = safe(publicKey);
@@ -103,8 +103,8 @@ public class IzipayGatewayClient {
 
     public IzipaySessionResult createSession(IzipaySessionRequest request) {
         requireConfigured();
-        
-        // Micuentaweb V4 requiere el monto en centavos (long)
+
+        // Lyra V4 API: amount must be in cents (integer)
         long amountInCents = new BigDecimal(request.amount())
                 .multiply(new BigDecimal("100"))
                 .setScale(0, RoundingMode.HALF_UP)
@@ -114,30 +114,26 @@ public class IzipayGatewayClient {
         payload.put("amount", amountInCents);
         payload.put("currency", "PEN");
         payload.put("orderId", request.orderNumber());
-        
-        // Datos minimos de cliente requeridos por Lyra V4
-        Map<String, Object> customer = new LinkedHashMap<>();
-        customer.put("email", "soporte@inkavoy.pe"); 
-        payload.put("customer", customer);
 
-        // El endpoint oficial de Lyra/Micuentaweb V4: /api-payment/V4/Charge/CreatePayment
-        JsonNode response = postJson("/api-payment/V4/Charge/CreatePayment", payload, request.transactionId());
-        
-        String token = firstNonBlank(
-                textAt(response, "answer.formToken"),
-                textAt(response, "formToken")
+        JsonNode response = postJson(
+                "/api-payment/V4/Charge/CreatePayment",
+                payload,
+                request.transactionId()
         );
-        
-        if (!StringUtils.hasText(token)) {
+
+        String formToken = textAt(response, "answer.formToken");
+        if (!StringUtils.hasText(formToken)) {
             throw new ApiException(
                     HttpStatus.BAD_GATEWAY,
                     "PAYMENT_PROVIDER_ERROR",
-                    "Izipay V4 no devolvio formToken de sesion. Verifique credenciales."
+                    "Izipay V4 no devolvio formToken. Response: " +
+                            firstNonBlank(textAt(response, "answer.errorMessage"),
+                                    textAt(response, "status"), "sin detalle")
             );
         }
 
         return new IzipaySessionResult(
-                token,
+                formToken,
                 request.transactionId(),
                 request.orderNumber(),
                 merchantCode,
