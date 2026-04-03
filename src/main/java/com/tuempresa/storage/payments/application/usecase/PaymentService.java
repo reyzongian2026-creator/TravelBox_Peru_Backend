@@ -913,9 +913,6 @@ public class PaymentService {
         checkoutConfig.put("appearance", izipayAppearance(method));
         checkoutConfig.put("customFields", izipayCustomFields(attempt, method, principal));
         
-        // Habilitar registro de tarjeta para pagos One-Click
-        checkoutConfig.put("tokenize", true);
-        
         // Habilitar billeteras digitales (Yape, Plin) si el método seleccionado lo permite
         if (method == PaymentMethod.YAPE || method == PaymentMethod.PLIN || method == PaymentMethod.WALLET) {
             checkoutConfig.put("showWallet", true);
