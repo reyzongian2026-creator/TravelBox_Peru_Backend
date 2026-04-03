@@ -912,11 +912,7 @@ public class PaymentService {
         checkoutConfig.put("shipping", new LinkedHashMap<>(billing));
         checkoutConfig.put("appearance", izipayAppearance(method));
         checkoutConfig.put("customFields", izipayCustomFields(attempt, method, principal));
-        
-        // Habilitar billeteras digitales (Yape, Plin) si el método seleccionado lo permite
-        if (method == PaymentMethod.YAPE || method == PaymentMethod.PLIN || method == PaymentMethod.WALLET) {
-            checkoutConfig.put("showWallet", true);
-        }
+        checkoutConfig.put("render", Map.of("typeForm", "pop-up"));
 
         Map<String, Object> nextAction = new LinkedHashMap<>();
         nextAction.put("type", "OPEN_IZIPAY_CHECKOUT");
