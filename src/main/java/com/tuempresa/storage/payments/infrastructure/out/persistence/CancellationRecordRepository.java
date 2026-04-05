@@ -3,6 +3,7 @@ package com.tuempresa.storage.payments.infrastructure.out.persistence;
 import com.tuempresa.storage.payments.domain.CancellationRecord;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -18,5 +19,11 @@ public interface CancellationRecordRepository extends JpaRepository<Cancellation
 
     boolean existsByReservationIdAndStatusIn(
             Long reservationId,
+            List<CancellationRecord.CancellationStatus> statuses);
+
+    long countByActorUserIdAndRequestedAtBetweenAndStatusIn(
+            Long actorUserId,
+            Instant from,
+            Instant to,
             List<CancellationRecord.CancellationStatus> statuses);
 }

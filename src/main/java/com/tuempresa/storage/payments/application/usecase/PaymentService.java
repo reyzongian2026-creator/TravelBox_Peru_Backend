@@ -606,6 +606,24 @@ public class PaymentService {
                     "REFUND_ALREADY_PROCESSED");
         }
 
+        // Daily refund limit preview: max 2 per user per day (UTC)
+        Instant dayStart = Instant.now().truncatedTo(java.time.temporal.ChronoUnit.DAYS);
+        Instant dayEnd = dayStart.plus(1, java.time.temporal.ChronoUnit.DAYS);
+        long todayRefunds = cancellationRecordRepository.countByActorUserIdAndRequestedAtBetweenAndStatusIn(
+                principal.getId(), dayStart, dayEnd,
+                List.of(CancellationRecord.CancellationStatus.PENDING,
+                        CancellationRecord.CancellationStatus.REFUND_EXECUTED,
+                        CancellationRecord.CancellationStatus.COMPLETED));
+        if (todayRefunds >= 2) {
+            return new CancellationPreviewResponse(
+                    reservationId, attempt.getId(),
+                    BookingType.IMMEDIATE, CancellationPolicyType.NO_REFUND,
+                    "Has alcanzado el limite de 2 reembolsos por dia. Intenta nuevamente manana.",
+                    attempt.getAmount(), BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                    BigDecimal.ZERO, false, false, false,
+                    "DAILY_REFUND_LIMIT_REACHED");
+        }
+
         Instant confirmedAt = attempt.getConfirmedAt() != null ? attempt.getConfirmedAt() : attempt.getCreatedAt();
         RefundPolicyEngine.RefundCalculation calc = refundPolicyEngine.calculate(
                 attempt.getAmount(), confirmedAt, reservation.getStartAt(), Instant.now(), BigDecimal.ZERO);
@@ -665,6 +683,19 @@ public class PaymentService {
         if (alreadyExists) {
             throw new ApiException(HttpStatus.CONFLICT, "CANCELLATION_ALREADY_IN_PROGRESS",
                     "Ya existe una cancelacion en progreso o completada para esta reserva.");
+        }
+
+        // Daily refund limit: max 2 per user per day (UTC)
+        Instant dayStart = Instant.now().truncatedTo(java.time.temporal.ChronoUnit.DAYS);
+        Instant dayEnd = dayStart.plus(1, java.time.temporal.ChronoUnit.DAYS);
+        long todayRefunds = cancellationRecordRepository.countByActorUserIdAndRequestedAtBetweenAndStatusIn(
+                principal.getId(), dayStart, dayEnd,
+                List.of(CancellationRecord.CancellationStatus.PENDING,
+                        CancellationRecord.CancellationStatus.REFUND_EXECUTED,
+                        CancellationRecord.CancellationStatus.COMPLETED));
+        if (todayRefunds >= 2) {
+            throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "DAILY_REFUND_LIMIT_REACHED",
+                    "Has alcanzado el limite de 2 reembolsos por dia. Intenta nuevamente manana.");
         }
 
         Instant confirmedAt = attempt.getConfirmedAt() != null ? attempt.getConfirmedAt() : attempt.getCreatedAt();
