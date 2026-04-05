@@ -169,7 +169,7 @@ public class ProfileService {
         user.updateProfile(
                 normalize(request.firstName()),
                 normalize(request.lastName()),
-                normalizedEmail,
+                emailChanged ? null : normalizedEmail,
                 normalizedPhone,
                 normalize(request.nationality()),
                 normalizedPreferredLanguage,
@@ -190,7 +190,7 @@ public class ProfileService {
         encryptSensitiveFields(user);
 
         if (emailChanged) {
-            user.incrementEmailChangeCount();
+            user.setPendingRealEmail(normalizedEmail);
         }
         if (phoneChanged) {
             user.incrementPhoneChangeCount();
@@ -200,7 +200,11 @@ public class ProfileService {
         }
 
         List<String> changedFields = before.changedFields(user);
-        boolean requiresEmailValidation = user.getAuthProvider() == AuthProvider.LOCAL && !changedFields.isEmpty();
+        if (emailChanged) {
+            changedFields.add("email (" + normalizedEmail + ")");
+        }
+        boolean requiresEmailValidation = user.getAuthProvider() == AuthProvider.LOCAL
+                && (emailChanged || !changedFields.isEmpty());
 
         String verificationCodePreview = null;
         if (requiresEmailValidation) {
@@ -209,16 +213,20 @@ public class ProfileService {
 
         User saved = userRepository.save(user);
 
-        if (emailChanged) {
-            notifyRemainingChanges(saved, "correo", "PROFILE_EMAIL_CHANGE_REMAINING", saved.remainingEmailChanges());
-        }
         if (phoneChanged) {
             notifyRemainingChanges(saved, "telefono", "PROFILE_PHONE_CHANGE_REMAINING", saved.remainingPhoneChanges());
         }
         if (documentChanged) {
             notifyRemainingChanges(saved, "documento", "PROFILE_DOCUMENT_CHANGE_REMAINING", saved.remainingDocumentChanges());
         }
-        if (requiresEmailValidation) {
+        if (emailChanged && requiresEmailValidation) {
+            customerEmailService.sendEmailChangeVerification(
+                    saved,
+                    normalizedEmail,
+                    verificationCodePreview,
+                    saved.getEmailVerificationExpiresAt()
+            );
+        } else if (requiresEmailValidation) {
             customerEmailService.sendProfileUpdateVerification(
                     saved,
                     changedFields,

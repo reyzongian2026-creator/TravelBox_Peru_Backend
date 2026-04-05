@@ -310,6 +310,18 @@ public class AuthService {
             user.setEmail(pendingRealEmail);
             user.clearPendingRealEmail();
             user.clearRealEmailCompletionRequirement();
+        } else if (user.getPendingRealEmail() != null) {
+            String pendingEmail = normalizeEmail(user.getPendingRealEmail());
+            if (pendingEmail != null) {
+                userRepository.findByEmailIgnoreCase(pendingEmail)
+                        .filter(existing -> !existing.getId().equals(user.getId()))
+                        .ifPresent(existing -> {
+                            throw new ApiException(HttpStatus.CONFLICT, "AUTH_EMAIL_ALREADY_EXISTS", "El email ya esta registrado.");
+                        });
+                user.setEmail(pendingEmail);
+                user.incrementEmailChangeCount();
+            }
+            user.clearPendingRealEmail();
         }
         userRepository.save(user);
         return new EmailVerificationResponse(true, "Correo verificado correctamente.", null, null);
