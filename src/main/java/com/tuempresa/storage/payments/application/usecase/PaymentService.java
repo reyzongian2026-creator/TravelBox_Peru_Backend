@@ -3,6 +3,7 @@ package com.tuempresa.storage.payments.application.usecase;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tuempresa.storage.notifications.application.usecase.NotificationService;
+import com.tuempresa.storage.payments.application.dto.CancellationPreviewResponse;
 import com.tuempresa.storage.payments.application.dto.CashPendingPaymentResponse;
 import com.tuempresa.storage.payments.application.dto.ConfirmPaymentRequest;
 import com.tuempresa.storage.payments.application.dto.CreatePaymentIntentRequest;
@@ -10,11 +11,16 @@ import com.tuempresa.storage.payments.application.dto.PaymentHistoryItemResponse
 import com.tuempresa.storage.payments.application.dto.PaymentIntentResponse;
 import com.tuempresa.storage.payments.application.dto.PaymentStatusResponse;
 import com.tuempresa.storage.payments.application.dto.PaymentWebhookResponse;
+import com.tuempresa.storage.payments.application.dto.ValidateCheckoutResultRequest;
+import com.tuempresa.storage.payments.domain.BookingType;
+import com.tuempresa.storage.payments.domain.CancellationPolicyType;
+import com.tuempresa.storage.payments.domain.CancellationRecord;
 import com.tuempresa.storage.payments.domain.PaymentAttempt;
 import com.tuempresa.storage.payments.domain.PaymentMethod;
 import com.tuempresa.storage.payments.domain.PaymentStatus;
 import com.tuempresa.storage.payments.domain.PaymentWebhookEvent;
 import com.tuempresa.storage.payments.infrastructure.out.gateway.IzipayGatewayClient;
+import com.tuempresa.storage.payments.infrastructure.out.persistence.CancellationRecordRepository;
 import com.tuempresa.storage.payments.infrastructure.out.persistence.PaymentAttemptRepository;
 import com.tuempresa.storage.payments.infrastructure.out.persistence.PaymentWebhookEventRepository;
 import com.tuempresa.storage.reservations.application.dto.CancelReservationRequest;
@@ -61,6 +67,7 @@ public class PaymentService {
     private final PaymentAttemptRepository paymentAttemptRepository;
     private final PaymentWebhookEventRepository paymentWebhookEventRepository;
     private final SavedCardRepository savedCardRepository;
+    private final CancellationRecordRepository cancellationRecordRepository;
     private final ReservationService reservationService;
     private final IzipayGatewayClient izipayGatewayClient;
     private final NotificationService notificationService;
@@ -68,6 +75,7 @@ public class PaymentService {
     private final WarehouseAccessService warehouseAccessService;
     private final UserRepository userRepository;
     private final WebhookEventInserter webhookEventInserter;
+    private final RefundPolicyEngine refundPolicyEngine;
     private final String paymentProvider;
     private final boolean forceCashOnly;
     private final boolean allowMockConfirmation;
@@ -80,6 +88,7 @@ public class PaymentService {
             PaymentAttemptRepository paymentAttemptRepository,
             PaymentWebhookEventRepository paymentWebhookEventRepository,
             SavedCardRepository savedCardRepository,
+            CancellationRecordRepository cancellationRecordRepository,
             ReservationService reservationService,
             IzipayGatewayClient izipayGatewayClient,
             NotificationService notificationService,
@@ -87,17 +96,18 @@ public class PaymentService {
             WarehouseAccessService warehouseAccessService,
             UserRepository userRepository,
             WebhookEventInserter webhookEventInserter,
+            RefundPolicyEngine refundPolicyEngine,
             @Value("${app.payments.provider:izipay}") String paymentProvider,
             @Value("${app.payments.force-cash-only:false}") boolean forceCashOnly,
             @Value("${app.payments.allow-mock-confirmation:true}") boolean allowMockConfirmation,
             @Value("${app.payments.currency:PEN}") String currencyCode,
             @Value("${app.payments.refunds.commission-grace-minutes:60}") int refundCommissionGraceMinutes,
             @Value("${app.payments.refunds.commission-percent-after-grace:4.50}") BigDecimal refundCommissionPercentAfterGrace,
-            @Value("${app.payments.refunds.minimum-fee:0.00}") BigDecimal refundMinimumFee
-    ) {
+            @Value("${app.payments.refunds.minimum-fee:0.00}") BigDecimal refundMinimumFee) {
         this.paymentAttemptRepository = paymentAttemptRepository;
         this.paymentWebhookEventRepository = paymentWebhookEventRepository;
         this.savedCardRepository = savedCardRepository;
+        this.cancellationRecordRepository = cancellationRecordRepository;
         this.reservationService = reservationService;
         this.izipayGatewayClient = izipayGatewayClient;
         this.notificationService = notificationService;
@@ -105,6 +115,7 @@ public class PaymentService {
         this.warehouseAccessService = warehouseAccessService;
         this.userRepository = userRepository;
         this.webhookEventInserter = webhookEventInserter;
+        this.refundPolicyEngine = refundPolicyEngine;
         this.paymentProvider = paymentProvider == null ? "izipay" : paymentProvider.trim().toLowerCase(Locale.ROOT);
         this.forceCashOnly = forceCashOnly;
         this.allowMockConfirmation = allowMockConfirmation;
@@ -118,14 +129,26 @@ public class PaymentService {
     public PaymentIntentResponse createIntent(CreatePaymentIntentRequest request, AuthUserPrincipal principal) {
         Reservation reservation = reservationService.requireReservation(request.reservationId());
         assertPaymentPermission(reservation, principal);
-        if (reservation.getStatus() != ReservationStatus.PENDING_PAYMENT) {
-            throw new ApiException(HttpStatus.CONFLICT, "INVALID_PAYMENT_STATE", "La reserva no esta pendiente de pago.");
+        if (reservation.getStatus() != ReservationStatus.PENDING_PAYMENT
+                && reservation.getStatus() != ReservationStatus.EXPIRED) {
+            throw new ApiException(HttpStatus.CONFLICT, "INVALID_PAYMENT_STATE",
+                    "La reserva no esta pendiente de pago.");
         }
+        // Verificar si ya existe un pago confirmado para esta reserva (evita doble
+        // cobro)
+        paymentAttemptRepository
+                .findFirstByReservationIdAndStatusOrderByCreatedAtDesc(reservation.getId(), PaymentStatus.CONFIRMED)
+                .ifPresent(confirmed -> {
+                    throw new ApiException(HttpStatus.CONFLICT, "PAYMENT_ALREADY_CONFIRMED",
+                            "Esta reserva ya tiene un pago confirmado.");
+                });
         PaymentAttempt attempt = paymentAttemptRepository
                 .findFirstByReservationIdAndStatusOrderByCreatedAtDesc(reservation.getId(), PaymentStatus.PENDING)
-                .orElseGet(() -> paymentAttemptRepository.save(PaymentAttempt.pending(reservation, reservation.getTotalPrice())));
+                .orElseGet(() -> paymentAttemptRepository
+                        .save(PaymentAttempt.pending(reservation, reservation.getTotalPrice())));
         attempt.registerGatewayOutcome("INTENT_CREATED", "Intento de pago creado.");
-        return toIntentResponse(attempt, providerLabel(attempt), "unknown", "INTENT_CREATED", "Intento de pago creado.", null);
+        return toIntentResponse(attempt, providerLabel(attempt), "unknown", "INTENT_CREATED", "Intento de pago creado.",
+                null);
     }
 
     @Transactional
@@ -147,14 +170,18 @@ public class PaymentService {
             String ref = normalizeRef(attempt, request.providerReference(), method.label());
             attempt.fail(ref);
             attempt.registerGatewayOutcome("DECLINED", "Pago rechazado por solicitud del cliente.");
-            List<User> operators = userRepository.findActiveByAnyRoleAndWarehouseId(Set.of(Role.OPERATOR, Role.CITY_SUPERVISOR), attempt.getReservation().getWarehouse().getId());
+            List<User> operators = userRepository.findActiveByAnyRoleAndWarehouseId(
+                    Set.of(Role.OPERATOR, Role.CITY_SUPERVISOR), attempt.getReservation().getWarehouse().getId());
             if (operators != null) {
                 for (User user : operators) {
-                    notificationService.emitSilentRealtimeEvent(user.getId(), "PAYMENT_SYNC", java.util.Map.of("reservationId", attempt.getReservation().getId()));
+                    notificationService.emitSilentRealtimeEvent(user.getId(), "PAYMENT_SYNC",
+                            java.util.Map.of("reservationId", attempt.getReservation().getId()));
                 }
             }
-            notificationService.notifyPaymentRejected(attempt.getReservation().getUser().getId(), attempt.getReservation().getId(), attempt.getReservation().getQrCode(), "Rechazado por cliente");
-            return toIntentResponse(attempt, providerLabel(attempt), method.label(), "DECLINED", "Pago rechazado.", null);
+            notificationService.notifyPaymentRejected(attempt.getReservation().getUser().getId(),
+                    attempt.getReservation().getId(), attempt.getReservation().getQrCode(), "Rechazado por cliente");
+            return toIntentResponse(attempt, providerLabel(attempt), method.label(), "DECLINED", "Pago rechazado.",
+                    null);
         }
 
         if (!"izipay".equals(paymentProvider)) {
@@ -162,14 +189,14 @@ public class PaymentService {
                 throw new ApiException(
                         HttpStatus.SERVICE_UNAVAILABLE,
                         "PAYMENT_PROVIDER_UNAVAILABLE",
-                        "Proveedor de pagos no habilitado para confirmacion mock en este entorno."
-                );
+                        "Proveedor de pagos no habilitado para confirmacion mock en este entorno.");
             }
             String ref = normalizeRef(attempt, request.providerReference(), method.label());
             attempt.confirm(ref);
             attempt.registerGatewayOutcome("MOCK_CONFIRMED", "Pago confirmado en modo mock.");
             reservationService.markPaymentConfirmed(attempt.getReservation().getId(), method.label());
-            return toIntentResponse(attempt, "MOCK", method.label(), "DIRECT_CONFIRMATION", "Pago confirmado en modo mock.", null);
+            return toIntentResponse(attempt, "MOCK", method.label(), "DIRECT_CONFIRMATION",
+                    "Pago confirmado en modo mock.", null);
         }
 
         if (method.isDigitalOnline()) {
@@ -190,8 +217,7 @@ public class PaymentService {
                         card.getExpirationMonth(),
                         card.getExpirationYear(),
                         card.getCreatedAt(),
-                        card.getLastUsedAt()
-                ))
+                        card.getLastUsedAt()))
                 .toList();
     }
 
@@ -199,14 +225,28 @@ public class PaymentService {
     public PaymentIntentResponse payWithSavedCard(Long reservationId, Long savedCardId, AuthUserPrincipal principal) {
         Reservation reservation = reservationService.requireReservation(reservationId);
         assertPaymentPermission(reservation, principal);
-        
+
+        if (reservation.getStatus() != ReservationStatus.PENDING_PAYMENT
+                && reservation.getStatus() != ReservationStatus.EXPIRED) {
+            throw new ApiException(HttpStatus.CONFLICT, "INVALID_PAYMENT_STATE",
+                    "La reserva no esta pendiente de pago.");
+        }
+        paymentAttemptRepository
+                .findFirstByReservationIdAndStatusOrderByCreatedAtDesc(reservation.getId(), PaymentStatus.CONFIRMED)
+                .ifPresent(confirmed -> {
+                    throw new ApiException(HttpStatus.CONFLICT, "PAYMENT_ALREADY_CONFIRMED",
+                            "Esta reserva ya tiene un pago confirmado.");
+                });
+
         SavedCard card = savedCardRepository.findById(savedCardId)
                 .filter(c -> c.getUser().getId().equals(principal.getId()) && c.isActive())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "CARD_NOT_FOUND", "Tarjeta no encontrada."));
 
-        PaymentAttempt attempt = paymentAttemptRepository.save(PaymentAttempt.pending(reservation, reservation.getTotalPrice()));
+        PaymentAttempt attempt = paymentAttemptRepository
+                .save(PaymentAttempt.pending(reservation, reservation.getTotalPrice()));
 
-        // Combine epoch-seconds (10 digits) + last 4 digits of attemptId to guarantee uniqueness per Izipay
+        // Combine epoch-seconds (10 digits) + last 4 digits of attemptId to guarantee
+        // uniqueness per Izipay
         String transactionId = String.format("%010d%04d", Instant.now().getEpochSecond(), attempt.getId() % 10000);
         String orderNumber = transactionId.substring(0, 10);
 
@@ -228,16 +268,20 @@ public class PaymentService {
                 reservationService.markPaymentConfirmed(reservation.getId(), PaymentMethod.SAVED_CARD.label());
                 card.setLastUsedAt(Instant.now());
                 savedCardRepository.save(card);
-                return toIntentResponse(attempt, "IZIPAY", PaymentMethod.SAVED_CARD.label(), "ONE_CLICK", "Pago exitoso.", null);
+                return toIntentResponse(attempt, "IZIPAY", PaymentMethod.SAVED_CARD.label(), "ONE_CLICK",
+                        "Pago exitoso.", null);
             } else {
                 attempt.fail(transactionId);
-                attempt.registerGatewayOutcome("REJECTED_ONE_CLICK", firstNonBlank(message, "Pago One-Click rechazado."));
-                return toIntentResponse(attempt, "IZIPAY", PaymentMethod.SAVED_CARD.label(), "ONE_CLICK_REJECTED", message, null);
+                attempt.registerGatewayOutcome("REJECTED_ONE_CLICK",
+                        firstNonBlank(message, "Pago One-Click rechazado."));
+                return toIntentResponse(attempt, "IZIPAY", PaymentMethod.SAVED_CARD.label(), "ONE_CLICK_REJECTED",
+                        message, null);
             }
         } catch (Exception ex) {
             attempt.fail(transactionId);
             attempt.registerGatewayOutcome("ERROR_ONE_CLICK", ex.getMessage());
-            throw new ApiException(HttpStatus.BAD_GATEWAY, "PAYMENT_ONE_CLICK_FAILED", "Error en pago One-Click: " + ex.getMessage());
+            throw new ApiException(HttpStatus.BAD_GATEWAY, "PAYMENT_ONE_CLICK_FAILED",
+                    "Error en pago One-Click: " + ex.getMessage());
         }
     }
 
@@ -246,12 +290,15 @@ public class PaymentService {
         PaymentAttempt attempt;
         if (paymentIntentId != null) {
             attempt = paymentAttemptRepository.findById(paymentIntentId)
-                    .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "PAYMENT_NOT_FOUND", "Pago no encontrado."));
+                    .orElseThrow(
+                            () -> new ApiException(HttpStatus.NOT_FOUND, "PAYMENT_NOT_FOUND", "Pago no encontrado."));
         } else if (reservationId != null) {
             attempt = paymentAttemptRepository.findFirstByReservationIdOrderByCreatedAtDesc(reservationId)
-                    .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "PAYMENT_NOT_FOUND", "Pago no encontrado."));
+                    .orElseThrow(
+                            () -> new ApiException(HttpStatus.NOT_FOUND, "PAYMENT_NOT_FOUND", "Pago no encontrado."));
         } else {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "PAYMENT_IDENTIFIER_REQUIRED", "Debes enviar paymentIntentId o reservationId.");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "PAYMENT_IDENTIFIER_REQUIRED",
+                    "Debes enviar paymentIntentId o reservationId.");
         }
         assertPaymentPermission(attempt.getReservation(), principal);
         PaymentMethod method = resolveMethod(attempt, null);
@@ -268,39 +315,45 @@ public class PaymentService {
                 attempt.getGatewayStatus(),
                 attempt.getGatewayMessage(),
                 attempt.getCreatedAt(),
-                attempt.getReservation().getExpiresAt()
-        );
+                attempt.getReservation().getExpiresAt());
     }
 
     @Transactional
     public PaymentIntentResponse syncStatus(Long paymentIntentId, AuthUserPrincipal principal) {
         PaymentAttempt attempt = paymentAttemptRepository.findById(paymentIntentId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "PAYMENT_NOT_FOUND", "Pago no encontrado."));
-        
+
         requirePrivileged(principal);
 
         if (!attempt.isPending()) {
-            throw new ApiException(HttpStatus.CONFLICT, "PAYMENT_NOT_PENDING", "Solo se pueden sincronizar pagos pendientes.");
+            throw new ApiException(HttpStatus.CONFLICT, "PAYMENT_NOT_PENDING",
+                    "Solo se pueden sincronizar pagos pendientes.");
         }
 
         String providerRef = attempt.getProviderReference();
-        if ("izipay".equals(paymentProvider) && StringUtils.hasText(providerRef) && !providerRef.startsWith("OFFLINE")) {
+        if ("izipay".equals(paymentProvider) && StringUtils.hasText(providerRef)
+                && !providerRef.startsWith("OFFLINE")) {
             try {
-                // Asumimos que la referencia guardada (transactionId) sirve como orderNumber o se puede consultar
+                // Asumimos que la referencia guardada (transactionId) sirve como orderNumber o
+                // se puede consultar
                 JsonNode statusResponse = izipayGatewayClient.checkOrderStatus(providerRef);
                 String code = textAt(statusResponse, "code");
                 String stateMessage = textAt(statusResponse, "message");
-                
+
                 if ("00".equals(code) || "0".equals(code)) {
                     attempt.confirm(providerRef);
-                    attempt.registerGatewayOutcome("APPROVED_BY_SYNC", "Pago confirmado mediante sincronizacion manual.");
-                    reservationService.markPaymentConfirmed(attempt.getReservation().getId(), resolveMethod(attempt, null).label());
+                    attempt.registerGatewayOutcome("APPROVED_BY_SYNC",
+                            "Pago confirmado mediante sincronizacion manual.");
+                    reservationService.markPaymentConfirmed(attempt.getReservation().getId(),
+                            resolveMethod(attempt, null).label());
                 } else if (StringUtils.hasText(code) && code.startsWith("REJECT")) {
                     attempt.fail(providerRef);
-                    attempt.registerGatewayOutcome("REJECTED_BY_SYNC", firstNonBlank(stateMessage, "Pago rechazado verificado manualmente."));
+                    attempt.registerGatewayOutcome("REJECTED_BY_SYNC",
+                            firstNonBlank(stateMessage, "Pago rechazado verificado manualmente."));
                 }
             } catch (Exception ex) {
-                throw new ApiException(HttpStatus.BAD_GATEWAY, "SYNC_FAILED", "No se pudo sincronizar con Izipay: " + ex.getMessage());
+                throw new ApiException(HttpStatus.BAD_GATEWAY, "SYNC_FAILED",
+                        "No se pudo sincronizar con Izipay: " + ex.getMessage());
             }
         }
 
@@ -310,8 +363,7 @@ public class PaymentService {
                 resolveMethod(attempt, null).label(),
                 flowLabel(attempt, resolveMethod(attempt, null)),
                 attempt.getGatewayMessage(),
-                null
-        );
+                null);
     }
 
     @Transactional(readOnly = true)
@@ -324,9 +376,9 @@ public class PaymentService {
             AuthUserPrincipal principal,
             int page,
             int size,
-            PaymentStatus status
-    ) {
-        PageRequest pageable = PageRequest.of(Math.max(page, 0), clampSize(size), Sort.by(Sort.Direction.DESC, "createdAt"));
+            PaymentStatus status) {
+        PageRequest pageable = PageRequest.of(Math.max(page, 0), clampSize(size),
+                Sort.by(Sort.Direction.DESC, "createdAt"));
         Page<PaymentHistoryItemResponse> mapped;
         if (hasPrivilegedRole(principal)) {
             mapped = (status == null
@@ -337,10 +389,10 @@ public class PaymentService {
             mapped = (status == null
                     ? paymentAttemptRepository.findByReservationUserIdOrderByCreatedAtDesc(principal.getId(), pageable)
                     : paymentAttemptRepository.findByReservationUserIdAndStatusOrderByCreatedAtDesc(
-                    principal.getId(),
-                    status,
-                    pageable
-            )).map(this::toHistory);
+                            principal.getId(),
+                            status,
+                            pageable))
+                    .map(this::toHistory);
         }
         return PagedResponse.from(mapped);
     }
@@ -348,14 +400,17 @@ public class PaymentService {
     @Transactional(readOnly = true)
     public PagedResponse<CashPendingPaymentResponse> listCashPending(AuthUserPrincipal principal, int page, int size) {
         requirePrivileged(principal);
-        PageRequest pageable = PageRequest.of(Math.max(page, 0), clampSize(size), Sort.by(Sort.Direction.DESC, "createdAt"));
+        PageRequest pageable = PageRequest.of(Math.max(page, 0), clampSize(size),
+                Sort.by(Sort.Direction.DESC, "createdAt"));
         Page<CashPendingPaymentResponse> mapped;
         if (warehouseAccessService.isAdmin(principal)) {
-            mapped = paymentAttemptRepository.findOfflineCashPending(PaymentStatus.PENDING, pageable).map(this::toCashPending);
+            mapped = paymentAttemptRepository.findOfflineCashPending(PaymentStatus.PENDING, pageable)
+                    .map(this::toCashPending);
         } else {
             java.util.Set<Long> warehouseIds = warehouseAccessService.assignedWarehouseIds(principal);
             if (warehouseIds.isEmpty()) {
-                return new PagedResponse<>(List.of(), pageable.getPageNumber(), pageable.getPageSize(), 0, 0, false, false);
+                return new PagedResponse<>(List.of(), pageable.getPageNumber(), pageable.getPageSize(), 0, 0, false,
+                        false);
             }
             mapped = paymentAttemptRepository
                     .findOfflineCashPendingByWarehouses(PaymentStatus.PENDING, warehouseIds, pageable)
@@ -365,7 +420,8 @@ public class PaymentService {
     }
 
     @Transactional
-    public PaymentIntentResponse approveCashPayment(Long paymentIntentId, String providerReference, String reason, AuthUserPrincipal principal) {
+    public PaymentIntentResponse approveCashPayment(Long paymentIntentId, String providerReference, String reason,
+            AuthUserPrincipal principal) {
         requirePrivileged(principal);
         PaymentAttempt attempt = requirePending(paymentIntentId);
         assertPaymentPermission(attempt.getReservation(), principal);
@@ -375,13 +431,16 @@ public class PaymentService {
         }
         String ref = normalizeRef(attempt, providerReference, method.label());
         attempt.confirm(ref);
-        attempt.registerGatewayOutcome("OFFLINE_CONFIRMED_BY_OPERATOR", defaultReason(reason, "Pago en caja confirmado por operador."));
+        attempt.registerGatewayOutcome("OFFLINE_CONFIRMED_BY_OPERATOR",
+                defaultReason(reason, "Pago en caja confirmado por operador."));
         reservationService.markPaymentConfirmed(attempt.getReservation().getId(), method.label());
-        return toIntentResponse(attempt, "OFFLINE", method.label(), "OFFLINE_CONFIRMED_BY_OPERATOR", defaultReason(reason, "Pago confirmado."), null);
+        return toIntentResponse(attempt, "OFFLINE", method.label(), "OFFLINE_CONFIRMED_BY_OPERATOR",
+                defaultReason(reason, "Pago confirmado."), null);
     }
 
     @Transactional
-    public PaymentIntentResponse rejectCashPayment(Long paymentIntentId, String providerReference, String reason, AuthUserPrincipal principal) {
+    public PaymentIntentResponse rejectCashPayment(Long paymentIntentId, String providerReference, String reason,
+            AuthUserPrincipal principal) {
         requirePrivileged(principal);
         PaymentAttempt attempt = requirePending(paymentIntentId);
         assertPaymentPermission(attempt.getReservation(), principal);
@@ -393,13 +452,16 @@ public class PaymentService {
         String message = defaultReason(reason, "Pago en caja rechazado por operador.");
         attempt.fail(ref);
         attempt.registerGatewayOutcome("OFFLINE_REJECTED_BY_OPERATOR", message);
-        List<User> rejectOperators = userRepository.findActiveByAnyRoleAndWarehouseId(Set.of(Role.OPERATOR, Role.CITY_SUPERVISOR), attempt.getReservation().getWarehouse().getId());
+        List<User> rejectOperators = userRepository.findActiveByAnyRoleAndWarehouseId(
+                Set.of(Role.OPERATOR, Role.CITY_SUPERVISOR), attempt.getReservation().getWarehouse().getId());
         if (rejectOperators != null) {
             for (User user : rejectOperators) {
-                notificationService.emitSilentRealtimeEvent(user.getId(), "PAYMENT_SYNC", java.util.Map.of("reservationId", attempt.getReservation().getId()));
+                notificationService.emitSilentRealtimeEvent(user.getId(), "PAYMENT_SYNC",
+                        java.util.Map.of("reservationId", attempt.getReservation().getId()));
             }
         }
-        notificationService.notifyPaymentRejected(attempt.getReservation().getUser().getId(), attempt.getReservation().getId(), attempt.getReservation().getQrCode(), message);
+        notificationService.notifyPaymentRejected(attempt.getReservation().getUser().getId(),
+                attempt.getReservation().getId(), attempt.getReservation().getQrCode(), message);
         return toIntentResponse(attempt, "OFFLINE", method.label(), "OFFLINE_REJECTED_BY_OPERATOR", message, null);
     }
 
@@ -413,8 +475,7 @@ public class PaymentService {
             throw new ApiException(
                     HttpStatus.CONFLICT,
                     "PAYMENT_REFUND_NOT_ALLOWED",
-                    "Solo se pueden reembolsar pagos confirmados."
-            );
+                    "Solo se pueden reembolsar pagos confirmados.");
         }
 
         PaymentMethod method = resolveMethod(attempt, null);
@@ -422,8 +483,7 @@ public class PaymentService {
             throw new ApiException(
                     HttpStatus.CONFLICT,
                     "PAYMENT_REFUND_NOT_REQUIRED",
-                    "Este pago no requiere reembolso digital. Puedes cancelarlo por flujo operativo."
-            );
+                    "Este pago no requiere reembolso digital. Puedes cancelarlo por flujo operativo.");
         }
 
         BigDecimal amount = normalizeMoney(attempt.getAmount());
@@ -444,33 +504,30 @@ public class PaymentService {
                 JsonNode refundResponse = izipayGatewayClient.refund(
                         providerReference,
                         formatIzipayAmount(refundAmount),
-                        normalizedReason
-                );
+                        normalizedReason);
                 // Verificar que Izipay confirmo el reembolso (code "00" o "0")
                 String refundCode = textAt(refundResponse, "code");
                 if (refundCode != null && !"00".equals(refundCode) && !"0".equals(refundCode)) {
                     String errorMsg = firstNonBlank(
                             textAt(refundResponse, "message"),
                             textAt(refundResponse, "answer.errorMessage"),
-                            "Reembolso rechazado por Izipay (codigo: " + refundCode + ")."
-                    );
+                            "Reembolso rechazado por Izipay (codigo: " + refundCode + ").");
                     throw new ApiException(HttpStatus.BAD_GATEWAY, "PAYMENT_REFUND_PROVIDER_FAILED", errorMsg);
                 }
                 providerMessage = firstNonBlank(
                         textAt(refundResponse, "message"),
                         textAt(refundResponse, "response.message"),
-                        "Reembolso procesado exitosamente por Izipay."
-                );
+                        "Reembolso procesado exitosamente por Izipay.");
                 flow = "REFUND_EXECUTED_IZIPAY";
             } catch (ApiException ex) {
                 throw ex;
             } catch (Exception ex) {
-                // Si falla el reembolso real, lanzamos error para no marcarlo como reembolsado en BD
+                // Si falla el reembolso real, lanzamos error para no marcarlo como reembolsado
+                // en BD
                 throw new ApiException(
                         HttpStatus.BAD_GATEWAY,
                         "PAYMENT_REFUND_PROVIDER_FAILED",
-                        "No se pudo procesar el reembolso en Izipay: " + ex.getMessage()
-                );
+                        "No se pudo procesar el reembolso en Izipay: " + ex.getMessage());
             }
         }
 
@@ -482,8 +539,7 @@ public class PaymentService {
         reservationService.cancel(
                 attempt.getReservation().getId(),
                 new CancelReservationRequest(cancelReason),
-                principal
-        );
+                principal);
 
         notificationService.notifyUser(
                 attempt.getReservation().getUser().getId(),
@@ -494,9 +550,7 @@ public class PaymentService {
                         "reservationId", attempt.getReservation().getId(),
                         "paymentIntentId", attempt.getId(),
                         "refundAmount", refundAmount,
-                        "refundFee", fee
-                )
-        );
+                        "refundFee", fee));
 
         return toIntentResponse(
                 attempt,
@@ -504,8 +558,244 @@ public class PaymentService {
                 method.label(),
                 flow,
                 summaryMessage,
-                null
-        );
+                null);
+    }
+
+    // â”€â”€ Cancellation Preview & Confirm
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+    @Transactional(readOnly = true)
+    public CancellationPreviewResponse cancellationPreview(Long reservationId, AuthUserPrincipal principal) {
+        Reservation reservation = reservationService.requireReservation(reservationId);
+        assertPaymentPermission(reservation, principal);
+
+        PaymentAttempt attempt = paymentAttemptRepository
+                .findFirstByReservationIdAndStatusOrderByCreatedAtDesc(reservationId, PaymentStatus.CONFIRMED)
+                .orElse(null);
+
+        // Si no hay pago confirmado, se puede cancelar sin reembolso
+        if (attempt == null) {
+            return new CancellationPreviewResponse(
+                    reservationId, null,
+                    BookingType.IMMEDIATE, CancellationPolicyType.FULL_REFUND,
+                    "Sin pago digital registrado. Cancelacion directa sin reembolso.",
+                    BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                    BigDecimal.ZERO, false, false, true, null);
+        }
+
+        PaymentMethod method = resolveMethod(attempt, null);
+        boolean requiresRefund = method.isDigitalOnline();
+
+        if (!requiresRefund) {
+            return new CancellationPreviewResponse(
+                    reservationId, attempt.getId(),
+                    BookingType.IMMEDIATE, CancellationPolicyType.FULL_REFUND,
+                    "Pago en efectivo/mostrador. Cancelacion sin reembolso digital.",
+                    attempt.getAmount(), BigDecimal.ZERO, BigDecimal.ZERO, attempt.getAmount(),
+                    BigDecimal.ZERO, false, false, true, null);
+        }
+
+        // Verificar si ya tiene un reembolso pendiente o exitoso
+        if (attempt.isRefunded() || attempt.isRefundPending()) {
+            return new CancellationPreviewResponse(
+                    reservationId, attempt.getId(),
+                    BookingType.IMMEDIATE, CancellationPolicyType.NO_REFUND,
+                    "Este pago ya fue reembolsado o tiene un reembolso en proceso.",
+                    attempt.getAmount(), BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                    BigDecimal.ZERO, false, false, false,
+                    "REFUND_ALREADY_PROCESSED");
+        }
+
+        Instant confirmedAt = attempt.getConfirmedAt() != null ? attempt.getConfirmedAt() : attempt.getCreatedAt();
+        RefundPolicyEngine.RefundCalculation calc = refundPolicyEngine.calculate(
+                attempt.getAmount(), confirmedAt, reservation.getStartAt(), Instant.now(), BigDecimal.ZERO);
+
+        return new CancellationPreviewResponse(
+                reservationId, attempt.getId(),
+                calc.bookingType(), calc.policyType(),
+                buildPolicyDescription(calc),
+                calc.grossPaidAmount(), calc.cancellationPenaltyAmount(), calc.refundAmountToCustomer(),
+                calc.retainedAmountByBusiness(),
+                calc.providerFeeAmount(), calc.providerFeeAmount().signum() > 0,
+                true, calc.policyType() != CancellationPolicyType.NO_REFUND, null);
+    }
+
+    @Transactional
+    public PaymentIntentResponse cancellationConfirm(Long reservationId, String reason, AuthUserPrincipal principal) {
+        Reservation reservation = reservationService.requireReservation(reservationId);
+        assertPaymentPermission(reservation, principal);
+
+        // Verificar que la reserva esta en un estado cancelable
+        if (reservation.getStatus() == ReservationStatus.CANCELLED
+                || reservation.getStatus() == ReservationStatus.COMPLETED) {
+            throw new ApiException(HttpStatus.CONFLICT, "RESERVATION_NOT_CANCELLABLE",
+                    "La reserva ya esta en estado terminal: " + reservation.getStatus());
+        }
+
+        PaymentAttempt attempt = paymentAttemptRepository
+                .findFirstByReservationIdAndStatusOrderByCreatedAtDesc(reservationId, PaymentStatus.CONFIRMED)
+                .orElse(null);
+
+        // Si no hay pago digital confirmado, cancelar directamente
+        if (attempt == null) {
+            String cancelReason = defaultReason(reason, "Cancelacion sin pago digital.");
+            reservationService.cancel(reservationId, new CancelReservationRequest(cancelReason), principal);
+            return null; // caller debe re-fetch status
+        }
+
+        PaymentMethod method = resolveMethod(attempt, null);
+        if (!method.isDigitalOnline()) {
+            String cancelReason = defaultReason(reason, "Cancelacion de pago no-digital.");
+            reservationService.cancel(reservationId, new CancelReservationRequest(cancelReason), principal);
+            return toIntentResponse(attempt, providerLabel(attempt), method.label(),
+                    "CANCELLED_NO_REFUND_REQUIRED", cancelReason, null);
+        }
+
+        if (attempt.isRefunded() || attempt.isRefundPending()) {
+            throw new ApiException(HttpStatus.CONFLICT, "REFUND_ALREADY_PROCESSED",
+                    "Ya existe un reembolso procesado o en progreso para este pago.");
+        }
+
+        // Idempotency: check for existing cancellation record
+        boolean alreadyExists = cancellationRecordRepository.existsByReservationIdAndStatusIn(
+                reservationId,
+                List.of(CancellationRecord.CancellationStatus.PENDING,
+                        CancellationRecord.CancellationStatus.REFUND_EXECUTED,
+                        CancellationRecord.CancellationStatus.COMPLETED));
+        if (alreadyExists) {
+            throw new ApiException(HttpStatus.CONFLICT, "CANCELLATION_ALREADY_IN_PROGRESS",
+                    "Ya existe una cancelacion en progreso o completada para esta reserva.");
+        }
+
+        Instant confirmedAt = attempt.getConfirmedAt() != null ? attempt.getConfirmedAt() : attempt.getCreatedAt();
+        RefundPolicyEngine.RefundCalculation calc = refundPolicyEngine.calculate(
+                attempt.getAmount(), confirmedAt, reservation.getStartAt(), Instant.now(), BigDecimal.ZERO);
+
+        String normalizedReason = defaultReason(reason, "Cancelacion con reembolso segun politica.");
+        String previousReservationStatus = reservation.getStatus().name();
+        String previousPaymentStatus = attempt.getStatus().name();
+
+        // Create audit record
+        CancellationRecord record = CancellationRecord.create(
+                reservationId, attempt.getId(),
+                calc.bookingType(), calc.policyType(), calc.policyWindow(),
+                calc.grossPaidAmount(), calc.cancellationPenaltyAmount(), calc.refundAmountToCustomer(),
+                calc.retainedAmountByBusiness(),
+                calc.providerFeeAmount(), calc.providerFeeRefundable(),
+                BigDecimal.ZERO, calc.netBusinessLoss(),
+                normalizedReason, principal.getId(), String.join(",", principal.roleNames()),
+                reservation.getStartAt(), confirmedAt,
+                previousReservationStatus, previousPaymentStatus);
+
+        // Mark payment as refund pending
+        attempt.markRefundPending();
+        paymentAttemptRepository.save(attempt);
+
+        // Execute refund
+        String providerReference = attempt.getProviderReference();
+        String providerMessage;
+        String flow;
+
+        if (calc.policyType() == CancellationPolicyType.NO_REFUND) {
+            // No refund, just cancel
+            record.markNoRefund();
+            cancellationRecordRepository.save(record);
+
+            attempt.refundWithPolicy(providerReference,
+                    BigDecimal.ZERO, calc.cancellationPenaltyAmount(), calc.providerFeeAmount(),
+                    normalizedReason, calc.bookingType(), calc.policyType());
+            paymentAttemptRepository.save(attempt);
+
+            reservationService.cancel(reservationId, new CancelReservationRequest(
+                    "Cancelacion sin reembolso. Politica: " + calc.policyType()), principal);
+
+            notificationService.notifyUser(
+                    reservation.getUser().getId(), "RESERVATION_CANCELLED",
+                    "Reserva cancelada",
+                    "Tu reserva fue cancelada. Politica aplicada: sin reembolso.",
+                    Map.of("reservationId", reservationId));
+
+            return toIntentResponse(attempt, providerLabel(attempt), method.label(),
+                    "CANCELLED_NO_REFUND", "Cancelado sin reembolso.", null);
+        }
+
+        BigDecimal refundAmount = calc.refundAmountToCustomer();
+        if (refundAmount.signum() <= 0) {
+            refundAmount = BigDecimal.ZERO;
+        }
+
+        try {
+            if ("izipay".equals(paymentProvider) && StringUtils.hasText(providerReference)) {
+                JsonNode refundResponse = izipayGatewayClient.refund(
+                        providerReference, formatIzipayAmount(refundAmount), normalizedReason);
+                String refundCode = textAt(refundResponse, "code");
+                if (refundCode != null && !"00".equals(refundCode) && !"0".equals(refundCode)) {
+                    String errorMsg = firstNonBlank(
+                            textAt(refundResponse, "message"),
+                            textAt(refundResponse, "answer.errorMessage"),
+                            "Reembolso rechazado por Izipay (codigo: " + refundCode + ").");
+                    throw new ApiException(HttpStatus.BAD_GATEWAY, "PAYMENT_REFUND_PROVIDER_FAILED", errorMsg);
+                }
+                providerMessage = firstNonBlank(
+                        textAt(refundResponse, "message"),
+                        textAt(refundResponse, "response.message"),
+                        "Reembolso procesado exitosamente por Izipay.");
+                flow = "CANCELLATION_REFUND_IZIPAY";
+                record.markRefundExecuted(providerReference, providerMessage);
+            } else {
+                providerMessage = "Reembolso aplicado internamente.";
+                flow = "CANCELLATION_REFUND_INTERNAL";
+                record.markRefundExecuted(providerReference, providerMessage);
+            }
+
+            record.markCompleted();
+            cancellationRecordRepository.save(record);
+
+            attempt.refundWithPolicy(providerReference,
+                    refundAmount, calc.cancellationPenaltyAmount(), calc.providerFeeAmount(),
+                    normalizedReason, calc.bookingType(), calc.policyType());
+            paymentAttemptRepository.save(attempt);
+
+            String summaryMessage = buildRefundSummary(providerMessage, refundAmount, calc.cancellationPenaltyAmount());
+            reservationService.cancel(reservationId, new CancelReservationRequest(
+                    "Cancelacion con reembolso. " + summaryMessage), principal);
+
+            notificationService.notifyUser(
+                    reservation.getUser().getId(), "PAYMENT_REFUNDED",
+                    "Reembolso aplicado",
+                    summaryMessage,
+                    Map.of("reservationId", reservationId,
+                            "paymentIntentId", attempt.getId(),
+                            "refundAmount", refundAmount,
+                            "refundFee", calc.cancellationPenaltyAmount()));
+
+            return toIntentResponse(attempt, providerLabel(attempt), method.label(),
+                    flow, summaryMessage, null);
+
+        } catch (ApiException ex) {
+            record.markFailed(ex.getMessage());
+            cancellationRecordRepository.save(record);
+            attempt.markRefundFailed(ex.getMessage());
+            paymentAttemptRepository.save(attempt);
+            throw ex;
+        } catch (Exception ex) {
+            String errorMsg = "Error inesperado al procesar reembolso: " + ex.getMessage();
+            record.markFailed(errorMsg);
+            cancellationRecordRepository.save(record);
+            attempt.markRefundFailed(errorMsg);
+            paymentAttemptRepository.save(attempt);
+            throw new ApiException(HttpStatus.BAD_GATEWAY, "PAYMENT_REFUND_PROVIDER_FAILED", errorMsg);
+        }
+    }
+
+    private String buildPolicyDescription(RefundPolicyEngine.RefundCalculation calc) {
+        return switch (calc.policyType()) {
+            case FULL_REFUND -> "Reembolso completo de S/" + calc.refundAmountToCustomer() + ".";
+            case PARTIAL_REFUND -> "Reembolso parcial de S/" + calc.refundAmountToCustomer()
+                    + " (comision de cancelacion: S/" + calc.cancellationPenaltyAmount() + ").";
+            case NO_REFUND -> "Sin reembolso. La reserva esta fuera del periodo de cancelacion gratuita.";
+            case MANUAL_REVIEW -> "Requiere revision manual por el equipo de soporte.";
+        };
     }
 
     @Transactional
@@ -524,203 +814,328 @@ public class PaymentService {
                     null,
                     "Payload webhook invalido.",
                     null,
-                    null
-            );
+                    null);
         }
 
         String provider = "izipay";
-        String eventType = firstNonBlank(
-                textAt(payload, "code"),
-                textAt(payload, "response.order.0.stateMessage"),
-                textAt(payload, "message"),
-                "unknown"
-        );
-        String payloadHttp = firstNonBlank(textAt(payload, "payloadHttp"), safePayload);
-        String eventId = "sha256:" + izipayGatewayClient.sha256Hex(payloadHttp);
-
-        String providerReference = firstNonBlank(
-                textAt(payload, "transactionId"),
-                textAt(payload, "response.transactionId"),
-                customFieldValue(payload, "field1")
-        );
-
-        String providerStatus = firstNonBlank(
-                textAt(payload, "code"),
-                textAt(payload, "response.order.0.stateMessage"),
-                textAt(payload, "message"),
-                eventType
-        );
-
-        String providerMessage = firstNonBlank(
-                textAt(payload, "messageUser"),
-                textAt(payload, "message"),
-                textAt(payload, "response.order.0.stateMessage"),
-                "Webhook procesado."
-        );
-
-        PaymentWebhookEvent existing = paymentWebhookEventRepository.findByProviderAndEventId(provider, eventId).orElse(null);
-        if (existing != null) {
-            return new PaymentWebhookResponse(
-                    existing.isProcessed(),
-                    true,
-                    existing.getEventId(),
-                    existing.getEventType(),
-                    existing.getProviderReference(),
-                    existing.getProcessingStatus().name(),
-                    "Evento webhook ya procesado.",
-                    existing.getPaymentAttemptId(),
-                    existing.getReservationId()
-            );
-        }
-
-        // insertOrGetExisting runs in REQUIRES_NEW: if a concurrent thread already holds
-        // the same (provider, eventId) row, the inner tx rolls back cleanly and we get
-        // back the existing record — the outer tx session is never poisoned.
-        PaymentWebhookEvent event = webhookEventInserter.insertOrGetExisting(
-                provider, eventId, eventType, providerReference, safePayload);
-
-        if (event.getProcessingStatus() != com.tuempresa.storage.payments.domain.PaymentWebhookProcessingStatus.RECEIVED) {
-            // Race condition: another thread already processed this event
-            return new PaymentWebhookResponse(
-                    event.isProcessed(),
-                    true,
-                    event.getEventId(),
-                    event.getEventType(),
-                    event.getProviderReference(),
-                    event.getProcessingStatus().name(),
-                    "Evento webhook ya procesado.",
-                    event.getPaymentAttemptId(),
-                    event.getReservationId()
-            );
-        }
-
-        String effectiveSignature = firstNonBlank(signature, textAt(payload, "signature"));
-        if (!izipayGatewayClient.validateWebhookSignature(payloadHttp, effectiveSignature)) {
-            event.markFailed("Firma webhook invalida.", null, null);
-            return new PaymentWebhookResponse(
-                    false,
-                    false,
-                    eventId,
-                    eventType,
-                    providerReference,
-                    "INVALID_SIGNATURE",
-                    "Firma webhook invalida.",
-                    null,
-                    null
-            );
-        }
-
+        // V4 Krypton IPN kr-answer: orderStatus, transactions.0.status/uuid
+        String eventType;
+        String eventId;
         try {
-            PaymentAttempt attempt = resolveAttemptForWebhook(payload, providerReference);
-            if (attempt == null) {
-                event.markIgnored("No se encontro intento de pago para webhook.", null, null);
+            eventType = firstNonBlank(
+                    textAt(payload, "code"),
+                    textAt(payload, "orderStatus"),
+                    textAt(payload, "transactions.0.status"),
+                    textAt(payload, "response.order.0.stateMessage"),
+                    textAt(payload, "message"),
+                    "unknown");
+            String payloadHttp = firstNonBlank(textAt(payload, "payloadHttp"), safePayload);
+            eventId = "sha256:" + izipayGatewayClient.sha256Hex(payloadHttp);
+
+            String providerReference = firstNonBlank(
+                    textAt(payload, "transactionId"),
+                    textAt(payload, "transactions.0.uuid"),
+                    textAt(payload, "response.transactionId"),
+                    customFieldValue(payload, "field1"));
+
+            String providerStatus = firstNonBlank(
+                    textAt(payload, "code"),
+                    textAt(payload, "orderStatus"),
+                    textAt(payload, "transactions.0.status"),
+                    textAt(payload, "transactions.0.detailedStatus"),
+                    textAt(payload, "response.order.0.stateMessage"),
+                    textAt(payload, "message"),
+                    eventType);
+
+            String providerMessage = firstNonBlank(
+                    textAt(payload, "messageUser"),
+                    textAt(payload, "message"),
+                    textAt(payload, "transactions.0.detailedStatus"),
+                    textAt(payload, "response.order.0.stateMessage"),
+                    "Webhook procesado.");
+
+            PaymentWebhookEvent existing = paymentWebhookEventRepository.findByProviderAndEventId(provider, eventId)
+                    .orElse(null);
+            if (existing != null) {
                 return new PaymentWebhookResponse(
+                        existing.isProcessed(),
                         true,
+                        existing.getEventId(),
+                        existing.getEventType(),
+                        existing.getProviderReference(),
+                        existing.getProcessingStatus().name(),
+                        "Evento webhook ya procesado.",
+                        existing.getPaymentAttemptId(),
+                        existing.getReservationId());
+            }
+
+            // insertOrGetExisting runs in REQUIRES_NEW: if a concurrent thread already
+            // holds
+            // the same (provider, eventId) row, the inner tx rolls back cleanly and we get
+            // back the existing record â€” the outer tx session is never poisoned.
+            PaymentWebhookEvent event = webhookEventInserter.insertOrGetExisting(
+                    provider, eventId, eventType, providerReference, safePayload);
+
+            if (event
+                    .getProcessingStatus() != com.tuempresa.storage.payments.domain.PaymentWebhookProcessingStatus.RECEIVED) {
+                // Race condition: another thread already processed this event
+                return new PaymentWebhookResponse(
+                        event.isProcessed(),
+                        true,
+                        event.getEventId(),
+                        event.getEventType(),
+                        event.getProviderReference(),
+                        event.getProcessingStatus().name(),
+                        "Evento webhook ya procesado.",
+                        event.getPaymentAttemptId(),
+                        event.getReservationId());
+            }
+
+            String effectiveSignature = firstNonBlank(signature, textAt(payload, "signature"));
+            if (!izipayGatewayClient.validateWebhookSignature(payloadHttp, effectiveSignature)) {
+                event.markFailed("Firma webhook invalida.", null, null);
+                return new PaymentWebhookResponse(
+                        false,
                         false,
                         eventId,
                         eventType,
                         providerReference,
-                        "IGNORED",
-                        "No existe intento de pago asociado.",
+                        "INVALID_SIGNATURE",
+                        "Firma webhook invalida.",
                         null,
-                        null
-                );
+                        null);
             }
 
-            Long paymentIntentId = attempt.getId();
-            Long reservationId = attempt.getReservation().getId();
-            String effectiveReference = StringUtils.hasText(providerReference) ? providerReference : attempt.getProviderReference();
-            String resolvedMethod = resolveWebhookMethod(payload, attempt).label();
-
-            if (!attempt.isPending()) {
-                event.markIgnored("Intento de pago ya procesado.", paymentIntentId, reservationId);
-                return new PaymentWebhookResponse(
-                        true,
-                        false,
-                        eventId,
-                        eventType,
-                        effectiveReference,
-                        "ALREADY_PROCESSED",
-                        "El intento de pago ya no esta pendiente.",
-                        paymentIntentId,
-                        reservationId
-                );
-            }
-
-            if (webhookApproved(eventType, providerStatus, payload)) {
-                attempt.confirm(effectiveReference);
-                attempt.registerGatewayOutcome(firstNonBlank(providerStatus, eventType), providerMessage);
-                reservationService.markPaymentConfirmed(reservationId, resolvedMethod);
-                
-                // Extraer y guardar token de tarjeta para One-Click
-                String cardToken = textAt(payload, "response.token");
-                if (StringUtils.hasText(cardToken)) {
-                    saveCardToken(attempt.getReservation().getUser(), cardToken, payload);
+            try {
+                PaymentAttempt attempt = resolveAttemptForWebhook(payload, providerReference);
+                if (attempt == null) {
+                    event.markIgnored("No se encontro intento de pago para webhook.", null, null);
+                    return new PaymentWebhookResponse(
+                            true,
+                            false,
+                            eventId,
+                            eventType,
+                            providerReference,
+                            "IGNORED",
+                            "No existe intento de pago asociado.",
+                            null,
+                            null);
                 }
-                
-                event.markProcessed(paymentIntentId, reservationId);
+
+                Long paymentIntentId = attempt.getId();
+                Long reservationId = attempt.getReservation().getId();
+                String effectiveReference = StringUtils.hasText(providerReference) ? providerReference
+                        : attempt.getProviderReference();
+                String resolvedMethod = resolveWebhookMethod(payload, attempt).label();
+
+                if (!attempt.isPending()) {
+                    event.markIgnored("Intento de pago ya procesado.", paymentIntentId, reservationId);
+                    return new PaymentWebhookResponse(
+                            true,
+                            false,
+                            eventId,
+                            eventType,
+                            effectiveReference,
+                            "ALREADY_PROCESSED",
+                            "El intento de pago ya no esta pendiente.",
+                            paymentIntentId,
+                            reservationId);
+                }
+
+                if (webhookApproved(eventType, providerStatus, payload)) {
+                    attempt.confirm(effectiveReference);
+                    attempt.registerGatewayOutcome(firstNonBlank(providerStatus, eventType), providerMessage);
+                    reservationService.markPaymentConfirmed(reservationId, resolvedMethod);
+
+                    // Extraer y guardar token de tarjeta para One-Click
+                    String cardToken = textAt(payload, "response.token");
+                    if (StringUtils.hasText(cardToken)) {
+                        saveCardToken(attempt.getReservation().getUser(), cardToken, payload);
+                    }
+
+                    event.markProcessed(paymentIntentId, reservationId);
+                    return new PaymentWebhookResponse(
+                            true,
+                            false,
+                            eventId,
+                            eventType,
+                            effectiveReference,
+                            firstNonBlank(providerStatus, "APPROVED"),
+                            "Pago confirmado por webhook.",
+                            paymentIntentId,
+                            reservationId);
+                }
+
+                if (webhookRejected(eventType, providerStatus, payload)) {
+                    attempt.fail(effectiveReference);
+                    attempt.registerGatewayOutcome(firstNonBlank(providerStatus, eventType), providerMessage);
+                    notificationService.notifyPaymentRejected(
+                            attempt.getReservation().getUser().getId(),
+                            reservationId,
+                            attempt.getReservation().getQrCode(),
+                            providerMessage);
+                    event.markProcessed(paymentIntentId, reservationId);
+                    return new PaymentWebhookResponse(
+                            true,
+                            false,
+                            eventId,
+                            eventType,
+                            effectiveReference,
+                            firstNonBlank(providerStatus, "REJECTED"),
+                            "Pago rechazado por webhook.",
+                            paymentIntentId,
+                            reservationId);
+                }
+
+                event.markIgnored("Evento webhook no mapea a estado final.", paymentIntentId, reservationId);
                 return new PaymentWebhookResponse(
                         true,
                         false,
                         eventId,
                         eventType,
                         effectiveReference,
-                        firstNonBlank(providerStatus, "APPROVED"),
-                        "Pago confirmado por webhook.",
+                        firstNonBlank(providerStatus, "IGNORED"),
+                        "Evento webhook ignorado.",
                         paymentIntentId,
-                        reservationId
-                );
-            }
-
-            if (webhookRejected(eventType, providerStatus, payload)) {
-                attempt.fail(effectiveReference);
-                attempt.registerGatewayOutcome(firstNonBlank(providerStatus, eventType), providerMessage);
-                notificationService.notifyPaymentRejected(
-                        attempt.getReservation().getUser().getId(),
-                        reservationId,
-                        attempt.getReservation().getQrCode(),
-                        providerMessage
-                );
-                event.markProcessed(paymentIntentId, reservationId);
+                        reservationId);
+            } catch (Exception ex) {
+                event.markFailed(ex.getMessage(), null, null);
                 return new PaymentWebhookResponse(
-                        true,
+                        false,
                         false,
                         eventId,
                         eventType,
-                        effectiveReference,
-                        firstNonBlank(providerStatus, "REJECTED"),
-                        "Pago rechazado por webhook.",
-                        paymentIntentId,
-                        reservationId
-                );
+                        providerReference,
+                        "FAILED",
+                        firstNonBlank(ex.getMessage(), "No se pudo procesar el webhook."),
+                        null,
+                        null);
             }
-
-            event.markIgnored("Evento webhook no mapea a estado final.", paymentIntentId, reservationId);
-            return new PaymentWebhookResponse(
-                    true,
-                    false,
-                    eventId,
-                    eventType,
-                    effectiveReference,
-                    firstNonBlank(providerStatus, "IGNORED"),
-                    "Evento webhook ignorado.",
-                    paymentIntentId,
-                    reservationId
-            );
-        } catch (Exception ex) {
-            event.markFailed(ex.getMessage(), null, null);
+        } catch (Exception outerEx) {
+            // Catch-all: prevent 500 errors from escaping to the HTTP layer.
+            // Possible causes: DB connectivity, event insertion race, hash computation.
             return new PaymentWebhookResponse(
                     false,
                     false,
-                    eventId,
-                    eventType,
-                    providerReference,
-                    "FAILED",
-                    firstNonBlank(ex.getMessage(), "No se pudo procesar el webhook."),
                     null,
-                    null
-            );
+                    null,
+                    null,
+                    "INTERNAL_ERROR",
+                    firstNonBlank(outerEx.getMessage(), "Error interno procesando webhook."),
+                    null,
+                    null);
         }
+    }
+
+    @Transactional
+    public PaymentIntentResponse validateCheckoutResult(ValidateCheckoutResultRequest request,
+            AuthUserPrincipal principal) {
+        // 1. Validate the hash (HMAC-SHA256 of kr-answer with hash key)
+        if (!izipayGatewayClient.hasHashKey()) {
+            throw new ApiException(HttpStatus.PRECONDITION_REQUIRED, "PAYMENT_HASH_KEY_MISSING",
+                    "No se puede validar el pago: falta la clave de hash.");
+        }
+        String computedHash = izipayGatewayClient.generateWebhookSignature(request.krAnswer());
+        if (computedHash == null || !java.security.MessageDigest.isEqual(
+                computedHash.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                request.krHash().getBytes(java.nio.charset.StandardCharsets.UTF_8))) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "PAYMENT_HASH_INVALID",
+                    "La firma del pago no es valida.");
+        }
+
+        // 2. Parse the kr-answer JSON
+        JsonNode clientAnswer;
+        try {
+            clientAnswer = objectMapper.readTree(request.krAnswer());
+        } catch (Exception ex) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "PAYMENT_ANSWER_INVALID",
+                    "La respuesta del pago no es valida.");
+        }
+
+        // 3. Find the payment attempt
+        String orderStatus = textAt(clientAnswer, "orderStatus");
+        String transactionId = firstNonBlank(
+                textAt(clientAnswer, "transactions.0.uuid"),
+                textAt(clientAnswer, "transactions.0.transactionDetails.cardDetails.legacyTransId"));
+        String orderId = textAt(clientAnswer, "orderDetails.orderId");
+
+        PaymentAttempt attempt = null;
+        if (request.paymentIntentId() != null) {
+            attempt = paymentAttemptRepository.findById(request.paymentIntentId()).orElse(null);
+        }
+        if (attempt == null && request.reservationId() != null) {
+            attempt = paymentAttemptRepository
+                    .findFirstByReservationIdAndStatusOrderByCreatedAtDesc(request.reservationId(),
+                            PaymentStatus.PENDING)
+                    .orElse(null);
+        }
+        if (attempt == null && StringUtils.hasText(orderId)) {
+            attempt = paymentAttemptRepository.findByProviderReference(orderId).orElse(null);
+            if (attempt == null) {
+                attempt = paymentAttemptRepository
+                        .findFirstByProviderReferenceStartingWithOrderByCreatedAtDesc(orderId)
+                        .orElse(null);
+            }
+        }
+        if (attempt == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "PAYMENT_NOT_FOUND",
+                    "No se encontro el intento de pago.");
+        }
+
+        assertPaymentPermission(attempt.getReservation(), principal);
+
+        if (!attempt.isPending()) {
+            // Already processed â€” return current state
+            return toIntentResponse(attempt, "IZIPAY", resolveMethod(attempt, null).label(),
+                    "ALREADY_PROCESSED", "El pago ya fue procesado.", null);
+        }
+
+        String effectiveReference = StringUtils.hasText(transactionId)
+                ? transactionId
+                : StringUtils.hasText(orderId) ? orderId : attempt.getProviderReference();
+
+        // 4. Process based on orderStatus
+        if ("PAID".equalsIgnoreCase(orderStatus)) {
+            attempt.confirm(effectiveReference);
+            attempt.registerGatewayOutcome("APPROVED_CLIENT_VALIDATION",
+                    "Pago confirmado por validacion del cliente.");
+            String resolvedMethod = resolveMethod(attempt, null).label();
+            reservationService.markPaymentConfirmed(attempt.getReservation().getId(), resolvedMethod);
+
+            // Save card token if present
+            String cardToken = textAt(clientAnswer, "transactions.0.paymentMethodToken");
+            if (StringUtils.hasText(cardToken)) {
+                try {
+                    saveCardToken(attempt.getReservation().getUser(), cardToken, clientAnswer);
+                } catch (Exception ignored) {
+                    // Non-critical: don't fail payment because of token save
+                }
+            }
+
+            return toIntentResponse(attempt, "IZIPAY", resolvedMethod,
+                    "CHECKOUT_VALIDATED", "Pago confirmado exitosamente.", null);
+        }
+
+        if ("UNPAID".equalsIgnoreCase(orderStatus) || "REFUSED".equalsIgnoreCase(orderStatus)
+                || "ERROR".equalsIgnoreCase(orderStatus) || "ABANDONED".equalsIgnoreCase(orderStatus)) {
+            attempt.fail(effectiveReference);
+            String errorMsg = firstNonBlank(
+                    textAt(clientAnswer, "transactions.0.errorMessage"),
+                    textAt(clientAnswer, "transactions.0.detailedErrorMessage"),
+                    "Pago rechazado: " + orderStatus);
+            attempt.registerGatewayOutcome("REJECTED_CLIENT_VALIDATION", errorMsg);
+            notificationService.notifyPaymentRejected(
+                    attempt.getReservation().getUser().getId(),
+                    attempt.getReservation().getId(),
+                    attempt.getReservation().getQrCode(),
+                    errorMsg);
+            return toIntentResponse(attempt, "IZIPAY", resolveMethod(attempt, null).label(),
+                    "CHECKOUT_REJECTED", errorMsg, null);
+        }
+
+        // Unknown status â€” leave as pending
+        return toIntentResponse(attempt, "IZIPAY", resolveMethod(attempt, null).label(),
+                "CHECKOUT_PENDING", "El pago esta en proceso. orderStatus=" + orderStatus, null);
     }
 
     private PaymentIntentResponse processOffline(
@@ -728,8 +1143,7 @@ public class PaymentService {
             PaymentMethod method,
             boolean approved,
             String providerReference,
-            AuthUserPrincipal principal
-    ) {
+            AuthUserPrincipal principal) {
         String reference = normalizeRef(attempt, providerReference, method.label());
         if (!approved) {
             attempt.fail(reference);
@@ -738,8 +1152,7 @@ public class PaymentService {
                     attempt.getReservation().getUser().getId(),
                     attempt.getReservation().getId(),
                     attempt.getReservation().getQrCode(),
-                    "Pago en caja rechazado."
-            );
+                    "Pago en caja rechazado.");
             return toIntentResponse(attempt, "OFFLINE", method.label(), "OFFLINE_REJECTED", "Pago rechazado.", null);
         }
 
@@ -753,17 +1166,16 @@ public class PaymentService {
                     method.label(),
                     "OFFLINE_CONFIRMED_BY_OPERATOR",
                     "Pago confirmado por operador.",
-                    null
-            );
+                    null);
         }
 
         attempt.registerProviderReference(reference);
-        attempt.registerGatewayOutcome("WAITING_OFFLINE_VALIDATION", "Pago en caja pendiente de validacion por operador.");
+        attempt.registerGatewayOutcome("WAITING_OFFLINE_VALIDATION",
+                "Pago en caja pendiente de validacion por operador.");
         notificationService.notifyPaymentPendingCashValidation(
                 attempt.getReservation().getUser().getId(),
                 attempt.getReservation().getId(),
-                attempt.getReservation().getQrCode()
-        );
+                attempt.getReservation().getQrCode());
         notifyOperationalCashPending(attempt);
         Map<String, Object> nextAction = new LinkedHashMap<>();
         nextAction.put("type", "WAIT_FOR_OPERATOR");
@@ -775,8 +1187,7 @@ public class PaymentService {
                 method.label(),
                 "WAITING_OFFLINE_VALIDATION",
                 "Tu pago en caja quedo pendiente de validacion.",
-                nextAction
-        );
+                nextAction);
     }
 
     private void notifyOperationalCashPending(PaymentAttempt attempt) {
@@ -789,8 +1200,7 @@ public class PaymentService {
 
         List<User> scopedOperators = userRepository.findActiveByAnyRoleAndWarehouseId(
                 Set.of(Role.OPERATOR, Role.CITY_SUPERVISOR),
-                warehouseId
-        );
+                warehouseId);
         for (User user : scopedOperators) {
             if (!notifiedUserIds.add(user.getId())) {
                 continue;
@@ -805,15 +1215,12 @@ public class PaymentService {
                             "paymentIntentId", paymentIntentId,
                             "warehouseId", warehouseId,
                             "warehouseName", warehouseName,
-                            "route", "/operator/cash-payments"
-                    )
-            );
+                            "route", "/operator/cash-payments"));
         }
 
         List<User> scopedCouriers = userRepository.findActiveByAnyRoleAndWarehouseId(
                 Set.of(Role.COURIER),
-                warehouseId
-        );
+                warehouseId);
         for (User user : scopedCouriers) {
             if (!notifiedUserIds.add(user.getId())) {
                 continue;
@@ -828,9 +1235,7 @@ public class PaymentService {
                             "paymentIntentId", paymentIntentId,
                             "warehouseId", warehouseId,
                             "warehouseName", warehouseName,
-                            "route", "/courier/services"
-                    )
-            );
+                            "route", "/courier/services"));
         }
 
         List<User> admins = userRepository.findActiveByAnyRole(Set.of(Role.ADMIN));
@@ -848,9 +1253,7 @@ public class PaymentService {
                             "paymentIntentId", paymentIntentId,
                             "warehouseId", warehouseId,
                             "warehouseName", warehouseName,
-                            "route", "/admin/cash-payments"
-                    )
-            );
+                            "route", "/admin/cash-payments"));
         }
     }
 
@@ -858,18 +1261,17 @@ public class PaymentService {
             PaymentAttempt attempt,
             PaymentMethod method,
             ConfirmPaymentRequest request,
-            AuthUserPrincipal principal
-    ) {
+            AuthUserPrincipal principal) {
         if (!izipayGatewayClient.isConfigured()) {
             throw new ApiException(
                     HttpStatus.PRECONDITION_REQUIRED,
                     "PAYMENT_PROVIDER_NOT_CONFIGURED",
-                    "Falta configurar merchantCode/publicKey de Izipay."
-            );
+                    "Falta configurar merchantCode/publicKey de Izipay.");
         }
 
         String[] customerNames = splitName(attempt.getReservation().getUser().getFullName());
-        // Combine epoch-seconds (10 digits) + last 4 digits of attemptId to guarantee uniqueness per Izipay
+        // Combine epoch-seconds (10 digits) + last 4 digits of attemptId to guarantee
+        // uniqueness per Izipay
         String transactionId = String.format("%010d%04d", Instant.now().getEpochSecond(), attempt.getId() % 10000);
         String orderNumber = transactionId.substring(0, 10);
         String merchantBuyerId = "TBX-" + attempt.getReservation().getId();
@@ -879,9 +1281,8 @@ public class PaymentService {
                         transactionId,
                         orderNumber,
                         formatIzipayAmount(attempt.getAmount()),
-                        izipayGatewayClient.requestSource()
-                )
-        );
+                        izipayGatewayClient.requestSource(),
+                        List.of())); // empty = show all methods the merchant has enabled
 
         attempt.registerProviderReference(transactionId);
         attempt.registerGatewayOutcome("WAITING_IZIPAY_CHECKOUT", "Checkout Izipay listo para completar el pago.");
@@ -898,10 +1299,10 @@ public class PaymentService {
         Map<String, Object> billing = buildIzipayPersonData(
                 firstNonBlank(request.customerFirstName(), customerNames[0], "Cliente"),
                 firstNonBlank(request.customerLastName(), customerNames[1], "TravelBox"),
-                firstNonBlank(request.customerEmail(), attempt.getReservation().getUser().getEmail(), "cliente@inkavoy.pe"),
+                firstNonBlank(request.customerEmail(), attempt.getReservation().getUser().getEmail(),
+                        "cliente@inkavoy.pe"),
                 firstNonBlank(request.customerPhone(), attempt.getReservation().getUser().getPhone(), "999999999"),
-                request.customerDocument()
-        );
+                request.customerDocument());
 
         Map<String, Object> checkoutConfig = new LinkedHashMap<>();
         checkoutConfig.put("transactionId", transactionId);
@@ -938,34 +1339,45 @@ public class PaymentService {
                 method.label(),
                 "OPEN_IZIPAY_CHECKOUT",
                 "Continua el pago en Izipay para confirmar tu reserva.",
-                nextAction
-        );
+                nextAction);
     }
 
     private PaymentAttempt resolveAttempt(ConfirmPaymentRequest request, AuthUserPrincipal principal) {
         if (request.paymentIntentId() != null) {
             PaymentAttempt attempt = paymentAttemptRepository.findById(request.paymentIntentId())
-                    .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "PAYMENT_NOT_FOUND", "Pago no encontrado."));
+                    .orElseThrow(
+                            () -> new ApiException(HttpStatus.NOT_FOUND, "PAYMENT_NOT_FOUND", "Pago no encontrado."));
             assertPaymentPermission(attempt.getReservation(), principal);
+            Reservation res = attempt.getReservation();
+            if (res.getStatus() != ReservationStatus.PENDING_PAYMENT
+                    && res.getStatus() != ReservationStatus.EXPIRED) {
+                throw new ApiException(HttpStatus.CONFLICT, "INVALID_PAYMENT_STATE",
+                        "La reserva no esta pendiente de pago (estado actual: " + res.getStatus() + ").");
+            }
             return attempt;
         }
         if (request.reservationId() == null) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "PAYMENT_IDENTIFIER_REQUIRED", "Debes enviar paymentIntentId o reservationId.");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "PAYMENT_IDENTIFIER_REQUIRED",
+                    "Debes enviar paymentIntentId o reservationId.");
         }
 
         Reservation reservation = reservationService.requireReservation(request.reservationId());
         assertPaymentPermission(reservation, principal);
-        if (reservation.getStatus() != ReservationStatus.PENDING_PAYMENT) {
-            throw new ApiException(HttpStatus.CONFLICT, "INVALID_PAYMENT_STATE", "La reserva no esta pendiente de pago.");
+        if (reservation.getStatus() != ReservationStatus.PENDING_PAYMENT
+                && reservation.getStatus() != ReservationStatus.EXPIRED) {
+            throw new ApiException(HttpStatus.CONFLICT, "INVALID_PAYMENT_STATE",
+                    "La reserva no esta pendiente de pago.");
         }
         return paymentAttemptRepository
                 .findFirstByReservationIdAndStatusOrderByCreatedAtDesc(reservation.getId(), PaymentStatus.PENDING)
-                .orElseGet(() -> paymentAttemptRepository.save(PaymentAttempt.pending(reservation, reservation.getTotalPrice())));
+                .orElseGet(() -> paymentAttemptRepository
+                        .save(PaymentAttempt.pending(reservation, reservation.getTotalPrice())));
     }
 
     private PaymentAttempt resolveAttemptForWebhook(JsonNode payload, String providerReference) {
         if (StringUtils.hasText(providerReference)) {
-            PaymentAttempt byReference = paymentAttemptRepository.findByProviderReference(providerReference).orElse(null);
+            PaymentAttempt byReference = paymentAttemptRepository.findByProviderReference(providerReference)
+                    .orElse(null);
             if (byReference != null) {
                 return byReference;
             }
@@ -977,6 +1389,20 @@ public class PaymentService {
         }
         if (paymentIntentId != null) {
             return paymentAttemptRepository.findById(paymentIntentId).orElse(null);
+        }
+
+        // V4 Krypton IPN: orderId = orderNumber = first 10 chars of providerReference
+        // (transactionId)
+        String orderId = firstNonBlank(
+                textAt(payload, "orderDetails.orderId"),
+                textAt(payload, "orderId"));
+        if (StringUtils.hasText(orderId)) {
+            PaymentAttempt byOrderId = paymentAttemptRepository
+                    .findFirstByProviderReferenceStartingWithOrderByCreatedAtDesc(orderId)
+                    .orElse(null);
+            if (byOrderId != null) {
+                return byOrderId;
+            }
         }
 
         Long reservationId = longAt(payload, "reservationId");
@@ -1001,7 +1427,8 @@ public class PaymentService {
             return method;
         }
 
-        String ref = attempt.getProviderReference() == null ? "" : attempt.getProviderReference().toLowerCase(Locale.ROOT);
+        String ref = attempt.getProviderReference() == null ? ""
+                : attempt.getProviderReference().toLowerCase(Locale.ROOT);
         if (ref.contains("counter")) {
             return PaymentMethod.COUNTER;
         }
@@ -1026,8 +1453,7 @@ public class PaymentService {
             String paymentMethod,
             String paymentFlow,
             String message,
-            Map<String, Object> nextAction
-    ) {
+            Map<String, Object> nextAction) {
         return new PaymentIntentResponse(
                 attempt.getId(),
                 attempt.getReservation().getId(),
@@ -1039,8 +1465,7 @@ public class PaymentService {
                 paymentMethod,
                 paymentFlow,
                 firstNonBlank(message, attempt.getGatewayMessage()),
-                nextAction
-        );
+                nextAction);
     }
 
     private PaymentHistoryItemResponse toHistory(PaymentAttempt attempt) {
@@ -1059,8 +1484,7 @@ public class PaymentService {
                 attempt.getProviderReference(),
                 attempt.getGatewayStatus(),
                 attempt.getGatewayMessage(),
-                attempt.getCreatedAt()
-        );
+                attempt.getCreatedAt());
     }
 
     private CashPendingPaymentResponse toCashPending(PaymentAttempt attempt) {
@@ -1076,8 +1500,7 @@ public class PaymentService {
                 attempt.getProviderReference(),
                 attempt.getCreatedAt(),
                 attempt.getReservation().getStartAt(),
-                attempt.getReservation().getEndAt()
-        );
+                attempt.getReservation().getEndAt());
     }
 
     private PaymentAttempt requirePending(Long paymentIntentId) {
@@ -1090,7 +1513,8 @@ public class PaymentService {
     }
 
     private String providerLabel(PaymentAttempt attempt) {
-        String reference = attempt.getProviderReference() == null ? "" : attempt.getProviderReference().toLowerCase(Locale.ROOT);
+        String reference = attempt.getProviderReference() == null ? ""
+                : attempt.getProviderReference().toLowerCase(Locale.ROOT);
         if (reference.startsWith("offline-")) {
             return "OFFLINE";
         }
@@ -1107,7 +1531,8 @@ public class PaymentService {
         if (StringUtils.hasText(attempt.getGatewayStatus())) {
             return attempt.getGatewayStatus();
         }
-        if (attempt.getStatus() == PaymentStatus.PENDING && (method == PaymentMethod.COUNTER || method == PaymentMethod.CASH)) {
+        if (attempt.getStatus() == PaymentStatus.PENDING
+                && (method == PaymentMethod.COUNTER || method == PaymentMethod.CASH)) {
             return "WAITING_OFFLINE_VALIDATION";
         }
         if (attempt.getStatus() == PaymentStatus.PENDING && method.isDigitalOnline()) {
@@ -1166,7 +1591,8 @@ public class PaymentService {
     }
 
     private boolean hasPrivilegedRole(AuthUserPrincipal principal) {
-        return warehouseAccessService.isAdmin(principal) || warehouseAccessService.isOperatorOrCitySupervisor(principal);
+        return warehouseAccessService.isAdmin(principal)
+                || warehouseAccessService.isOperatorOrCitySupervisor(principal);
     }
 
     private void requirePrivileged(AuthUserPrincipal principal) {
@@ -1194,8 +1620,7 @@ public class PaymentService {
     private BigDecimal calculateRefundFee(
             BigDecimal totalAmount,
             Instant paymentCreatedAt,
-            Instant refundRequestedAt
-    ) {
+            Instant refundRequestedAt) {
         BigDecimal amount = normalizeMoney(totalAmount);
         if (amount.signum() <= 0) {
             return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
@@ -1206,8 +1631,7 @@ public class PaymentService {
 
         long minutesElapsed = Math.max(
                 0L,
-                Duration.between(paymentCreatedAt, refundRequestedAt).toMinutes()
-        );
+                Duration.between(paymentCreatedAt, refundRequestedAt).toMinutes());
         if (minutesElapsed <= refundCommissionGraceMinutes) {
             return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
         }
@@ -1236,11 +1660,11 @@ public class PaymentService {
 
     private String[] splitName(String fullName) {
         if (!StringUtils.hasText(fullName)) {
-            return new String[]{"Cliente", "TravelBox"};
+            return new String[] { "Cliente", "TravelBox" };
         }
         String[] parts = fullName.trim().split("\\s+");
         if (parts.length == 1) {
-            return new String[]{parts[0], "TravelBox"};
+            return new String[] { parts[0], "TravelBox" };
         }
         List<String> firstNames = new ArrayList<>();
         List<String> lastNames = new ArrayList<>();
@@ -1251,12 +1675,21 @@ public class PaymentService {
                 lastNames.add(parts[i]);
             }
         }
-        return new String[]{String.join(" ", firstNames), String.join(" ", lastNames)};
+        return new String[] { String.join(" ", firstNames), String.join(" ", lastNames) };
     }
 
     private boolean webhookApproved(String eventType, String providerStatus, JsonNode payload) {
         String code = firstNonBlank(textAt(payload, "code"), providerStatus);
         if ("00".equals(code) || "0".equals(code)) {
+            return true;
+        }
+        // V4 Krypton IPN: orderStatus=PAID, transactions[0].status=PAID
+        String orderStatus = firstNonBlank(textAt(payload, "orderStatus"), "");
+        if ("PAID".equalsIgnoreCase(orderStatus)) {
+            return true;
+        }
+        String txStatus = firstNonBlank(textAt(payload, "transactions.0.status"), "");
+        if ("PAID".equalsIgnoreCase(txStatus) || "ACCEPTED".equalsIgnoreCase(txStatus)) {
             return true;
         }
         String combined = (eventType + " " + providerStatus).toLowerCase(Locale.ROOT);
@@ -1265,7 +1698,8 @@ public class PaymentService {
                 || combined.contains("succeed")
                 || combined.contains("approved")
                 || combined.contains("captured")
-                || combined.contains("successful")) {
+                || combined.contains("successful")
+                || combined.contains("authorised")) {
             return true;
         }
         String stateMessage = textAt(payload, "response.order.0.stateMessage");
@@ -1273,8 +1707,23 @@ public class PaymentService {
     }
 
     private boolean webhookRejected(String eventType, String providerStatus, JsonNode payload) {
-        // NOTE: do NOT reject purely based on code != "00" — intermediate Izipay codes (e.g. 40=review,
-        // 97=3DS-pending) are non-zero but not final. The keyword check below is the reliable signal.
+        // NOTE: do NOT reject purely based on code != "00" â€” intermediate Izipay
+        // codes
+        // (e.g. 40=review,
+        // 97=3DS-pending) are non-zero but not final. The keyword check below is the
+        // reliable signal.
+        // V4 Krypton IPN: orderStatus=UNPAID + transactions[0].status=REFUSED/ERROR
+        String orderStatus = firstNonBlank(textAt(payload, "orderStatus"), "");
+        if ("UNPAID".equalsIgnoreCase(orderStatus)) {
+            String txStatus = firstNonBlank(textAt(payload, "transactions.0.status"), "");
+            if ("REFUSED".equalsIgnoreCase(txStatus) || "ERROR".equalsIgnoreCase(txStatus)) {
+                return true;
+            }
+        }
+        String txDetailed = firstNonBlank(textAt(payload, "transactions.0.detailedStatus"), "");
+        if ("REFUSED".equalsIgnoreCase(txDetailed) || "CANCELLED".equalsIgnoreCase(txDetailed)) {
+            return true;
+        }
         String combined = (eventType + " " + providerStatus).toLowerCase(Locale.ROOT);
         if (combined.contains("rechazado")
                 || combined.contains("failed")
@@ -1282,7 +1731,8 @@ public class PaymentService {
                 || combined.contains("canceled")
                 || combined.contains("cancelled")
                 || combined.contains("expired")
-                || combined.contains("reject")) {
+                || combined.contains("reject")
+                || combined.contains("refused")) {
             return true;
         }
         String stateMessage = textAt(payload, "response.order.0.stateMessage");
@@ -1350,8 +1800,7 @@ public class PaymentService {
             String lastName,
             String email,
             String phone,
-            String document
-    ) {
+            String document) {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("firstName", firstNonBlank(firstName, "Cliente"));
         data.put("lastName", firstNonBlank(lastName, "TravelBox"));
@@ -1385,11 +1834,13 @@ public class PaymentService {
 
     private List<Map<String, Object>> izipayPaymentMethodOrder(PaymentMethod selectedMethod) {
         List<Map<String, Object>> elements = new ArrayList<>();
+        // All Izipay-supported methods: CARD, YAPE_CODE, QR, PAYPAL, E_WALLET.
+        // The merchant may not have all enabled, but ordering them does no harm.
         List<String> preferredOrder = switch (selectedMethod) {
-            case CARD -> List.of("CARD", "YAPE_CODE", "QR");
-            case YAPE -> List.of("YAPE_CODE", "CARD", "QR");
-            case PLIN, WALLET -> List.of("QR", "CARD", "YAPE_CODE");
-            default -> List.of("CARD", "YAPE_CODE", "QR");
+            case CARD -> List.of("CARD", "YAPE_CODE", "QR", "PAYPAL", "E_WALLET");
+            case YAPE -> List.of("YAPE_CODE", "CARD", "QR", "PAYPAL", "E_WALLET");
+            case PLIN, WALLET -> List.of("QR", "CARD", "YAPE_CODE", "PAYPAL", "E_WALLET");
+            default -> List.of("CARD", "YAPE_CODE", "QR", "PAYPAL", "E_WALLET");
         };
         int order = 1;
         for (String payMethod : preferredOrder) {
@@ -1404,8 +1855,7 @@ public class PaymentService {
     private List<Map<String, Object>> izipayCustomFields(
             PaymentAttempt attempt,
             PaymentMethod method,
-            AuthUserPrincipal principal
-    ) {
+            AuthUserPrincipal principal) {
         List<Map<String, Object>> fields = new ArrayList<>();
         fields.add(customField("field1", String.valueOf(attempt.getId())));
         fields.add(customField("field2", String.valueOf(attempt.getReservation().getId())));
@@ -1442,8 +1892,7 @@ public class PaymentService {
         }
         PaymentMethod fromPayload = PaymentMethod.from(firstNonBlank(
                 textAt(payload, "response.payMethod"),
-                textAt(payload, "response.order.0.payMethodAuthorization")
-        ));
+                textAt(payload, "response.order.0.payMethodAuthorization")));
         if (fromPayload != PaymentMethod.UNKNOWN) {
             return fromPayload;
         }
@@ -1454,7 +1903,7 @@ public class PaymentService {
         if (user == null || !StringUtils.hasText(token)) {
             return;
         }
-        
+
         // Evitar duplicados
         if (savedCardRepository.findByUserIdAndTokenAndActiveTrue(user.getId(), token).isPresent()) {
             return;
@@ -1466,19 +1915,18 @@ public class PaymentService {
         if (StringUtils.hasText(pan) && pan.length() >= 4) {
             lastFour = pan.substring(pan.length() - 4);
         }
-        
+
         String alias = (brand != null ? brand : "Tarjeta") + " **** " + lastFour;
-        
+
         SavedCard card = SavedCard.of(
-            user,
-            token,
-            alias,
-            brand,
-            lastFour,
-            textAt(payload, "response.expirationMonth"),
-            textAt(payload, "response.expirationYear")
-        );
-        
+                user,
+                token,
+                alias,
+                brand,
+                lastFour,
+                textAt(payload, "response.expirationMonth"),
+                textAt(payload, "response.expirationYear"));
+
         savedCardRepository.save(card);
     }
 

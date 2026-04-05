@@ -10,6 +10,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -51,6 +52,30 @@ public class PaymentAttempt extends AuditableEntity {
 
     @Column(name = "refunded_at")
     private Instant refundedAt;
+
+    @Version
+    @Column(name = "version")
+    private Long version;
+
+    @Column(name = "idempotency_key", unique = true, length = 80)
+    private String idempotencyKey;
+
+    @Column(name = "provider_fee_amount", precision = 12, scale = 2)
+    private BigDecimal providerFeeAmount;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "booking_type", length = 20)
+    private BookingType bookingType;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "cancellation_policy_applied", length = 30)
+    private CancellationPolicyType cancellationPolicyApplied;
+
+    @Column(name = "payment_method_label", length = 60)
+    private String paymentMethodLabel;
+
+    @Column(name = "confirmed_at")
+    private Instant confirmedAt;
 
     public static PaymentAttempt pending(Reservation reservation, BigDecimal amount) {
         PaymentAttempt paymentAttempt = new PaymentAttempt();
@@ -110,7 +135,59 @@ public class PaymentAttempt extends AuditableEntity {
     }
 
     public boolean isRefunded() {
-        return status == PaymentStatus.REFUNDED;
+        return status == PaymentStatus.REFUNDED || status == PaymentStatus.PARTIALLY_REFUNDED;
+    }
+
+    public boolean isRefundPending() {
+        return status == PaymentStatus.REFUND_PENDING;
+    }
+
+    public Long getVersion() {
+        return version;
+    }
+
+    public String getIdempotencyKey() {
+        return idempotencyKey;
+    }
+
+    public BigDecimal getProviderFeeAmount() {
+        return providerFeeAmount;
+    }
+
+    public BookingType getBookingType() {
+        return bookingType;
+    }
+
+    public CancellationPolicyType getCancellationPolicyApplied() {
+        return cancellationPolicyApplied;
+    }
+
+    public String getPaymentMethodLabel() {
+        return paymentMethodLabel;
+    }
+
+    public Instant getConfirmedAt() {
+        return confirmedAt;
+    }
+
+    public void setIdempotencyKey(String idempotencyKey) {
+        this.idempotencyKey = idempotencyKey;
+    }
+
+    public void setProviderFeeAmount(BigDecimal providerFeeAmount) {
+        this.providerFeeAmount = normalizeMoney(providerFeeAmount);
+    }
+
+    public void setBookingType(BookingType bookingType) {
+        this.bookingType = bookingType;
+    }
+
+    public void setCancellationPolicyApplied(CancellationPolicyType policyType) {
+        this.cancellationPolicyApplied = policyType;
+    }
+
+    public void setPaymentMethodLabel(String label) {
+        this.paymentMethodLabel = normalizeText(label, 60);
     }
 
     public void registerProviderReference(String providerReference) {
@@ -130,6 +207,7 @@ public class PaymentAttempt extends AuditableEntity {
 
     public void confirm(String providerReference) {
         this.status = PaymentStatus.CONFIRMED;
+        this.confirmedAt = Instant.now();
         registerProviderReference(providerReference);
     }
 
@@ -142,13 +220,42 @@ public class PaymentAttempt extends AuditableEntity {
             String providerReference,
             BigDecimal refundAmount,
             BigDecimal refundFee,
-            String refundReason
-    ) {
+            String refundReason) {
         this.status = PaymentStatus.REFUNDED;
         this.refundAmount = normalizeMoney(refundAmount);
         this.refundFee = normalizeMoney(refundFee);
         this.refundReason = normalizeText(refundReason, 500);
         this.refundedAt = Instant.now();
+        registerProviderReference(providerReference);
+    }
+
+    public void markRefundPending() {
+        this.status = PaymentStatus.REFUND_PENDING;
+    }
+
+    public void markRefundFailed(String reason) {
+        this.status = PaymentStatus.REFUND_FAILED;
+        this.refundReason = normalizeText(reason, 500);
+    }
+
+    public void refundWithPolicy(
+            String providerReference,
+            BigDecimal refundAmount,
+            BigDecimal refundFee,
+            BigDecimal providerFee,
+            String refundReason,
+            BookingType bookingType,
+            CancellationPolicyType policyType) {
+        this.status = (refundAmount != null && refundAmount.compareTo(this.amount) < 0)
+                ? PaymentStatus.PARTIALLY_REFUNDED
+                : PaymentStatus.REFUNDED;
+        this.refundAmount = normalizeMoney(refundAmount);
+        this.refundFee = normalizeMoney(refundFee);
+        this.providerFeeAmount = normalizeMoney(providerFee);
+        this.refundReason = normalizeText(refundReason, 500);
+        this.refundedAt = Instant.now();
+        this.bookingType = bookingType;
+        this.cancellationPolicyApplied = policyType;
         registerProviderReference(providerReference);
     }
 

@@ -61,10 +61,10 @@ app:
     provider: ${APP_PAYMENT_PROVIDER:izipay}
     allow-mock-confirmation: ${APP_PAYMENTS_ALLOW_MOCK_CONFIRMATION:true}
     izipay:
-      merchant-code: ${APP_IZIPAY_MERCHANT_CODE:80100650} # Placeholder Sandbox
-      public-key: ${APP_IZIPAY_PUBLIC_KEY:80100650} # Placeholder Sandbox
-      hash-key: ${APP_IZIPAY_HASH_KEY:your_izipay_hash_key}
-      api-base-url: ${APP_IZIPAY_API_BASE_URL:https://qa-api-pw.izipay.pe}
+      production-mode: ${APP_IZIPAY_PRODUCTION_MODE:false}
+      merchant-code: ${APP_IZIPAY_MERCHANT_CODE:23662223}
+      api-user: ${APP_IZIPAY_API_USER:23662223}
+      api-base-url: ${APP_IZIPAY_API_BASE_URL:https://api.micuentaweb.pe}
       checkout-script-url: ${APP_IZIPAY_CHECKOUT_SCRIPT_URL:https://static.micuentaweb.pe/static/js/krypton-client/V4.0/stable/kr-payment-form.min.js}
       request-source: ${APP_IZIPAY_REQUEST_SOURCE:EC}
       token-path: ${APP_IZIPAY_TOKEN_PATH:/v1/tokens/session}

@@ -14,66 +14,66 @@ import java.util.List;
 import java.util.Optional;
 
 public interface PaymentAttemptRepository extends JpaRepository<PaymentAttempt, Long> {
-    Optional<PaymentAttempt> findFirstByReservationIdAndStatusOrderByCreatedAtDesc(Long reservationId, PaymentStatus status);
+        Optional<PaymentAttempt> findFirstByReservationIdAndStatusOrderByCreatedAtDesc(Long reservationId,
+                        PaymentStatus status);
 
-    Optional<PaymentAttempt> findFirstByReservationIdOrderByCreatedAtDesc(Long reservationId);
+        Optional<PaymentAttempt> findFirstByReservationIdOrderByCreatedAtDesc(Long reservationId);
 
-    List<PaymentAttempt> findByReservationIdOrderByCreatedAtDesc(Long reservationId);
+        List<PaymentAttempt> findByReservationIdOrderByCreatedAtDesc(Long reservationId);
 
-    Optional<PaymentAttempt> findByProviderReference(String providerReference);
+        Optional<PaymentAttempt> findByProviderReference(String providerReference);
 
-    boolean existsByProviderReference(String providerReference);
+        boolean existsByProviderReference(String providerReference);
 
-    List<PaymentAttempt> findByReservationIdInAndStatusOrderByCreatedAtDesc(
-            Collection<Long> reservationIds,
-            PaymentStatus status
-    );
+        List<PaymentAttempt> findByReservationIdInAndStatusOrderByCreatedAtDesc(
+                        Collection<Long> reservationIds,
+                        PaymentStatus status);
 
-    @Query("""
-            select coalesce(sum(p.amount), 0)
-            from PaymentAttempt p
-            where p.status = :status
-            """)
-    BigDecimal sumAmountByStatus(@Param("status") PaymentStatus status);
+        @Query("""
+                        select coalesce(sum(p.amount), 0)
+                        from PaymentAttempt p
+                        where p.status = :status
+                        """)
+        BigDecimal sumAmountByStatus(@Param("status") PaymentStatus status);
 
-    Page<PaymentAttempt> findAllByOrderByCreatedAtDesc(Pageable pageable);
+        Page<PaymentAttempt> findAllByOrderByCreatedAtDesc(Pageable pageable);
 
-    Page<PaymentAttempt> findByReservationUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
+        Page<PaymentAttempt> findByReservationUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
 
-    Page<PaymentAttempt> findByStatusOrderByCreatedAtDesc(PaymentStatus status, Pageable pageable);
+        Page<PaymentAttempt> findByStatusOrderByCreatedAtDesc(PaymentStatus status, Pageable pageable);
 
-    Page<PaymentAttempt> findByReservationUserIdAndStatusOrderByCreatedAtDesc(
-            Long userId,
-            PaymentStatus status,
-            Pageable pageable
-    );
+        Page<PaymentAttempt> findByReservationUserIdAndStatusOrderByCreatedAtDesc(
+                        Long userId,
+                        PaymentStatus status,
+                        Pageable pageable);
 
-    @Query("""
-            select p from PaymentAttempt p
-            where p.status = :status
-              and (
-                lower(p.providerReference) like 'offline-counter-%'
-                or lower(p.providerReference) like 'offline-cash-%'
-                or upper(coalesce(p.gatewayStatus, '')) = 'WAITING_OFFLINE_VALIDATION'
-              )
-            order by p.createdAt desc
-            """)
-    Page<PaymentAttempt> findOfflineCashPending(PaymentStatus status, Pageable pageable);
+        @Query("""
+                        select p from PaymentAttempt p
+                        where p.status = :status
+                          and (
+                            lower(p.providerReference) like 'offline-counter-%'
+                            or lower(p.providerReference) like 'offline-cash-%'
+                            or upper(coalesce(p.gatewayStatus, '')) = 'WAITING_OFFLINE_VALIDATION'
+                          )
+                        order by p.createdAt desc
+                        """)
+        Page<PaymentAttempt> findOfflineCashPending(PaymentStatus status, Pageable pageable);
 
-    @Query("""
-            select p from PaymentAttempt p
-            where p.status = :status
-              and p.reservation.warehouse.id in :warehouseIds
-              and (
-                lower(p.providerReference) like 'offline-counter-%'
-                or lower(p.providerReference) like 'offline-cash-%'
-                or upper(coalesce(p.gatewayStatus, '')) = 'WAITING_OFFLINE_VALIDATION'
-              )
-            order by p.createdAt desc
-            """)
-    Page<PaymentAttempt> findOfflineCashPendingByWarehouses(
-            PaymentStatus status,
-            java.util.Collection<Long> warehouseIds,
-            Pageable pageable
-    );
+        @Query("""
+                        select p from PaymentAttempt p
+                        where p.status = :status
+                          and p.reservation.warehouse.id in :warehouseIds
+                          and (
+                            lower(p.providerReference) like 'offline-counter-%'
+                            or lower(p.providerReference) like 'offline-cash-%'
+                            or upper(coalesce(p.gatewayStatus, '')) = 'WAITING_OFFLINE_VALIDATION'
+                          )
+                        order by p.createdAt desc
+                        """)
+        Page<PaymentAttempt> findOfflineCashPendingByWarehouses(
+                        PaymentStatus status,
+                        java.util.Collection<Long> warehouseIds,
+                        Pageable pageable);
+
+        Optional<PaymentAttempt> findFirstByProviderReferenceStartingWithOrderByCreatedAtDesc(String prefix);
 }

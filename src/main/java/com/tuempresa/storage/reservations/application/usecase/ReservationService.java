@@ -97,8 +97,7 @@ public class ReservationService {
             StoredItemEvidenceRepository storedItemEvidenceRepository,
             QrHandoffCaseRepository qrHandoffCaseRepository,
             PaymentAttemptRepository paymentAttemptRepository,
-            @Value("${app.reservations.duplicate-window-seconds:60}") long duplicateReservationWindowSeconds
-    ) {
+            @Value("${app.reservations.duplicate-window-seconds:60}") long duplicateReservationWindowSeconds) {
         this.reservationRepository = reservationRepository;
         this.warehouseService = warehouseService;
         this.userRepository = userRepository;
@@ -124,15 +123,13 @@ public class ReservationService {
             throw new ApiException(
                     HttpStatus.PRECONDITION_REQUIRED,
                     "ACCOUNT_EMAIL_NOT_VERIFIED",
-                    "Debes verificar tu correo antes de crear reservas."
-            );
+                    "Debes verificar tu correo antes de crear reservas.");
         }
         if (!user.isProfileCompleted()) {
             throw new ApiException(
                     HttpStatus.PRECONDITION_REQUIRED,
                     "PROFILE_COMPLETION_REQUIRED",
-                    "Debes completar tu perfil antes de crear reservas."
-            );
+                    "Debes completar tu perfil antes de crear reservas.");
         }
         return createReservation(
                 user,
@@ -144,8 +141,7 @@ public class ReservationService {
                 request.pickupRequested(),
                 request.dropoffRequested(),
                 request.deliveryRequested(),
-                request.extraInsurance()
-        );
+                request.extraInsurance());
     }
 
     @Transactional
@@ -156,33 +152,29 @@ public class ReservationService {
             throw new ApiException(
                     HttpStatus.FORBIDDEN,
                     "RESERVATION_ASSISTED_FORBIDDEN",
-                    "No tienes permisos para registrar reservas asistidas."
-            );
+                    "No tienes permisos para registrar reservas asistidas.");
         }
         if (!isAdmin && !warehouseAccessService.canAccessWarehouse(principal, request.warehouseId())) {
             throw new ApiException(
                     HttpStatus.FORBIDDEN,
                     "WAREHOUSE_SCOPE_FORBIDDEN",
-                    "No puedes registrar reservas asistidas fuera de tu sede asignada."
-            );
+                    "No puedes registrar reservas asistidas fuera de tu sede asignada.");
         }
         User customer = resolveOrCreateAssistedCustomer(request);
-        
+
         if (!customer.isEmailVerified()) {
             throw new ApiException(
                     HttpStatus.PRECONDITION_REQUIRED,
                     "ASSISTED_CUSTOMER_EMAIL_NOT_VERIFIED",
-                    "El cliente debe verificar su correo antes de crear reservas asistidas."
-            );
+                    "El cliente debe verificar su correo antes de crear reservas asistidas.");
         }
         if (!customer.isProfileCompleted()) {
             throw new ApiException(
                     HttpStatus.PRECONDITION_REQUIRED,
                     "ASSISTED_CUSTOMER_PROFILE_INCOMPLETE",
-                    "El cliente debe completar su perfil antes de crear reservas asistidas."
-            );
+                    "El cliente debe completar su perfil antes de crear reservas asistidas.");
         }
-        
+
         return createReservation(
                 customer,
                 request.warehouseId(),
@@ -193,8 +185,7 @@ public class ReservationService {
                 request.pickupRequested(),
                 request.dropoffRequested(),
                 request.deliveryRequested(),
-                request.extraInsurance()
-        );
+                request.extraInsurance());
     }
 
     private ReservationResponse createReservation(
@@ -207,40 +198,36 @@ public class ReservationService {
             Boolean pickupRequestedRaw,
             Boolean dropoffRequestedRaw,
             Boolean deliveryRequestedRaw,
-            Boolean extraInsuranceRaw
-    ) {
+            Boolean extraInsuranceRaw) {
         // Idempotency guard to block rapid duplicate reservations.
         if (duplicateReservationWindowSeconds > 0) {
             Instant duplicateThreshold = Instant.now().minusSeconds(duplicateReservationWindowSeconds);
             if (reservationRepository.existsByUserIdAndWarehouseIdAndCreatedAtAfter(
                     user.getId(),
                     warehouseId,
-                    duplicateThreshold
-            )) {
+                    duplicateThreshold)) {
                 throw new ApiException(
                         HttpStatus.CONFLICT,
                         "DUPLICATE_RESERVATION_DETECTED",
-                        "Ya has generado una reserva en esta sede hace unos segundos. Revisa tu panel de reservas o intenta nuevamente."
-                );
+                        "Ya has generado una reserva en esta sede hace unos segundos. Revisa tu panel de reservas o intenta nuevamente.");
             }
         }
 
         if (!endAt.isAfter(startAt)) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_DATE_RANGE", "La fecha de fin debe ser mayor a la de inicio.");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_DATE_RANGE",
+                    "La fecha de fin debe ser mayor a la de inicio.");
         }
         Warehouse warehouse = warehouseService.requireWarehouseForUpdate(warehouseId);
         long overlaps = reservationRepository.countOverlapping(
                 warehouse.getId(),
                 startAt,
                 endAt,
-                ReservationAvailabilityRules.OCCUPYING_STATES
-        );
+                ReservationAvailabilityRules.OCCUPYING_STATES);
         if (overlaps >= warehouse.getCapacity()) {
             throw new ApiException(
                     HttpStatus.CONFLICT,
                     "WAREHOUSE_CAPACITY_FULL",
-                    "No hay disponibilidad para ese rango horario en el almacen seleccionado."
-            );
+                    "No hay disponibilidad para ese rango horario en el almacen seleccionado.");
         }
 
         ReservationBagSize bagSize = resolveBagSize(bagSizeRaw);
@@ -255,8 +242,7 @@ public class ReservationService {
                 bagSize,
                 pickupRequested,
                 dropoffRequested,
-                extraInsurance
-        );
+                extraInsurance);
         Reservation reservation = Reservation.createPendingPayment(
                 user,
                 warehouse,
@@ -272,8 +258,7 @@ public class ReservationService {
                 pricing.pickupFee(),
                 pricing.dropoffFee(),
                 pricing.insuranceFee(),
-                Instant.now().plus(Duration.ofMinutes(30))
-        );
+                Instant.now().plus(Duration.ofMinutes(30)));
         Reservation saved = reservationRepository.save(reservation);
         notificationService.notifyReservationCreated(
                 saved.getUser().getId(),
@@ -282,15 +267,13 @@ public class ReservationService {
                 saved.getWarehouse().getName(),
                 saved.getStartAt(),
                 saved.getEndAt(),
-                saved.getTotalPrice()
-        );
+                saved.getTotalPrice());
         customerEmailService.sendReservationCreated(saved.getUser(), saved);
         notifyOperationalUsersForReservationEvent(
                 saved,
                 "RESERVATION_CREATED_FOR_WAREHOUSE",
                 "Nueva reserva en tu sede",
-                "Se registro una nueva reserva en " + saved.getWarehouse().getName() + "."
-        );
+                "Se registro una nueva reserva en " + saved.getWarehouse().getName() + ".");
         return toResponse(saved);
     }
 
@@ -305,8 +288,7 @@ public class ReservationService {
                         throw new ApiException(
                                 HttpStatus.BAD_REQUEST,
                                 "ASSISTED_CUSTOMER_ROLE_INVALID",
-                                "El correo indicado pertenece a un usuario operativo. Usa un correo de cliente."
-                        );
+                                "El correo indicado pertenece a un usuario operativo. Usa un correo de cliente.");
                     }
                     if (!existing.isActive()) {
                         existing.setActive(true);
@@ -320,8 +302,7 @@ public class ReservationService {
                             normalizedEmail,
                             passwordEncoder.encode(rawPassword),
                             request.customerPhone(),
-                            Set.of(Role.CLIENT)
-                    );
+                            Set.of(Role.CLIENT));
                     customer.applyRegistrationDetails(
                             nameParts.firstName(),
                             nameParts.lastName(),
@@ -329,14 +310,15 @@ public class ReservationService {
                             preferredLanguage,
                             request.customerPhone(),
                             true,
-                            null
-                    );
+                            null);
                     customer.markEmailVerified();
                     customer.setActive(true);
                     User savedCustomer = userRepository.save(customer);
 
-                    // Aquí puedes usar el customerEmailService para enviar rawPassword al nuevo usuario.
-                    // customerEmailService.sendWelcomeWithTemporaryPassword(savedCustomer, rawPassword);
+                    // Aquí puedes usar el customerEmailService para enviar rawPassword al nuevo
+                    // usuario.
+                    // customerEmailService.sendWelcomeWithTemporaryPassword(savedCustomer,
+                    // rawPassword);
 
                     return savedCustomer;
                 });
@@ -366,15 +348,13 @@ public class ReservationService {
                 "La reserva " + reservation.getQrCode() + " fue cancelada.",
                 Map.of(
                         "reservationId", reservation.getId(),
-                        "reason", request.reason() != null ? request.reason() : ""
-                )
-        );
+                        "reason", request.reason() != null ? request.reason() : ""));
         notifyOperationalUsersForReservationEvent(
                 reservation,
                 "RESERVATION_CANCELLED_FOR_WAREHOUSE",
                 "Reserva cancelada en tu sede",
-                "La reserva " + reservation.getQrCode() + " fue cancelada en " + reservation.getWarehouse().getName() + "."
-        );
+                "La reserva " + reservation.getQrCode() + " fue cancelada en " + reservation.getWarehouse().getName()
+                        + ".");
         return toResponse(reservation);
     }
 
@@ -392,12 +372,12 @@ public class ReservationService {
         throw new ApiException(
                 HttpStatus.CONFLICT,
                 "RESERVATION_REFUND_REQUIRED",
-                "La reserva tiene pago digital confirmado. Debes ejecutar reembolso antes de cancelar."
-        );
+                "La reserva tiene pago digital confirmado. Debes ejecutar reembolso antes de cancelar.");
     }
 
     private PaymentMethod inferPaymentMethodFromAttempt(PaymentAttempt attempt) {
-        String providerReference = attempt.getProviderReference() == null ? "" : attempt.getProviderReference().trim().toLowerCase(Locale.ROOT);
+        String providerReference = attempt.getProviderReference() == null ? ""
+                : attempt.getProviderReference().trim().toLowerCase(Locale.ROOT);
 
         if (providerReference.startsWith("off_") || providerReference.startsWith("cip_")) {
             return PaymentMethod.CASH;
@@ -442,13 +422,11 @@ public class ReservationService {
             int page,
             int size,
             ReservationStatus status,
-            String query
-    ) {
+            String query) {
         PageRequest pageRequest = PageRequest.of(
                 Math.max(page, 0),
                 clampSize(size),
-                Sort.by(Sort.Direction.DESC, "createdAt")
-        );
+                Sort.by(Sort.Direction.DESC, "createdAt"));
         String normalizedQuery = normalizeQuery(query);
         Page<ReservationResponse> result;
         if (warehouseAccessService.isAdmin(principal)) {
@@ -458,7 +436,8 @@ public class ReservationService {
         } else if (warehouseAccessService.isOperatorOrCitySupervisor(principal)) {
             Set<Long> warehouseIds = warehouseAccessService.assignedWarehouseIds(principal);
             if (warehouseIds.isEmpty()) {
-                return new PagedResponse<>(List.of(), pageRequest.getPageNumber(), pageRequest.getPageSize(), 0, 0, false, false);
+                return new PagedResponse<>(List.of(), pageRequest.getPageNumber(), pageRequest.getPageSize(), 0, 0,
+                        false, false);
             }
             result = reservationRepository
                     .searchByWarehouses(warehouseIds, status, normalizedQuery, pageRequest)
@@ -475,7 +454,8 @@ public class ReservationService {
     public byte[] qrPng(Long id, AuthUserPrincipal principal) {
         Reservation reservation = loadReservation(id);
         if (!hasReservationAccess(reservation, principal)) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "RESERVATION_FORBIDDEN", "No puedes acceder al QR de esta reserva.");
+            throw new ApiException(HttpStatus.FORBIDDEN, "RESERVATION_FORBIDDEN",
+                    "No puedes acceder al QR de esta reserva.");
         }
         return qrCodeService.generatePng(reservation.getQrCode());
     }
@@ -494,21 +474,27 @@ public class ReservationService {
     @Transactional
     public ReservationResponse markPaymentConfirmed(Long reservationId, String paymentMethod) {
         Reservation reservation = loadReservation(reservationId);
+        // Si la reserva ya fue confirmada (ej: webhook tard­io), no lanzar error
+        if (reservation.getStatus() == ReservationStatus.CONFIRMED
+                || reservation.getStatus() == ReservationStatus.CHECKIN_PENDING
+                || reservation.getStatus() == ReservationStatus.STORED
+                || reservation.getStatus() == ReservationStatus.READY_FOR_PICKUP
+                || reservation.getStatus() == ReservationStatus.COMPLETED) {
+            return toResponse(reservation);
+        }
         reservation.confirmPayment();
         String resolvedPaymentMethod = paymentMethod == null || paymentMethod.isBlank() ? "online" : paymentMethod;
         notificationService.notifyPaymentConfirmed(
                 reservation.getUser().getId(),
                 reservation.getId(),
                 reservation.getQrCode(),
-                resolvedPaymentMethod
-        );
+                resolvedPaymentMethod);
         customerEmailService.sendPaymentConfirmed(reservation.getUser(), reservation, resolvedPaymentMethod);
         notifyOperationalUsersForReservationEvent(
                 reservation,
                 "PAYMENT_CONFIRMED_FOR_WAREHOUSE",
                 "Pago confirmado en tu sede",
-                "Se confirmo el pago de la reserva " + reservation.getId() + "."
-        );
+                "Se confirmo el pago de la reserva " + reservation.getId() + ".");
         return toResponse(reservation);
     }
 
@@ -520,8 +506,7 @@ public class ReservationService {
                 reservation,
                 "RESERVATION_STATUS_UPDATED",
                 "Estado de reserva actualizado",
-                "La reserva " + reservation.getId() + " cambio a estado " + target.name() + "."
-        );
+                "La reserva " + reservation.getId() + " cambio a estado " + target.name() + ".");
         return toResponse(reservation);
     }
 
@@ -534,11 +519,11 @@ public class ReservationService {
     public int expirePendingPaymentsNow() {
         List<Reservation> expiring = reservationRepository.findByStatusAndExpiresAtBefore(
                 ReservationStatus.PENDING_PAYMENT,
-                Instant.now()
-        );
+                Instant.now());
         expiring.forEach(reservation -> {
             reservation.expire();
-            notificationService.notifyReservationExpired(reservation.getUser().getId(), reservation.getId(), reservation.getQrCode());
+            notificationService.notifyReservationExpired(reservation.getUser().getId(), reservation.getId(),
+                    reservation.getQrCode());
         });
         return expiring.size();
     }
@@ -570,21 +555,21 @@ public class ReservationService {
                 r.isPickupRequested(),
                 r.isDropoffRequested(),
                 r.isExtraInsurance(),
-                r.getCreatedAt()
-        );
+                r.getCreatedAt());
     }
 
     @Transactional(readOnly = true)
     public RevenueReportResponse generateRevenueReport(Instant startDate, Instant endDate) {
-        List<Reservation> reservations = reservationRepository.findByCreatedAtBetweenOrderByCreatedAtDesc(startDate, endDate);
-        
+        List<Reservation> reservations = reservationRepository.findByCreatedAtBetweenOrderByCreatedAtDesc(startDate,
+                endDate);
+
         List<Reservation> paidReservations = reservations.stream()
-                .filter(r -> r.getStatus() == ReservationStatus.CONFIRMED || 
-                            r.getStatus() == ReservationStatus.CHECKIN_PENDING ||
-                            r.getStatus() == ReservationStatus.STORED ||
-                            r.getStatus() == ReservationStatus.READY_FOR_PICKUP ||
-                            r.getStatus() == ReservationStatus.OUT_FOR_DELIVERY ||
-                            r.getStatus() == ReservationStatus.COMPLETED)
+                .filter(r -> r.getStatus() == ReservationStatus.CONFIRMED ||
+                        r.getStatus() == ReservationStatus.CHECKIN_PENDING ||
+                        r.getStatus() == ReservationStatus.STORED ||
+                        r.getStatus() == ReservationStatus.READY_FOR_PICKUP ||
+                        r.getStatus() == ReservationStatus.OUT_FOR_DELIVERY ||
+                        r.getStatus() == ReservationStatus.COMPLETED)
                 .toList();
 
         BigDecimal totalRevenue = paidReservations.stream()
@@ -592,8 +577,8 @@ public class ReservationService {
                 .filter(Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        BigDecimal avgValue = paidReservations.isEmpty() 
-                ? BigDecimal.ZERO 
+        BigDecimal avgValue = paidReservations.isEmpty()
+                ? BigDecimal.ZERO
                 : totalRevenue.divide(BigDecimal.valueOf(paidReservations.size()), 2, RoundingMode.HALF_UP);
 
         Map<Long, List<Reservation>> byWarehouse = paidReservations.stream()
@@ -606,7 +591,8 @@ public class ReservationService {
                             .map(Reservation::getTotalPrice)
                             .filter(Objects::nonNull)
                             .reduce(BigDecimal.ZERO, BigDecimal::add);
-                    return new RevenueReportResponse.RevenueByWarehouse(w.getId(), w.getName(), wRevenue, entry.getValue().size());
+                    return new RevenueReportResponse.RevenueByWarehouse(w.getId(), w.getName(), wRevenue,
+                            entry.getValue().size());
                 })
                 .sorted((a, b) -> b.revenue().compareTo(a.revenue()))
                 .toList();
@@ -651,13 +637,13 @@ public class ReservationService {
                 periodLabel,
                 byWarehouseList,
                 byCityList,
-                byDayList
-        );
+                byDayList);
     }
 
     private Reservation loadReservation(Long id) {
         return reservationRepository.findById(id)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "RESERVATION_NOT_FOUND", "Reserva no encontrada."));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "RESERVATION_NOT_FOUND",
+                        "Reserva no encontrada."));
     }
 
     private PricingBreakdown calculatePrice(
@@ -668,8 +654,7 @@ public class ReservationService {
             ReservationBagSize bagSize,
             boolean pickupRequested,
             boolean dropoffRequested,
-            boolean extraInsurance
-    ) {
+            boolean extraInsurance) {
         long hours = Math.max(1, Duration.between(startAt, endAt).toHours());
         int bagCount = Math.max(1, estimatedItems);
         BigDecimal storageAmount = BigDecimal.valueOf(hours)
@@ -689,8 +674,7 @@ public class ReservationService {
                 storageAmount,
                 pickupFee.setScale(2, RoundingMode.HALF_UP),
                 dropoffFee.setScale(2, RoundingMode.HALF_UP),
-                insuranceFee.setScale(2, RoundingMode.HALF_UP)
-        );
+                insuranceFee.setScale(2, RoundingMode.HALF_UP));
     }
 
     private ReservationBagSize resolveBagSize(String bagSizeRaw) {
@@ -700,8 +684,7 @@ public class ReservationService {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     "INVALID_BAG_SIZE",
-                    "Tamano de equipaje invalido. Usa S, M, L o XL."
-            );
+                    "Tamano de equipaje invalido. Usa S, M, L o XL.");
         }
     }
 
@@ -750,16 +733,14 @@ public class ReservationService {
             Reservation reservation,
             String type,
             String title,
-            String message
-    ) {
+            String message) {
         Long warehouseId = reservation.getWarehouse().getId();
         String warehouseName = reservation.getWarehouse().getName();
         Set<Long> notifiedUserIds = new HashSet<>();
 
         List<User> scopedOperators = userRepository.findActiveByAnyRoleAndWarehouseId(
                 Set.of(Role.OPERATOR, Role.CITY_SUPERVISOR),
-                warehouseId
-        );
+                warehouseId);
         for (User user : scopedOperators) {
             if (!notifiedUserIds.add(user.getId())) {
                 continue;
@@ -773,15 +754,12 @@ public class ReservationService {
                             "reservationId", reservation.getId(),
                             "warehouseId", warehouseId,
                             "warehouseName", warehouseName,
-                            "route", "/operator/reservations"
-                    )
-            );
+                            "route", "/operator/reservations"));
         }
 
         List<User> scopedCouriers = userRepository.findActiveByAnyRoleAndWarehouseId(
                 Set.of(Role.COURIER),
-                warehouseId
-        );
+                warehouseId);
         for (User user : scopedCouriers) {
             if (!notifiedUserIds.add(user.getId())) {
                 continue;
@@ -795,9 +773,7 @@ public class ReservationService {
                             "reservationId", reservation.getId(),
                             "warehouseId", warehouseId,
                             "warehouseName", warehouseName,
-                            "route", "/courier/services"
-                    )
-            );
+                            "route", "/courier/services"));
         }
 
         List<User> admins = userRepository.findActiveByAnyRole(Set.of(Role.ADMIN));
@@ -814,15 +790,14 @@ public class ReservationService {
                             "reservationId", reservation.getId(),
                             "warehouseId", warehouseId,
                             "warehouseName", warehouseName,
-                            "route", "/admin/reservations"
-                    )
-            );
+                            "route", "/admin/reservations"));
         }
     }
 
     private String normalizeEmail(String email) {
         if (email == null || email.isBlank()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "ASSISTED_CUSTOMER_EMAIL_REQUIRED", "Debes indicar correo del cliente.");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "ASSISTED_CUSTOMER_EMAIL_REQUIRED",
+                    "Debes indicar correo del cliente.");
         }
         return email.trim().toLowerCase(Locale.ROOT);
     }
@@ -850,8 +825,7 @@ public class ReservationService {
     private ReservationResponse toResponse(
             Reservation reservation,
             AuthUserPrincipal viewer,
-            boolean includeOperationalDetail
-    ) {
+            boolean includeOperationalDetail) {
         String qrDataUrl = qrCodeService.generateDataUrl(reservation.getQrCode());
         String qrImageUrl = publicUrlService.absolute("/api/v1/reservations/" + reservation.getId() + "/qr");
         ReservationOperationalDetailResponse operationalDetail = includeOperationalDetail
@@ -886,29 +860,31 @@ public class ReservationService {
                 qrDataUrl,
                 reservation.getExpiresAt(),
                 reservation.getCancelReason(),
-                operationalDetail
-        );
+                operationalDetail);
     }
 
     private ReservationOperationalDetailResponse buildOperationalDetail(
             Reservation reservation,
-            AuthUserPrincipal viewer
-    ) {
+            AuthUserPrincipal viewer) {
         QrHandoffCase handoff = qrHandoffCaseRepository.findByReservationId(reservation.getId()).orElse(null);
-        CheckinRecord checkin = checkinRecordRepository.findFirstByReservationIdOrderByCreatedAtDesc(reservation.getId()).orElse(null);
-        CheckoutRecord checkout = checkoutRecordRepository.findFirstByReservationIdOrderByCreatedAtDesc(reservation.getId()).orElse(null);
-        List<StoredItemEvidence> warehouseLuggagePhotos = storedItemEvidenceRepository.findByReservationIdAndTypeOrderByCreatedAtAsc(
-                reservation.getId(),
-                InventoryService.LUGGAGE_PHOTO_EVIDENCE_TYPE
-        );
-        List<StoredItemEvidence> clientHandoffPhotos = storedItemEvidenceRepository.findByReservationIdAndTypeOrderByCreatedAtAsc(
-                reservation.getId(),
-                InventoryService.CLIENT_HANDOFF_PHOTO_EVIDENCE_TYPE
-        );
-        List<StoredItemEvidence> luggagePhotos = new java.util.ArrayList<>(warehouseLuggagePhotos.size() + clientHandoffPhotos.size());
+        CheckinRecord checkin = checkinRecordRepository
+                .findFirstByReservationIdOrderByCreatedAtDesc(reservation.getId()).orElse(null);
+        CheckoutRecord checkout = checkoutRecordRepository
+                .findFirstByReservationIdOrderByCreatedAtDesc(reservation.getId()).orElse(null);
+        List<StoredItemEvidence> warehouseLuggagePhotos = storedItemEvidenceRepository
+                .findByReservationIdAndTypeOrderByCreatedAtAsc(
+                        reservation.getId(),
+                        InventoryService.LUGGAGE_PHOTO_EVIDENCE_TYPE);
+        List<StoredItemEvidence> clientHandoffPhotos = storedItemEvidenceRepository
+                .findByReservationIdAndTypeOrderByCreatedAtAsc(
+                        reservation.getId(),
+                        InventoryService.CLIENT_HANDOFF_PHOTO_EVIDENCE_TYPE);
+        List<StoredItemEvidence> luggagePhotos = new java.util.ArrayList<>(
+                warehouseLuggagePhotos.size() + clientHandoffPhotos.size());
         luggagePhotos.addAll(clientHandoffPhotos);
         luggagePhotos.addAll(warehouseLuggagePhotos);
-        luggagePhotos.sort(java.util.Comparator.comparing(StoredItemEvidence::getCreatedAt, java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder())));
+        luggagePhotos.sort(java.util.Comparator.comparing(StoredItemEvidence::getCreatedAt,
+                java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder())));
         boolean canViewBagTag = canViewBagTag(viewer, reservation);
         boolean canViewPickupPin = canViewPickupPin(viewer, reservation);
         boolean canViewLuggagePhotos = canViewLuggagePhotos(viewer, reservation);
@@ -931,8 +907,7 @@ public class ReservationService {
                 checkout == null ? null : checkout.getCreatedAt(),
                 canViewLuggagePhotos
                         ? luggagePhotos.stream().map(this::toLuggagePhotoResponse).toList()
-                        : List.of()
-        );
+                        : List.of());
     }
 
     private ReservationLuggagePhotoResponse toLuggagePhotoResponse(StoredItemEvidence evidence) {
@@ -943,8 +918,7 @@ public class ReservationService {
                 evidence.getUrl(),
                 evidence.getCreatedAt(),
                 evidence.getOperator() == null ? null : evidence.getOperator().getId(),
-                evidence.getOperator() == null ? null : evidence.getOperator().getFullName()
-        );
+                evidence.getOperator() == null ? null : evidence.getOperator().getFullName());
     }
 
     private boolean canViewBagTag(AuthUserPrincipal viewer, Reservation reservation) {
@@ -1026,7 +1000,6 @@ public class ReservationService {
             BigDecimal storageAmount,
             BigDecimal pickupFee,
             BigDecimal dropoffFee,
-            BigDecimal insuranceFee
-    ) {
+            BigDecimal insuranceFee) {
     }
 }

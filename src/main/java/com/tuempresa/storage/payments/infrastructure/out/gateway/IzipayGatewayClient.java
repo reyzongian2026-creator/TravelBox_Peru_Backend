@@ -14,6 +14,9 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.math.BigDecimal;
@@ -29,8 +32,11 @@ import java.util.Map;
 @Component
 public class IzipayGatewayClient {
 
+    private static final Logger log = LoggerFactory.getLogger(IzipayGatewayClient.class);
+
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
+    private final boolean productionMode;
     private final String merchantCode;
     private final String publicKey;
     private final String hashKey;
@@ -44,28 +50,37 @@ public class IzipayGatewayClient {
     public IzipayGatewayClient(
             RestClient.Builder restClientBuilder,
             ObjectMapper objectMapper,
+            @Value("${app.payments.izipay.production-mode:false}") boolean productionMode,
             @Value("${app.payments.izipay.api-base-url:https://api.micuentaweb.pe}") String apiBaseUrl,
             @Value("${app.payments.izipay.merchant-code:}") String merchantCode,
-            @Value("${app.payments.izipay.public-key:}") String publicKey,
-            @Value("${app.payments.izipay.hash-key:}") String hashKey,
             @Value("${app.payments.izipay.api-user:}") String apiUser,
-            @Value("${app.payments.izipay.api-password:}") String apiPassword,
+            @Value("${app.payments.izipay.test.public-key:}") String testPublicKey,
+            @Value("${app.payments.izipay.test.api-password:}") String testApiPassword,
+            @Value("${app.payments.izipay.test.hash-key:}") String testHashKey,
+            @Value("${app.payments.izipay.production.public-key:}") String prodPublicKey,
+            @Value("${app.payments.izipay.production.api-password:}") String prodApiPassword,
+            @Value("${app.payments.izipay.production.hash-key:}") String prodHashKey,
             @Value("${app.payments.izipay.key-rsa:RSA}") String keyRsa,
             @Value("${app.payments.izipay.request-source:ECOMMERCE}") String requestSource,
             @Value("${app.payments.izipay.process-type:AT}") String processType,
-            @Value("${app.payments.izipay.checkout-script-url:https://static.micuentaweb.pe/static/js/krypton-client/V4.0/stable/kr-payment-form.min.js}") String checkoutScriptUrl
-    ) {
+            @Value("${app.payments.izipay.checkout-script-url:https://static.micuentaweb.pe/static/js/krypton-client/V4.0/stable/kr-payment-form.min.js}") String checkoutScriptUrl) {
         this.restClient = restClientBuilder.clone().baseUrl(safe(apiBaseUrl)).build();
         this.objectMapper = objectMapper;
+        this.productionMode = productionMode;
         this.merchantCode = safe(merchantCode);
-        this.publicKey = safe(publicKey);
-        this.hashKey = safe(hashKey);
         this.apiUser = safe(apiUser);
-        this.apiPassword = safe(apiPassword);
         this.keyRsa = safe(keyRsa);
         this.requestSource = firstNonBlank(safe(requestSource), "ECOMMERCE");
         this.processType = firstNonBlank(safe(processType).toUpperCase(Locale.ROOT), "AT");
         this.checkoutScriptUrl = safe(checkoutScriptUrl);
+
+        this.publicKey = safe(productionMode ? prodPublicKey : testPublicKey);
+        this.apiPassword = safe(productionMode ? prodApiPassword : testApiPassword);
+        this.hashKey = safe(productionMode ? prodHashKey : testHashKey);
+
+        log.info("Izipay production-mode={} merchant={} publicKey={}...",
+                productionMode, this.merchantCode,
+                this.publicKey.length() > 15 ? this.publicKey.substring(0, 15) : this.publicKey);
     }
 
     public boolean isConfigured() {
@@ -114,12 +129,14 @@ public class IzipayGatewayClient {
         payload.put("amount", amountInCents);
         payload.put("currency", "PEN");
         payload.put("orderId", request.orderNumber());
+        if (request.paymentMethods() != null && !request.paymentMethods().isEmpty()) {
+            payload.put("paymentMethods", request.paymentMethods());
+        }
 
         JsonNode response = postJson(
                 "/api-payment/V4/Charge/CreatePayment",
                 payload,
-                request.transactionId()
-        );
+                request.transactionId());
 
         String formToken = textAt(response, "answer.formToken");
         if (!StringUtils.hasText(formToken)) {
@@ -128,8 +145,7 @@ public class IzipayGatewayClient {
                     "PAYMENT_PROVIDER_ERROR",
                     "Izipay V4 no devolvio formToken. Response: " +
                             firstNonBlank(textAt(response, "answer.errorMessage"),
-                                    textAt(response, "status"), "sin detalle")
-            );
+                                    textAt(response, "status"), "sin detalle"));
         }
 
         return new IzipaySessionResult(
@@ -140,8 +156,7 @@ public class IzipayGatewayClient {
                 publicKey,
                 keyRsa(),
                 checkoutScriptUrl,
-                response
-        );
+                response);
     }
 
     public JsonNode refund(String transactionId, String amount, String reason) {
@@ -176,7 +191,8 @@ public class IzipayGatewayClient {
 
     public JsonNode payWithToken(Map<String, Object> request) {
         requireConfigured();
-        // Convertir amount de string decimal ("150.00") a entero en centavos (15000) que exige Izipay V4
+        // Convertir amount de string decimal ("150.00") a entero en centavos (15000)
+        // que exige Izipay V4
         Map<String, Object> payload = new LinkedHashMap<>(request);
         Object rawAmount = payload.get("amount");
         if (rawAmount != null) {
@@ -186,7 +202,8 @@ public class IzipayGatewayClient {
                     .longValue();
             payload.put("amount", amountInCents);
         }
-        return postJson("/api-payment/V4/Charge/CreatePayment", payload, String.valueOf(request.get("transactionId")) + "-token");
+        return postJson("/api-payment/V4/Charge/CreatePayment", payload,
+                String.valueOf(request.get("transactionId")) + "-token");
     }
 
     public String generateWebhookSignature(String payloadHttp) {
@@ -197,13 +214,12 @@ public class IzipayGatewayClient {
             Mac mac = Mac.getInstance("HmacSHA256");
             mac.init(new SecretKeySpec(hashKey.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
             byte[] digest = mac.doFinal(payloadHttp.getBytes(StandardCharsets.UTF_8));
-            return Base64.getEncoder().encodeToString(digest);
+            return HexFormat.of().formatHex(digest);
         } catch (Exception ex) {
             throw new ApiException(
                     HttpStatus.INTERNAL_SERVER_ERROR,
                     "PAYMENT_SIGNATURE_ERROR",
-                    "No se pudo generar la firma para Izipay."
-            );
+                    "No se pudo generar la firma para Izipay.");
         }
     }
 
@@ -217,8 +233,7 @@ public class IzipayGatewayClient {
         String expected = generateWebhookSignature(payloadHttp);
         return MessageDigest.isEqual(
                 expected.getBytes(StandardCharsets.UTF_8),
-                safe(providedSignature).getBytes(StandardCharsets.UTF_8)
-        );
+                safe(providedSignature).getBytes(StandardCharsets.UTF_8));
     }
 
     public String sha256Hex(String value) {
@@ -250,8 +265,7 @@ public class IzipayGatewayClient {
             throw new ApiException(
                     HttpStatus.BAD_GATEWAY,
                     "PAYMENT_PROVIDER_UNAVAILABLE",
-                    "No se pudo conectar con Izipay V4."
-            );
+                    "No se pudo conectar con Izipay V4.");
         }
     }
 
@@ -264,8 +278,7 @@ public class IzipayGatewayClient {
                 message = firstNonBlank(
                         textAt(json, "answer.errorMessage"),
                         textAt(json, "message"),
-                        responseBody
-                );
+                        responseBody);
             } catch (Exception ignored) {
                 message = responseBody.length() > 240 ? responseBody.substring(0, 240) : responseBody;
             }
@@ -281,8 +294,7 @@ public class IzipayGatewayClient {
             throw new ApiException(
                     HttpStatus.PRECONDITION_REQUIRED,
                     "PAYMENT_PROVIDER_NOT_CONFIGURED",
-                    "Falta configurar API User o Password de Micuentaweb V4."
-            );
+                    "Falta configurar API User o Password de Micuentaweb V4.");
         }
     }
 
@@ -334,8 +346,8 @@ public class IzipayGatewayClient {
             String transactionId,
             String orderNumber,
             String amount,
-            String requestSource
-    ) {
+            String requestSource,
+            java.util.List<String> paymentMethods) {
     }
 
     public record IzipaySessionResult(
@@ -346,7 +358,6 @@ public class IzipayGatewayClient {
             String publicKey,
             String keyRsa,
             String checkoutScriptUrl,
-            JsonNode rawResponse
-    ) {
+            JsonNode rawResponse) {
     }
 }

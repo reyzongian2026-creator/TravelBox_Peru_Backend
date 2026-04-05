@@ -188,16 +188,36 @@ app:
       commission-grace-minutes: ${APP_PAYMENT_REFUND_COMMISSION_GRACE_MINUTES:60}
       commission-percent-after-grace: ${APP_PAYMENT_REFUND_COMMISSION_PERCENT_AFTER_GRACE:4.50}
       minimum-fee: ${APP_PAYMENT_REFUND_MINIMUM_FEE:0.00}
+      immediate-booking-threshold-hours: ${APP_REFUND_IMMEDIATE_BOOKING_THRESHOLD_HOURS:6}
+      immediate-full-refund-minutes: ${APP_REFUND_IMMEDIATE_FULL_REFUND_MINUTES:5}
+      immediate-partial-fee-percent: ${APP_REFUND_IMMEDIATE_PARTIAL_FEE_PERCENT:15.00}
+      advance-full-refund-hours: ${APP_REFUND_ADVANCE_FULL_REFUND_HOURS:24}
+      advance-partial-low-fee-percent: ${APP_REFUND_ADVANCE_PARTIAL_LOW_FEE_PERCENT:10.00}
+      advance-partial-high-fee-percent: ${APP_REFUND_ADVANCE_PARTIAL_HIGH_FEE_PERCENT:25.00}
+      advance-partial-high-threshold-hours: ${APP_REFUND_ADVANCE_PARTIAL_HIGH_THRESHOLD_HOURS:6}
+      advance-no-refund-threshold-hours: ${APP_REFUND_ADVANCE_NO_REFUND_THRESHOLD_HOURS:1}
+    provider-fees:
+      enable-provider-fee-modeling: ${APP_ENABLE_PROVIDER_FEE_MODELING:false}
+      enable-pass-provider-fee-to-customer: ${APP_ENABLE_PASS_PROVIDER_FEE_TO_CUSTOMER:false}
+      provider-fee-mode: ${APP_PROVIDER_FEE_MODE:ABSORB_BY_BUSINESS}
     izipay:
-      api-base-url: ${APP_IZIPAY_API_BASE_URL:https://qa-api-pw.izipay.pe}
+      production-mode: ${APP_IZIPAY_PRODUCTION_MODE:false}
+      api-base-url: ${APP_IZIPAY_API_BASE_URL:https://api.micuentaweb.pe}
       token-path: ${APP_IZIPAY_TOKEN_PATH:/security/v1/Token/Generate}
-      merchant-code: ${APP_IZIPAY_MERCHANT_CODE:}
-      public-key: ${APP_IZIPAY_PUBLIC_KEY:}
-      hash-key: ${APP_IZIPAY_HASH_KEY:}
+      merchant-code: ${APP_IZIPAY_MERCHANT_CODE:23662223}
+      api-user: ${APP_IZIPAY_API_USER:23662223}
       key-rsa: ${APP_IZIPAY_KEY_RSA:RSA}
       request-source: ${APP_IZIPAY_REQUEST_SOURCE:ECOMMERCE}
       process-type: ${APP_IZIPAY_PROCESS_TYPE:AT}
       checkout-script-url: ${APP_IZIPAY_CHECKOUT_SCRIPT_URL:https://static.micuentaweb.pe/static/js/krypton-client/V4.0/stable/kr-payment-form.min.js}
+      test:
+        public-key: ${APP_IZIPAY_TEST_PUBLIC_KEY:23662223:testpublickey_nTyOlLk8CiPG0VogpAQlmAuoIgcgmRVoLaJv6iieRnnqC}
+        api-password: ${APP_IZIPAY_TEST_API_PASSWORD:testpassword_gAPEWQOa0x7IWqOOqYYxfHZ83kziKmvkldSRb9CGuxomH}
+        hash-key: ${APP_IZIPAY_TEST_HASH_KEY:HNxdvb4EINrOLnqXr3l2ZDuPRgpYHBovAGcla6mSN2i6Z}
+      production:
+        public-key: ${APP_IZIPAY_PROD_PUBLIC_KEY:23662223:publickey_RRsLg9ifm31FcMjPPhCarPfdvUmHUH3d24CMgIFAzKGF2}
+        api-password: ${APP_IZIPAY_PROD_API_PASSWORD:prodpassword_J0dH8EwVjmuoK9I7hptvrAjhpicMOA04VE3JG1facMxff}
+        hash-key: ${APP_IZIPAY_PROD_HASH_KEY:tjvDDTkdWNh6tSATvNA4WdsMnKejcv4roreFKTAJCctiG}
   reservations:
     expiration-check-ms: ${APP_RESERVATION_EXPIRATION_CHECK_MS:300000}
     duplicate-window-seconds: ${APP_RESERVATION_DUPLICATE_WINDOW_SECONDS:60}

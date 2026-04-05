@@ -2,6 +2,7 @@ package com.tuempresa.storage.reservations.domain;
 
 import com.tuempresa.storage.shared.domain.exception.ApiException;
 import com.tuempresa.storage.shared.infrastructure.persistence.AuditableEntity;
+import com.tuempresa.storage.payments.domain.BookingType;
 import com.tuempresa.storage.users.domain.User;
 import com.tuempresa.storage.warehouses.domain.Warehouse;
 import jakarta.persistence.Column;
@@ -86,6 +87,10 @@ public class Reservation extends AuditableEntity {
     @Column(length = 240)
     private String cancelReason;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "booking_type", length = 20)
+    private BookingType bookingType;
+
     public static Reservation createPendingPayment(
             User user,
             Warehouse warehouse,
@@ -101,8 +106,7 @@ public class Reservation extends AuditableEntity {
             BigDecimal pickupFee,
             BigDecimal dropoffFee,
             BigDecimal insuranceFee,
-            Instant expiresAt
-    ) {
+            Instant expiresAt) {
         Reservation reservation = new Reservation();
         reservation.user = user;
         reservation.warehouse = warehouse;
@@ -120,7 +124,8 @@ public class Reservation extends AuditableEntity {
         reservation.insuranceFee = insuranceFee != null ? insuranceFee : ZERO_AMOUNT;
         reservation.status = ReservationStatus.PENDING_PAYMENT;
         reservation.expiresAt = expiresAt;
-        reservation.qrCode = "TRAVELBOX-" + UUID.randomUUID().toString().replace("-", "").substring(0, 20).toUpperCase();
+        reservation.qrCode = "TRAVELBOX-"
+                + UUID.randomUUID().toString().replace("-", "").substring(0, 20).toUpperCase();
         return reservation;
     }
 
@@ -200,6 +205,14 @@ public class Reservation extends AuditableEntity {
         return cancelReason;
     }
 
+    public BookingType getBookingType() {
+        return bookingType;
+    }
+
+    public void setBookingType(BookingType bookingType) {
+        this.bookingType = bookingType;
+    }
+
     public boolean belongsTo(Long userId) {
         return user.getId().equals(userId);
     }
@@ -213,8 +226,7 @@ public class Reservation extends AuditableEntity {
             throw new ApiException(
                     HttpStatus.CONFLICT,
                     "INVALID_RESERVATION_TRANSITION",
-                    "No se puede pasar de " + status + " a " + target + "."
-            );
+                    "No se puede pasar de " + status + " a " + target + ".");
         }
         status = target;
     }

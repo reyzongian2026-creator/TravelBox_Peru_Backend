@@ -86,15 +86,21 @@ app:
     force-cash-only: ${APP_PAYMENTS_FORCE_CASH_ONLY:false}
     allow-mock-confirmation: ${APP_PAYMENTS_ALLOW_MOCK_CONFIRMATION:false}
     izipay:
-      merchant-code: ${tbx-back-payments-izipay-merchant-code:}
-      public-key: ${tbx-back-payments-izipay-public-key:}
-      hash-key: ${tbx-back-payments-izipay-hash-key:}
-      api-user: ${tbx-back-payments-izipay-api-user:}
-      api-password: ${tbx-back-payments-izipay-api-password:}
+      production-mode: ${APP_IZIPAY_PRODUCTION_MODE:true}
+      merchant-code: ${tbx-back-payments-izipay-merchant-code:${APP_IZIPAY_MERCHANT_CODE:23662223}}
+      api-user: ${tbx-back-payments-izipay-api-user:${APP_IZIPAY_API_USER:23662223}}
       api-base-url: ${tbx-back-payments-izipay-api-base-url:https://api.micuentaweb.pe}
       checkout-script-url: ${tbx-back-payments-izipay-checkout-script-url:https://static.micuentaweb.pe/static/js/krypton-client/V4.0/stable/kr-payment-form.min.js}
       request-source: ${APP_IZIPAY_REQUEST_SOURCE:EC}
       token-path: ${APP_IZIPAY_TOKEN_PATH:/v1/tokens/session}
+      test:
+        public-key: ${tbx-back-payments-izipay-test-public-key:23662223:testpublickey_nTyOlLk8CiPG0VogpAQlmAuoIgcgmRVoLaJv6iieRnnqC}
+        api-password: ${tbx-back-payments-izipay-test-api-password:testpassword_gAPEWQOa0x7IWqOOqYYxfHZ83kziKmvkldSRb9CGuxomH}
+        hash-key: ${tbx-back-payments-izipay-test-hash-key:HNxdvb4EINrOLnqXr3l2ZDuPRgpYHBovAGcla6mSN2i6Z}
+      production:
+        public-key: ${tbx-back-payments-izipay-public-key:${APP_IZIPAY_PROD_PUBLIC_KEY:}}
+        api-password: ${tbx-back-payments-izipay-api-password:${APP_IZIPAY_PROD_API_PASSWORD:}}
+        hash-key: ${tbx-back-payments-izipay-hash-key:${APP_IZIPAY_PROD_HASH_KEY:}}
   bootstrap:
     enabled: false
     seed-operational-demo: false
