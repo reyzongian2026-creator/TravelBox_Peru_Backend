@@ -1,0 +1,32 @@
+<step title="BackgroundTrace" date="2026-04-03T14:14:57.738" instance="1dbea7" url="/api/publish" method="POST" >
+  <step title="Cleanup Xml Logs" date="2026-04-03T14:14:57.741" /><!-- duration: 7ms -->
+  <step title="Creating temporary deployment - FetchDeploymentManager" date="2026-04-03T14:14:57.989" /><!-- duration: 10ms -->
+  <step title="Creating temporary deployment" date="2026-04-03T14:14:58.020" /><!-- duration: 433ms -->
+  <step title="Performing fetch based deployment" date="2026-04-03T14:14:58.586" >
+    <step title="Moving /tmp/zipdeploy/extracted to /tmp/zipdeploy/extracted/app.jar" date="2026-04-03T14:14:59.844" /><!-- duration: 25ms -->
+    <step title="Deployment timer started" date="2026-04-03T14:15:01.968" >
+      <step title="DeploymentManager.Deploy(id:42afd4cc-f674-452a-ae1f-09584b535e77)" date="2026-04-03T14:15:02.000" >
+        <step title="Collecting changeset information" date="2026-04-03T14:15:02.090" /><!-- duration: 282ms -->
+        <step title="Updating submodules" date="2026-04-03T14:15:02.430" /><!-- duration: 1271ms -->
+        <step title="Determining deployment builder" date="2026-04-03T14:15:04.053" >
+          <step title="Builder is OneDeployBuilder" date="2026-04-03T14:15:04.065" /><!-- duration: 11ms -->
+        </step><!-- duration: 37ms -->
+        <step title="PreDeployment: context.CleanOutputPath False" date="2026-04-03T14:15:04.180" >
+          <step title="PreDeployment: context.OutputPath /home/site/wwwroot" date="2026-04-03T14:15:04.322" >
+            <step title="Building" date="2026-04-03T14:15:04.492" >
+              <step title="Executing external process" date="2026-04-03T14:15:05.066" type="process" path="starter.sh" arguments="/opt/Kudu/Scripts/parallel_rsync.sh /tmp/zipdeploy/extracted /home/site/wwwroot 8 /tmp/ False False  " /><!-- duration: 9386ms -->
+              <step title="Modified file to trigger a restart of the app container." date="2026-04-03T14:15:14.918" /><!-- duration: 6ms -->
+              <step title="Skip function trigger and logicapp sync because function is not enabled." date="2026-04-03T14:15:14.942" /><!-- duration: 11ms -->
+              <step title="Purge deployment items" date="2026-04-03T14:15:16.208" >
+                <step title="Remove 94303bc6-, Success, received at 04/03/2026 02:43:16" date="2026-04-03T14:15:16.278" /><!-- duration: 3ms -->
+              </step><!-- duration: 78ms -->
+            </step><!-- duration: 11872ms -->
+          </step><!-- duration: 12047ms -->
+          <step title="Cleaning up temp files" date="2026-04-03T14:15:16.372" /><!-- duration: 5ms -->
+          <step title="Cleaning up temp files" date="2026-04-03T14:15:16.382" /><!-- duration: 532ms -->
+          <step title="Reloading status file with latest updates" date="2026-04-03T14:15:16.983" >
+            <step title="WebHooksManager.PublishEventAsync: PostDeployment" date="2026-04-03T14:15:17.002" /><!-- duration: 135ms -->
+          </step><!-- duration: 165ms -->
+          <step title="Cleaning up temporary deployment - fetch deployment was successful" date="2026-04-03T14:15:17.153" /><!-- duration: 5ms -->
+        </step><!-- duration: 13072ms -->
+      </step><!-- duration: 15277ms -->

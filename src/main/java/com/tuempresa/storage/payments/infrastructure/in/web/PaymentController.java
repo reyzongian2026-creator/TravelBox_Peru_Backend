@@ -7,20 +7,26 @@ import com.tuempresa.storage.payments.application.dto.CreatePaymentIntentRequest
 import com.tuempresa.storage.payments.application.dto.CashPendingPaymentResponse;
 import com.tuempresa.storage.payments.application.dto.PaymentHistoryItemResponse;
 import com.tuempresa.storage.payments.application.dto.PaymentIntentResponse;
+import com.tuempresa.storage.payments.application.dto.PromoCodeResponse;
 import com.tuempresa.storage.payments.application.dto.RefundPaymentRequest;
 import com.tuempresa.storage.payments.application.dto.PaymentStatusResponse;
 import com.tuempresa.storage.payments.application.dto.PaymentWebhookResponse;
 import com.tuempresa.storage.payments.application.dto.SavedCardResponse;
 import com.tuempresa.storage.payments.application.dto.ValidateCheckoutResultRequest;
 import com.tuempresa.storage.payments.application.usecase.PaymentService;
+import com.tuempresa.storage.users.infrastructure.out.persistence.UserRepository;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 
 import com.tuempresa.storage.payments.domain.PaymentStatus;
 import com.tuempresa.storage.shared.infrastructure.reactive.ReactiveBlockingExecutor;
 import com.tuempresa.storage.shared.infrastructure.security.SecurityUtils;
 import com.tuempresa.storage.shared.infrastructure.web.PagedResponse;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -43,14 +49,17 @@ public class PaymentController {
         private final PaymentService paymentService;
         private final SecurityUtils securityUtils;
         private final ReactiveBlockingExecutor reactiveBlockingExecutor;
+        private final UserRepository userRepository;
 
         public PaymentController(
                         PaymentService paymentService,
                         SecurityUtils securityUtils,
-                        ReactiveBlockingExecutor reactiveBlockingExecutor) {
+                        ReactiveBlockingExecutor reactiveBlockingExecutor,
+                        UserRepository userRepository) {
                 this.paymentService = paymentService;
                 this.securityUtils = securityUtils;
                 this.reactiveBlockingExecutor = reactiveBlockingExecutor;
+                this.userRepository = userRepository;
         }
 
         @PostMapping({ "/intents", "/intent" })
@@ -67,6 +76,32 @@ public class PaymentController {
                 return securityUtils.currentUserOrThrowReactive()
                                 .flatMap(currentUser -> reactiveBlockingExecutor.call(
                                                 () -> paymentService.confirm(request, currentUser)))
+                                .map(ResponseEntity::ok);
+        }
+
+        @GetMapping("/validate-promo")
+        public Mono<ResponseEntity<PromoCodeResponse>> validatePromoCode(
+                        @RequestParam String code,
+                        @RequestParam BigDecimal amount) {
+                return reactiveBlockingExecutor.call(
+                                () -> paymentService.validatePromoCode(code, amount))
+                                .map(ResponseEntity::ok);
+        }
+
+        @GetMapping("/wallet-balance")
+        public Mono<ResponseEntity<Map<String, Object>>> getWalletBalance() {
+                return securityUtils.currentUserOrThrowReactive()
+                                .flatMap(currentUser -> reactiveBlockingExecutor.call(
+                                                () -> {
+                                                        Map<String, Object> result = userRepository
+                                                                        .findById(currentUser.getId())
+                                                                        .map(u -> Map.<String, Object>of(
+                                                                                        "walletBalance",
+                                                                                        (Object) u.getWalletBalance()))
+                                                                        .orElse(Map.of("walletBalance",
+                                                                                        (Object) BigDecimal.ZERO));
+                                                        return result;
+                                                }))
                                 .map(ResponseEntity::ok);
         }
 
@@ -110,8 +145,8 @@ public class PaymentController {
 
         @GetMapping("/history")
         public Mono<ResponseEntity<PagedResponse<PaymentHistoryItemResponse>>> history(
-                        @RequestParam(defaultValue = "0") int page,
-                        @RequestParam(defaultValue = "20") int size,
+                        @RequestParam(defaultValue = "0") @Min(0) int page,
+                        @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
                         @RequestParam(required = false) PaymentStatus status) {
                 return securityUtils.currentUserOrThrowReactive()
                                 .flatMap(currentUser -> reactiveBlockingExecutor.call(
@@ -121,8 +156,8 @@ public class PaymentController {
 
         @GetMapping("/cash/pending")
         public Mono<ResponseEntity<PagedResponse<CashPendingPaymentResponse>>> cashPending(
-                        @RequestParam(defaultValue = "0") int page,
-                        @RequestParam(defaultValue = "20") int size) {
+                        @RequestParam(defaultValue = "0") @Min(0) int page,
+                        @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
                 return securityUtils.currentUserOrThrowReactive()
                                 .flatMap(currentUser -> reactiveBlockingExecutor.call(
                                                 () -> paymentService.listCashPending(currentUser, page, size)))
@@ -205,13 +240,23 @@ public class PaymentController {
                                         .flatMap(form -> {
                                                 String krAnswer = form.getFirst("kr-answer");
                                                 String krHash = form.getFirst("kr-hash");
+                                                if (!StringUtils.hasText(krHash)) {
+                                                        return Mono.just(new PaymentWebhookResponse(false, false,
+                                                                        null, null, null, null,
+                                                                        "kr-hash is required", null,
+                                                                        null));
+                                                }
                                                 return reactiveBlockingExecutor.call(
                                                                 () -> paymentService.processIzipayWebhook(
                                                                                 krAnswer != null ? krAnswer : "",
-                                                                                StringUtils.hasText(krHash) ? krHash
-                                                                                                : null));
+                                                                                krHash));
                                         })
-                                        .map(ResponseEntity::ok);
+                                        .map(resp -> {
+                                                if ("kr-hash is required".equals(resp.message())) {
+                                                        return ResponseEntity.badRequest().body(resp);
+                                                }
+                                                return ResponseEntity.ok(resp);
+                                        });
                 }
 
                 // JSON or other content type: read raw body

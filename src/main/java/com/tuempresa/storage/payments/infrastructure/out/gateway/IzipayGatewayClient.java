@@ -3,11 +3,13 @@ package com.tuempresa.storage.payments.infrastructure.out.gateway;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tuempresa.storage.shared.domain.exception.ApiException;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
@@ -64,7 +66,9 @@ public class IzipayGatewayClient {
             @Value("${app.payments.izipay.request-source:ECOMMERCE}") String requestSource,
             @Value("${app.payments.izipay.process-type:AT}") String processType,
             @Value("${app.payments.izipay.checkout-script-url:https://static.micuentaweb.pe/static/js/krypton-client/V4.0/stable/kr-payment-form.min.js}") String checkoutScriptUrl) {
-        this.restClient = restClientBuilder.clone().baseUrl(safe(apiBaseUrl)).build();
+        var httpFactory = new JdkClientHttpRequestFactory();
+        httpFactory.setReadTimeout(java.time.Duration.ofSeconds(10));
+        this.restClient = restClientBuilder.clone().baseUrl(safe(apiBaseUrl)).requestFactory(httpFactory).build();
         this.objectMapper = objectMapper;
         this.productionMode = productionMode;
         this.merchantCode = safe(merchantCode);
@@ -116,6 +120,7 @@ public class IzipayGatewayClient {
         return checkoutScriptUrl;
     }
 
+    @CircuitBreaker(name = "izipay", fallbackMethod = "fallbackCreateSession")
     public IzipaySessionResult createSession(IzipaySessionRequest request) {
         requireConfigured();
 
@@ -159,6 +164,7 @@ public class IzipayGatewayClient {
                 response);
     }
 
+    @CircuitBreaker(name = "izipay", fallbackMethod = "fallbackRefund")
     public JsonNode refund(String transactionId, String amount, String reason) {
         requireConfigured();
         long amountInCents = new BigDecimal(amount)
@@ -183,6 +189,7 @@ public class IzipayGatewayClient {
         return postJson("/api-payment/V4/Transaction/Cancel", payload, transactionId + "-void");
     }
 
+    @CircuitBreaker(name = "izipay", fallbackMethod = "fallbackCheckOrderStatus")
     public JsonNode checkOrderStatus(String orderNumber) {
         requireConfigured();
         // En V4 se consulta por orderId o uuid
@@ -359,5 +366,27 @@ public class IzipayGatewayClient {
             String keyRsa,
             String checkoutScriptUrl,
             JsonNode rawResponse) {
+    }
+
+    // ── Circuit-breaker fallbacks ───────────────────────────────────────
+    @SuppressWarnings("unused")
+    private IzipaySessionResult fallbackCreateSession(IzipaySessionRequest request, Throwable t) {
+        log.error("Izipay circuit-breaker OPEN – createSession fallback. Cause: {}", t.getMessage());
+        throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "PAYMENT_PROVIDER_UNAVAILABLE",
+                "El servicio de pagos no esta disponible en este momento. Intente en unos minutos.");
+    }
+
+    @SuppressWarnings("unused")
+    private JsonNode fallbackRefund(String transactionId, String amount, String reason, Throwable t) {
+        log.error("Izipay circuit-breaker OPEN – refund fallback. Cause: {}", t.getMessage());
+        throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "PAYMENT_PROVIDER_UNAVAILABLE",
+                "El servicio de pagos no esta disponible para reembolsos. Intente en unos minutos.");
+    }
+
+    @SuppressWarnings("unused")
+    private JsonNode fallbackCheckOrderStatus(String orderNumber, Throwable t) {
+        log.error("Izipay circuit-breaker OPEN – checkOrderStatus fallback. Cause: {}", t.getMessage());
+        throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "PAYMENT_PROVIDER_UNAVAILABLE",
+                "El servicio de pagos no esta disponible para consultas. Intente en unos minutos.");
     }
 }

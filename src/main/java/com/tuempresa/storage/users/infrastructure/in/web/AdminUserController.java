@@ -21,6 +21,8 @@ import com.tuempresa.storage.users.application.usecase.AdminUserService;
 import com.tuempresa.storage.users.application.usecase.AdminUserService.UserExportRow;
 import com.tuempresa.storage.users.domain.Role;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -48,7 +50,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 @RestController
-@RequestMapping({"/api/v1/admin/users", "/api/v1/admin/usuarios"})
+@RequestMapping({ "/api/v1/admin/users", "/api/v1/admin/usuarios" })
 @PreAuthorize("hasRole('ADMIN')")
 public class AdminUserController {
 
@@ -67,8 +69,7 @@ public class AdminUserController {
             SecurityUtils securityUtils,
             ReactiveBlockingExecutor reactiveBlockingExecutor,
             ReactiveMultipartAdapter reactiveMultipartAdapter,
-            ExcelExportService excelExportService
-    ) {
+            ExcelExportService excelExportService) {
         this.adminUserService = adminUserService;
         this.securityUtils = securityUtils;
         this.reactiveBlockingExecutor = reactiveBlockingExecutor;
@@ -81,8 +82,7 @@ public class AdminUserController {
             @RequestParam(required = false) String query,
             @RequestParam(required = false) Role role,
             @RequestParam(required = false, defaultValue = "false") boolean latestOnly,
-            @RequestParam(required = false) Integer limit
-    ) {
+            @RequestParam(required = false) Integer limit) {
         return reactiveBlockingExecutor.call(() -> adminUserService.list(query, role, latestOnly, limit));
     }
 
@@ -90,17 +90,15 @@ public class AdminUserController {
     public Mono<PagedResponse<AdminUserPagedResponse>> listPage(
             @RequestParam(required = false) String query,
             @RequestParam(required = false) Role role,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "50") int size
-    ) {
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "50") @Min(1) @Max(100) int size) {
         return reactiveBlockingExecutor.call(() -> adminUserService.listPage(query, role, page, size));
     }
 
     @GetMapping("/summary")
     public Mono<AdminUserSummaryResponse> summary(
             @RequestParam(required = false) String query,
-            @RequestParam(required = false) Role role
-    ) {
+            @RequestParam(required = false) Role role) {
         return reactiveBlockingExecutor.call(() -> adminUserService.summary(query, role));
     }
 
@@ -112,32 +110,28 @@ public class AdminUserController {
     @PutMapping("/{id}")
     public Mono<AdminUserResponse> update(
             @PathVariable Long id,
-            @Valid @RequestBody UpdateAdminUserRequest request
-    ) {
+            @Valid @RequestBody UpdateAdminUserRequest request) {
         return reactiveBlockingExecutor.call(() -> adminUserService.update(id, request));
     }
 
     @PatchMapping("/{id}/roles")
     public Mono<AdminUserResponse> updateRoles(
             @PathVariable Long id,
-            @Valid @RequestBody UpdateUserRolesRequest request
-    ) {
+            @Valid @RequestBody UpdateUserRolesRequest request) {
         return reactiveBlockingExecutor.call(() -> adminUserService.updateRoles(id, request));
     }
 
     @PatchMapping("/{id}/active")
     public Mono<AdminUserResponse> updateActive(
             @PathVariable Long id,
-            @Valid @RequestBody UpdateUserActiveRequest request
-    ) {
+            @Valid @RequestBody UpdateUserActiveRequest request) {
         return reactiveBlockingExecutor.call(() -> adminUserService.updateActive(id, request));
     }
 
     @PatchMapping("/{id}/password")
     public Mono<AdminUserResponse> updatePassword(
             @PathVariable Long id,
-            @Valid @RequestBody UpdateUserPasswordRequest request
-    ) {
+            @Valid @RequestBody UpdateUserPasswordRequest request) {
         return reactiveBlockingExecutor.call(() -> adminUserService.updatePassword(id, request));
     }
 
@@ -172,36 +166,34 @@ public class AdminUserController {
     @PatchMapping("/bulk/delete")
     public Mono<BulkOperationResponse> bulkDelete(@Valid @RequestBody BulkIdsRequest request) {
         return securityUtils.currentUserOrThrowReactive()
-                .flatMap(currentUser -> reactiveBlockingExecutor.call(() -> 
-                        adminUserService.bulkDelete(request.ids(), currentUser)));
+                .flatMap(currentUser -> reactiveBlockingExecutor
+                        .call(() -> adminUserService.bulkDelete(request.ids(), currentUser)));
     }
 
     @PatchMapping("/bulk/active")
     public Mono<BulkOperationResponse> bulkUpdateActive(@Valid @RequestBody BulkActiveRequest request) {
         return securityUtils.currentUserOrThrowReactive()
-                .flatMap(currentUser -> reactiveBlockingExecutor.call(() -> 
-                        adminUserService.bulkUpdateActive(request.ids(), request.active(), currentUser)));
+                .flatMap(currentUser -> reactiveBlockingExecutor
+                        .call(() -> adminUserService.bulkUpdateActive(request.ids(), request.active(), currentUser)));
     }
 
     @PatchMapping("/bulk/roles")
     public Mono<BulkOperationResponse> bulkUpdateRoles(@Valid @RequestBody BulkRolesRequest request) {
         return securityUtils.currentUserOrThrowReactive()
-                .flatMap(currentUser -> reactiveBlockingExecutor.call(() -> 
-                        adminUserService.bulkUpdateRoles(request.ids(), request.roles(), request.warehouseIds(), currentUser)));
+                .flatMap(currentUser -> reactiveBlockingExecutor.call(() -> adminUserService
+                        .bulkUpdateRoles(request.ids(), request.roles(), request.warehouseIds(), currentUser)));
     }
 
     @GetMapping(value = "/export", produces = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     public Mono<ResponseEntity<byte[]>> exportUsers(
             @RequestParam(required = false) String query,
-            @RequestParam(required = false) Role role
-    ) {
+            @RequestParam(required = false) Role role) {
         return reactiveBlockingExecutor.call(() -> {
             List<UserExportRow> users = adminUserService.exportUsers(query, role);
             List<String> headers = List.of(
                     "ID", "Nombre", "Email", "Telefono", "Nacionalidad",
                     "Roles", "Warehouses", "Activo", "Email Verificado",
-                    "Perfil Completo", "Entregas Asignadas", "Entregas Completadas", "Fecha Creacion"
-            );
+                    "Perfil Completo", "Entregas Asignadas", "Entregas Completadas", "Fecha Creacion");
             List<Function<UserExportRow, String>> mappers = List.of(
                     row -> String.valueOf(row.id()),
                     row -> row.fullName(),
@@ -215,8 +207,7 @@ public class AdminUserController {
                     row -> row.profileCompleted() ? "Si" : "No",
                     row -> String.valueOf(row.assignedDeliveries()),
                     row -> String.valueOf(row.completedDeliveries()),
-                    row -> row.createdAt() != null ? EXPORT_DATE_FORMATTER.format(row.createdAt()) : ""
-            );
+                    row -> row.createdAt() != null ? EXPORT_DATE_FORMATTER.format(row.createdAt()) : "");
             byte[] excel;
             try {
                 excel = excelExportService.exportToExcel(
@@ -224,15 +215,15 @@ public class AdminUserController {
                         "Exportacion de Usuarios",
                         headers,
                         users,
-                        mappers
-                );
+                        mappers);
             } catch (IOException e) {
                 throw new IllegalStateException("No se pudo generar el reporte Excel de usuarios.", e);
             }
             String filename = "users_export_" + Instant.now().toEpochMilli() + ".xlsx";
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
-                    .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                    .contentType(MediaType
+                            .parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
                     .body(excel);
         });
     }

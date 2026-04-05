@@ -171,6 +171,9 @@ public class User extends AuditableEntity {
     @Column(name = "document_change_count", nullable = false)
     private int documentChangeCount;
 
+    @Column(name = "wallet_balance", nullable = false, precision = 12, scale = 2)
+    private java.math.BigDecimal walletBalance = java.math.BigDecimal.ZERO;
+
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "user_roles", joinColumns = @JoinColumn(name = "user_id"))
     @Enumerated(EnumType.STRING)
@@ -178,11 +181,7 @@ public class User extends AuditableEntity {
     private Set<Role> roles = new HashSet<>();
 
     @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(
-            name = "user_warehouse_access",
-            joinColumns = @JoinColumn(name = "user_id"),
-            inverseJoinColumns = @JoinColumn(name = "warehouse_id")
-    )
+    @JoinTable(name = "user_warehouse_access", joinColumns = @JoinColumn(name = "user_id"), inverseJoinColumns = @JoinColumn(name = "warehouse_id"))
     private Set<Warehouse> warehouseAssignments = new HashSet<>();
 
     public static User of(String fullName, String email, String passwordHash, String phone, Set<Role> roles) {
@@ -392,6 +391,21 @@ public class User extends AuditableEntity {
         return active;
     }
 
+    public java.math.BigDecimal getWalletBalance() {
+        return walletBalance;
+    }
+
+    public void addWalletCredit(java.math.BigDecimal amount) {
+        this.walletBalance = this.walletBalance.add(amount);
+    }
+
+    public void deductWalletBalance(java.math.BigDecimal amount) {
+        if (amount.compareTo(this.walletBalance) > 0) {
+            throw new IllegalArgumentException("Insufficient wallet balance");
+        }
+        this.walletBalance = this.walletBalance.subtract(amount);
+    }
+
     public boolean isManagedByAdmin() {
         return managedByAdmin;
     }
@@ -435,8 +449,7 @@ public class User extends AuditableEntity {
             String preferredLanguage,
             String phone,
             boolean termsAccepted,
-            String profilePhotoPath
-    ) {
+            String profilePhotoPath) {
         this.firstName = clean(firstName, 80);
         this.lastName = clean(lastName, 80);
         this.fullName = resolveFullName(this.firstName, this.lastName, this.fullName);
@@ -467,8 +480,7 @@ public class User extends AuditableEntity {
             DocumentType secondaryDocumentType,
             String secondaryDocumentNumber,
             String emergencyContactName,
-            String emergencyContactPhone
-    ) {
+            String emergencyContactPhone) {
         if (firstName != null) {
             this.firstName = clean(firstName, 80);
         }
@@ -653,8 +665,7 @@ public class User extends AuditableEntity {
             String email,
             String phone,
             String nationality,
-            String preferredLanguage
-    ) {
+            String preferredLanguage) {
         this.firstName = clean(firstName, 80);
         this.lastName = clean(lastName, 80);
         this.fullName = resolveFullName(this.firstName, this.lastName, this.fullName);
@@ -742,11 +753,11 @@ public class User extends AuditableEntity {
     private static String[] splitName(String fullName) {
         String normalized = clean(fullName, 160);
         if (!hasText(normalized)) {
-            return new String[]{null, null};
+            return new String[] { null, null };
         }
         String[] parts = normalized.split("\\s+");
         if (parts.length == 1) {
-            return new String[]{parts[0], null};
+            return new String[] { parts[0], null };
         }
         int middle = Math.max(1, parts.length / 2);
         StringBuilder first = new StringBuilder();
@@ -764,7 +775,7 @@ public class User extends AuditableEntity {
                 last.append(parts[i]);
             }
         }
-        return new String[]{first.toString(), last.toString()};
+        return new String[] { first.toString(), last.toString() };
     }
 
     private static String clean(String value, int maxLength) {

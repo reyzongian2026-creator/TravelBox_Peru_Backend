@@ -206,17 +206,6 @@ Notas:
 - En `prod`, el script exige `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` y `AZURE_TENANT_ID`.
 - Para `qa`, puedes forzar Key Vault runtime con `-EnableKeyVaultRuntime`.
 
-Cloud Run (desde raiz del workspace):
-
-```powershell
-powershell -ExecutionPolicy Bypass -File tools\deploy_cloudrun_backend.ps1 -Environment qa -ProjectId <project-id> -ServiceName <servicio-qa>
-powershell -ExecutionPolicy Bypass -File tools\deploy_cloudrun_backend.ps1 -Environment prod -ProjectId <project-id> -ServiceName <servicio-prod>
-```
-
-Archivos de entorno para Cloud Run:
-- `..\cloudrun-backend-env.qa.yaml`
-- `..\cloudrun-backend-env.prod.yaml` (alias legado: `..\cloudrun-backend-env.yaml`)
-
 ## Credenciales demo
 
 - Admin: `admin@travelbox.pe` / `Admin123!`

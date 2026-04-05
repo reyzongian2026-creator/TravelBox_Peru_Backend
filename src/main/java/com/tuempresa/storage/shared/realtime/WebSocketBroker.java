@@ -2,7 +2,7 @@ package com.tuempresa.storage.shared.realtime;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.tuempresa.storage.shared.infrastructure.security.JwtTokenProvider;
+import com.tuempresa.storage.shared.infrastructure.security.SseTokenStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -25,13 +25,13 @@ public class WebSocketBroker {
     private final Map<String, String> sessionToUserId = new ConcurrentHashMap<>();
     private final Map<String, Sinks.Many<WebSocketMessage>> userSinks = new ConcurrentHashMap<>();
     private final AtomicInteger totalConnections = new AtomicInteger(0);
-    
-    private final ObjectMapper objectMapper;
-    private final JwtTokenProvider jwtTokenProvider;
 
-    public WebSocketBroker(ObjectMapper objectMapper, JwtTokenProvider jwtTokenProvider) {
+    private final ObjectMapper objectMapper;
+    private final SseTokenStore sseTokenStore;
+
+    public WebSocketBroker(ObjectMapper objectMapper, SseTokenStore sseTokenStore) {
         this.objectMapper = objectMapper;
-        this.jwtTokenProvider = jwtTokenProvider;
+        this.sseTokenStore = sseTokenStore;
     }
 
     public void handleConnection(WebSocketSession session, String token) {
@@ -42,15 +42,16 @@ public class WebSocketBroker {
                 return;
             }
 
-            Long userIdLong = jwtTokenProvider.extractUserId(token);
-            if (userIdLong == null) {
-                log.warn("WebSocket rejected: invalid token");
+            // Opaque token issued by /api/v1/realtime/ws-token — value is userId
+            String userId = sseTokenStore.resolveUsername(token);
+            if (userId == null) {
+                log.warn("WebSocket rejected: invalid or expired token");
                 closeSessionSafely(session);
                 return;
             }
-            String userId = userIdLong.toString();
 
-            Set<WebSocketSession> existingSessions = sessionsByUserId.computeIfAbsent(userId, k -> ConcurrentHashMap.newKeySet());
+            Set<WebSocketSession> existingSessions = sessionsByUserId.computeIfAbsent(userId,
+                    k -> ConcurrentHashMap.newKeySet());
             if (existingSessions.size() >= MAX_CONNECTIONS_PER_USER) {
                 log.warn("WebSocket rejected: max connections per user reached for userId={}", userId);
                 closeSessionSafely(session);
@@ -61,10 +62,11 @@ public class WebSocketBroker {
             sessionToUserId.put(sessionId, userId);
             existingSessions.add(session);
             totalConnections.incrementAndGet();
-            
+
             userSinks.computeIfAbsent(userId, k -> Sinks.many().multicast().onBackpressureBuffer(100));
 
-            log.info("WebSocket connected: userId={}, sessionId={}, totalConnections={}", userId, sessionId, totalConnections.get());
+            log.info("WebSocket connected: userId={}, sessionId={}, totalConnections={}", userId, sessionId,
+                    totalConnections.get());
 
             sendMessage(session, new WebSocketMessage("connected", Map.of("status", "ok", "userId", userId)));
 
@@ -85,9 +87,10 @@ public class WebSocketBroker {
 
     private void handleMessage(WebSocketSession session, String text) {
         try {
-            Map<String, Object> json = objectMapper.readValue(text, new TypeReference<Map<String, Object>>() {});
+            Map<String, Object> json = objectMapper.readValue(text, new TypeReference<Map<String, Object>>() {
+            });
             String type = json.get("type") != null ? json.get("type").toString() : "";
-            
+
             switch (type) {
                 case "ping":
                     sendMessage(session, new WebSocketMessage("pong", Map.of("timestamp", System.currentTimeMillis())));
@@ -106,7 +109,7 @@ public class WebSocketBroker {
     public void disconnect(WebSocketSession session) {
         String sessionId = session.getId();
         String userId = sessionToUserId.remove(sessionId);
-        
+
         if (userId != null) {
             Set<WebSocketSession> sessions = sessionsByUserId.get(userId);
             if (sessions != null) {
@@ -120,19 +123,19 @@ public class WebSocketBroker {
                 }
             }
         }
-        
+
         totalConnections.decrementAndGet();
         log.info("WebSocket disconnected: sessionId={}, remainingConnections={}", sessionId, totalConnections.get());
     }
 
     public void sendToUser(String userId, String eventType, Map<String, Object> payload) {
         WebSocketMessage message = new WebSocketMessage(eventType, payload);
-        
+
         Sinks.Many<WebSocketMessage> sink = userSinks.get(userId);
         if (sink != null) {
             sink.tryEmitNext(message);
         }
-        
+
         Set<WebSocketSession> sessions = sessionsByUserId.get(userId);
         if (sessions != null) {
             sessions.removeIf(session -> {
@@ -166,7 +169,8 @@ public class WebSocketBroker {
             String json = objectMapper.writeValueAsString(message);
             session.send(Mono.just(session.textMessage(json)))
                     .doOnError(e -> {
-                        log.error("Failed to send WebSocket message to session {}: {}", session.getId(), e.getMessage());
+                        log.error("Failed to send WebSocket message to session {}: {}", session.getId(),
+                                e.getMessage());
                         disconnect(session);
                     })
                     .onErrorResume(e -> Mono.empty())

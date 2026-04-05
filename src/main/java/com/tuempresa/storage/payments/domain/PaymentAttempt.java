@@ -77,12 +77,20 @@ public class PaymentAttempt extends AuditableEntity {
     @Column(name = "confirmed_at")
     private Instant confirmedAt;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "promo_code_id")
+    private PromoCode promoCode;
+
+    @Column(name = "discount_amount", precision = 12, scale = 2)
+    private BigDecimal discountAmount = BigDecimal.ZERO;
+
     public static PaymentAttempt pending(Reservation reservation, BigDecimal amount) {
         PaymentAttempt paymentAttempt = new PaymentAttempt();
         paymentAttempt.reservation = reservation;
         paymentAttempt.amount = amount;
         paymentAttempt.status = PaymentStatus.PENDING;
         paymentAttempt.providerReference = "MOCK-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        paymentAttempt.idempotencyKey = UUID.randomUUID().toString();
         return paymentAttempt;
     }
 
@@ -275,5 +283,21 @@ public class PaymentAttempt extends AuditableEntity {
             return null;
         }
         return normalized.length() > maxLength ? normalized.substring(0, maxLength) : normalized;
+    }
+
+    public PromoCode getPromoCode() {
+        return promoCode;
+    }
+
+    public void setPromoCode(PromoCode promoCode) {
+        this.promoCode = promoCode;
+    }
+
+    public BigDecimal getDiscountAmount() {
+        return discountAmount;
+    }
+
+    public void setDiscountAmount(BigDecimal discountAmount) {
+        this.discountAmount = discountAmount;
     }
 }

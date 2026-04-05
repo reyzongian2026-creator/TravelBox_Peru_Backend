@@ -8,6 +8,8 @@ import com.tuempresa.storage.shared.infrastructure.reactive.ReactiveBlockingExec
 import com.tuempresa.storage.shared.infrastructure.security.SecurityUtils;
 import com.tuempresa.storage.shared.infrastructure.security.SseTokenStore;
 import com.tuempresa.storage.shared.infrastructure.web.PagedResponse;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.codec.ServerSentEvent;
@@ -48,8 +50,8 @@ public class NotificationController {
 
         @GetMapping({ "/my", "/mine" })
         public Mono<PagedResponse<NotificationResponse>> myNotifications(
-                        @RequestParam(defaultValue = "0") int page,
-                        @RequestParam(defaultValue = "20") int size) {
+                        @RequestParam(defaultValue = "0") @Min(0) int page,
+                        @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
                 return securityUtils.currentUserOrThrowReactive()
                                 .flatMap(currentUser -> reactiveBlockingExecutor.call(
                                                 () -> notificationService.listMyNotifications(currentUser, page,

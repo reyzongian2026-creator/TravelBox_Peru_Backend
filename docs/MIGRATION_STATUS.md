@@ -1,7 +1,7 @@
 # Migration Status - TravelBox Peru to Azure
 
 **Last Updated:** March 24, 2026  
-**Status:** 🟡 In Progress (Backend Complete, Frontend Complete, Pending Testing)
+**Status:** ✅ Complete (Infrastructure fully on Azure, GCP artifacts removed)
 
 ---
 
@@ -18,12 +18,13 @@
 ## ✅ Completed Migrations
 
 ### Infrastructure
-| Service | Source (GCP) | Destination (Azure) | Status |
-|---------|--------------|---------------------|--------|
-| Backend API | Cloud Run | Azure App Service | ✅ Done |
-| Frontend Web | Cloud Run | Azure App Service | ✅ Done |
-| Database | PostgreSQL (GCP) | Azure Database for PostgreSQL Flexible | ✅ Done |
-| Storage | Firebase Storage | Azure Blob Storage | ✅ Done |
+| Service | Destination (Azure) | Status |
+|---------|---------------------|--------|
+| Backend API | Azure App Service | ✅ Done |
+| Frontend Web | Azure Static Web Apps | ✅ Done |
+| Database | Azure Database for PostgreSQL Flexible | ✅ Done |
+| Storage | Azure Blob Storage | ✅ Done |
+| CI/CD | GitHub Actions → Azure | ✅ Done |
 
 ### Features
 | Feature | Source | Destination | Status |

@@ -9,6 +9,8 @@ import com.tuempresa.storage.warehouses.application.dto.WarehouseRegistryRespons
 import com.tuempresa.storage.warehouses.application.dto.WarehouseResponse;
 import com.tuempresa.storage.warehouses.application.usecase.WarehouseService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.codec.multipart.FilePart;
@@ -28,7 +30,7 @@ import reactor.core.publisher.Mono;
 import java.util.List;
 
 @RestController
-@RequestMapping({"/api/v1/admin/warehouses", "/api/v1/admin/almacenes"})
+@RequestMapping({ "/api/v1/admin/warehouses", "/api/v1/admin/almacenes" })
 @PreAuthorize("hasRole('ADMIN')")
 public class AdminWarehouseController {
 
@@ -39,8 +41,7 @@ public class AdminWarehouseController {
     public AdminWarehouseController(
             WarehouseService warehouseService,
             ReactiveBlockingExecutor reactiveBlockingExecutor,
-            ReactiveMultipartAdapter reactiveMultipartAdapter
-    ) {
+            ReactiveMultipartAdapter reactiveMultipartAdapter) {
         this.warehouseService = warehouseService;
         this.reactiveBlockingExecutor = reactiveBlockingExecutor;
         this.reactiveMultipartAdapter = reactiveMultipartAdapter;
@@ -50,30 +51,27 @@ public class AdminWarehouseController {
     public Mono<List<WarehouseResponse>> list(
             @RequestParam(required = false) Long cityId,
             @RequestParam(required = false) String query,
-            @RequestParam(required = false) Boolean active
-    ) {
+            @RequestParam(required = false) Boolean active) {
         return reactiveBlockingExecutor.call(() -> warehouseService.searchAdmin(cityId, query, active));
     }
 
     @GetMapping("/page")
     public Mono<PagedResponse<WarehousePagedResponse>> listPage(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "50") int size,
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "50") @Min(1) @Max(100) int size,
             @RequestParam(required = false) Long cityId,
             @RequestParam(required = false) String query,
-            @RequestParam(required = false) Boolean active
-    ) {
+            @RequestParam(required = false) Boolean active) {
         return reactiveBlockingExecutor.call(() -> warehouseService.pagePage(page, size, cityId, query, active));
     }
 
-    @GetMapping({"/registry", "/registros"})
+    @GetMapping({ "/registry", "/registros" })
     public Mono<PagedResponse<WarehouseRegistryResponse>> registry(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
             @RequestParam(required = false) Long cityId,
             @RequestParam(required = false) String query,
-            @RequestParam(required = false) Boolean active
-    ) {
+            @RequestParam(required = false) Boolean active) {
         return reactiveBlockingExecutor.call(() -> warehouseService.registryPage(page, size, cityId, query, active));
     }
 
@@ -86,21 +84,18 @@ public class AdminWarehouseController {
     @PutMapping("/{id}")
     public Mono<ResponseEntity<WarehouseResponse>> update(
             @PathVariable Long id,
-            @Valid @RequestBody AdminWarehouseRequest request
-    ) {
+            @Valid @RequestBody AdminWarehouseRequest request) {
         return reactiveBlockingExecutor.call(() -> warehouseService.update(id, request))
                 .map(ResponseEntity::ok);
     }
 
-    @PostMapping(value = {"/{id}/photo", "/{id}/imagen"}, consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping(value = { "/{id}/photo", "/{id}/imagen" }, consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public Mono<ResponseEntity<WarehouseResponse>> updatePhoto(
             @PathVariable Long id,
-            @RequestPart("file") FilePart file
-    ) {
+            @RequestPart("file") FilePart file) {
         return reactiveMultipartAdapter.toMultipartFile(file)
                 .flatMap(multipartFile -> reactiveBlockingExecutor.call(
-                        () -> warehouseService.updatePhoto(id, multipartFile)
-                ))
+                        () -> warehouseService.updatePhoto(id, multipartFile)))
                 .map(ResponseEntity::ok);
     }
 

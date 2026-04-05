@@ -1,0 +1,104 @@
+2026-04-05T00:03:15.4195473Z State: Starting, Action: EstablishingSiteNetworks, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: , DetailsLevel: INFO
+2026-04-05T00:03:35.9652258Z State: Starting, Action: StartingMsiContainer, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: , DetailsLevel: INFO
+2026-04-05T00:03:55.3043758Z State: Starting, Action: StartingSiteContainers, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: , DetailsLevel: INFO
+2026-04-05T00:03:55.3046166Z Container start method called.
+2026-04-05T00:03:55.3046564Z State: Starting, Action: PullingImage, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Pulling image 10.1.0.5:13209/azure-app-service/java:21.0.9-r260110 for travelbox-backend-prod., DetailsLevel: INFO
+2026-04-05T00:03:55.3047529Z Establishing network.
+2026-04-05T00:03:55.3048524Z Pulling image: azure-app-service/java:21.0.9-r260110.
+2026-04-05T00:03:55.7957842Z Container is starting.
+2026-04-05T00:03:55.7958668Z State: Starting, Action: MountingVolumes, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Mounting volumes for travelbox-backend-prod., DetailsLevel: INFO
+2026-04-05T00:03:55.7968656Z Establishing user namespace if not established already.
+2026-04-05T00:03:55.8159150Z Establishing network if not established already.
+2026-04-05T00:03:55.8167725Z Mounting volumes.
+2026-04-05T00:03:55.8174588Z Nested mountpoint 
+2026-04-05T00:03:55.8962858Z Nested mountpoint volatile/logs
+2026-04-05T00:03:55.9472161Z Nested mountpoint 
+2026-04-05T00:03:56.2366480Z State: Starting, Action: CreatingContainer, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Finished pulling container image and mounting volumes for travelbox-backend-prod. Allocatinng the rest of the container resources to finish container creation., DetailsLevel: INFO
+2026-04-05T00:03:56.2367606Z Creating container.
+2026-04-05T00:03:56.2368363Z Creating pipes for streaming container io.
+2026-04-05T00:03:56.2369211Z Creating stdout named pipe at /podr/container/pipe/d0d4498dba7b_travelbox-backend-prod/stdout_f705c835dc9d440689ed7aed09d7982c.
+2026-04-05T00:03:56.3373761Z Successfully created stdout named pipe at: /podr/container/pipe/d0d4498dba7b_travelbox-backend-prod/stdout_f705c835dc9d440689ed7aed09d7982c.
+2026-04-05T00:03:56.3454112Z Opening named pipe /podr/container/pipe/d0d4498dba7b_travelbox-backend-prod/stdout_f705c835dc9d440689ed7aed09d7982c for reading in non-blocking mode.
+2026-04-05T00:03:56.3458416Z Successfully opened named pipe: /podr/container/pipe/d0d4498dba7b_travelbox-backend-prod/stdout_f705c835dc9d440689ed7aed09d7982c.
+2026-04-05T00:03:56.3459524Z Successfully removed non-blocking flag from /podr/container/pipe/d0d4498dba7b_travelbox-backend-prod/stdout_f705c835dc9d440689ed7aed09d7982c.
+2026-04-05T00:03:56.3460855Z Creating stderr named pipe at /podr/container/pipe/d0d4498dba7b_travelbox-backend-prod/stderr_5ba815e62c5d4adfb3e84441a7fba351.
+2026-04-05T00:03:56.3473384Z Successfully created stderr named pipe at: /podr/container/pipe/d0d4498dba7b_travelbox-backend-prod/stderr_5ba815e62c5d4adfb3e84441a7fba351.
+2026-04-05T00:03:56.3474244Z Opening named pipe /podr/container/pipe/d0d4498dba7b_travelbox-backend-prod/stderr_5ba815e62c5d4adfb3e84441a7fba351 for reading in non-blocking mode.
+2026-04-05T00:03:56.3475218Z Successfully opened named pipe: /podr/container/pipe/d0d4498dba7b_travelbox-backend-prod/stderr_5ba815e62c5d4adfb3e84441a7fba351.
+2026-04-05T00:03:56.3476016Z Successfully removed non-blocking flag from /podr/container/pipe/d0d4498dba7b_travelbox-backend-prod/stderr_5ba815e62c5d4adfb3e84441a7fba351.
+2026-04-05T00:03:56.3560930Z Creating container with image: azure-app-service/java:21.0.9-r260110 from registry: 10.1.0.5:13209 and fully qualified image name: 10.1.0.5:13209/azure-app-service/java:21.0.9-r260110
+2026-04-05T00:03:57.5655330Z Starting container: d0d4498dba7b_travelbox-backend-prod.
+2026-04-05T00:03:57.6910752Z Starting watchers and probes.
+2026-04-05T00:03:57.7183613Z Starting metrics collection.
+2026-04-05T00:03:57.7192947Z Container is running.
+2026-04-05T00:03:57.7194446Z State: Starting, Action: CreatingContainer, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Container travelbox-backend-prod successfully created and is running., DetailsLevel: INFO
+2026-04-05T00:03:57.9326115Z Container start method finished after 2626 ms.
+2026-04-05T00:03:57.9617877Z State: Starting, Action: InitiatingSiteWarmUpProbe, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Container travelbox-backend-prod successfully created and is running., DetailsLevel: INFO
+2026-04-05T00:03:57.9621993Z State: Starting, Action: WaitingForSiteWarmUpProbeSuccess, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Pinging warmup path to ensure container is ready to receive requests., DetailsLevel: INFO
+2026-04-05T00:10:03.2708497Z Site startup probe failed after 365.034219 seconds.
+2026-04-05T00:10:06.2773604Z State: Starting, Action: WaitingForSiteWarmUpProbeSuccess, LastError: ContainerTimeout, LastErrorTimestamp: 04/05/2026 00:10:06, LastErrorDetails: Container did not start within expected time limit of 230s. Please inspect your container logs for more details., Details: Pinging warmup path to ensure container is ready to receive requests., DetailsLevel: ERR
+2026-04-05T00:10:06.3580538Z Failed to start site. Revert by stopping site.
+2026-04-05T00:10:06.4187509Z State: Stopping, Action: StoppingSite, LastError: ContainerTimeout, LastErrorTimestamp: 04/05/2026 00:10:06, LastErrorDetails: Container did not start within expected time limit of 230s. Please inspect your container logs for more details., Details: Pinging warmup path to ensure container is ready to receive requests., DetailsLevel: ERR
+2026-04-05T00:10:06.6379752Z State: Stopping, Action: StoppingSiteContainers, LastError: ContainerTimeout, LastErrorTimestamp: 04/05/2026 00:10:06, LastErrorDetails: Container did not start within expected time limit of 230s. Please inspect your container logs for more details., Details: Pinging warmup path to ensure container is ready to receive requests., DetailsLevel: ERR
+2026-04-05T00:10:06.6784301Z Container is terminating. Grace period: 5 seconds.
+2026-04-05T00:10:07.1993371Z Stop and delete container. Retry count = 0
+2026-04-05T00:10:07.1996401Z Stopping container: d0d4498dba7b_travelbox-backend-prod.
+2026-04-05T00:10:13.4194880Z Deleting container: d0d4498dba7b_travelbox-backend-prod. Retry count = 0
+2026-04-05T00:10:14.8659396Z Container spec TerminationMessagePolicy  path 
+2026-04-05T00:10:14.8750889Z Container is terminated. Total time elapsed: 8194 ms.
+2026-04-05T00:10:14.8758960Z Site container: travelbox-backend-prod terminated during site startup.
+2026-04-05T00:10:14.8839777Z State: Stopping, Action: CancellingStartup, LastError: ContainerTimeout, LastErrorTimestamp: 04/05/2026 00:10:06, LastErrorDetails: Container did not start within expected time limit of 230s. Please inspect your container logs for more details., Details: Site container: travelbox-backend-prod terminated during site startup. Cancelling site startup., DetailsLevel: ERR
+2026-04-05T00:10:14.8865167Z Site: travelbox-backend-prod stopped.
+2026-04-05T00:10:42.2266590Z State: Stopping, Action: StoppingSite, LastError: ContainerTimeout, LastErrorTimestamp: 04/04/2026 15:32:20, LastErrorDetails: Container did not start within expected time limit of 230s. Please inspect your container logs for more details., Details: Site started at 04/04/2026 16:30:38 (UTC), DetailsLevel: INFO
+2026-04-05T00:10:42.2287698Z State: Stopping, Action: StoppingSiteContainers, LastError: ContainerTimeout, LastErrorTimestamp: 04/04/2026 15:32:20, LastErrorDetails: Container did not start within expected time limit of 230s. Please inspect your container logs for more details., Details: Site started at 04/04/2026 16:30:38 (UTC), DetailsLevel: INFO
+2026-04-05T00:10:42.2289754Z Container is terminating. Grace period: 5 seconds.
+2026-04-05T00:10:42.2423752Z Stop and delete container. Retry count = 0
+2026-04-05T00:10:42.2430240Z Stopping container: bc96b00dfee9_travelbox-backend-prod.
+2026-04-05T00:10:48.8757171Z Deleting container: bc96b00dfee9_travelbox-backend-prod. Retry count = 0
+2026-04-05T00:10:49.4178333Z Container spec TerminationMessagePolicy  path 
+2026-04-05T00:10:49.4194291Z Container is terminated. Total time elapsed: 7188 ms.
+2026-04-05T00:10:49.4195466Z Site: travelbox-backend-prod stopped.
+2026-04-05T00:13:46.4398540Z State: Starting, Action: EstablishingSiteNetworks, LastError: ContainerTimeout, LastErrorTimestamp: 04/05/2026 00:10:06, LastErrorDetails: Container did not start within expected time limit of 230s. Please inspect your container logs for more details., Details: Site stopped at 04/05/2026 00:10:20 (UTC), DetailsLevel: ERR
+2026-04-05T00:13:51.2102890Z State: Starting, Action: StartingMsiContainer, LastError: ContainerTimeout, LastErrorTimestamp: 04/05/2026 00:10:06, LastErrorDetails: Container did not start within expected time limit of 230s. Please inspect your container logs for more details., Details: Site stopped at 04/05/2026 00:10:20 (UTC), DetailsLevel: ERR
+2026-04-05T00:14:00.9791918Z State: Starting, Action: StartingSiteContainers, LastError: ContainerTimeout, LastErrorTimestamp: 04/05/2026 00:10:06, LastErrorDetails: Container did not start within expected time limit of 230s. Please inspect your container logs for more details., Details: Site stopped at 04/05/2026 00:10:20 (UTC), DetailsLevel: ERR
+2026-04-05T00:14:00.9795473Z Container start method called.
+2026-04-05T00:14:00.9801004Z State: Starting, Action: PullingImage, LastError: ContainerTimeout, LastErrorTimestamp: 04/05/2026 00:10:06, LastErrorDetails: Container did not start within expected time limit of 230s. Please inspect your container logs for more details., Details: Pulling image 10.1.0.6:13209/azure-app-service/java:21.0.9-r260110 for travelbox-backend-prod., DetailsLevel: INFO
+2026-04-05T00:14:00.9805972Z Establishing network.
+2026-04-05T00:14:00.9811627Z Pulling image: azure-app-service/java:21.0.9-r260110.
+2026-04-05T00:14:01.2864196Z Container is starting.
+2026-04-05T00:14:01.3034608Z State: Starting, Action: MountingVolumes, LastError: ContainerTimeout, LastErrorTimestamp: 04/05/2026 00:10:06, LastErrorDetails: Container did not start within expected time limit of 230s. Please inspect your container logs for more details., Details: Mounting volumes for travelbox-backend-prod., DetailsLevel: INFO
+2026-04-05T00:14:01.3039312Z Establishing user namespace if not established already.
+2026-04-05T00:14:01.3042762Z Establishing network if not established already.
+2026-04-05T00:14:01.3051512Z Mounting volumes.
+2026-04-05T00:14:01.3055308Z Nested mountpoint 
+2026-04-05T00:14:01.3846094Z Nested mountpoint volatile/logs
+2026-04-05T00:14:01.4858884Z Nested mountpoint 
+2026-04-05T00:14:01.6358129Z State: Starting, Action: CreatingContainer, LastError: ContainerTimeout, LastErrorTimestamp: 04/05/2026 00:10:06, LastErrorDetails: Container did not start within expected time limit of 230s. Please inspect your container logs for more details., Details: Finished pulling container image and mounting volumes for travelbox-backend-prod. Allocatinng the rest of the container resources to finish container creation., DetailsLevel: INFO
+2026-04-05T00:14:01.6363647Z Creating container.
+2026-04-05T00:14:01.6378145Z Creating pipes for streaming container io.
+2026-04-05T00:14:01.7060531Z Creating stdout named pipe at /podr/container/pipe/a79e2a5b60cf_travelbox-backend-prod/stdout_1d65117eddf74194855326119acf1261.
+2026-04-05T00:14:01.7078963Z Successfully created stdout named pipe at: /podr/container/pipe/a79e2a5b60cf_travelbox-backend-prod/stdout_1d65117eddf74194855326119acf1261.
+2026-04-05T00:14:01.7081075Z Opening named pipe /podr/container/pipe/a79e2a5b60cf_travelbox-backend-prod/stdout_1d65117eddf74194855326119acf1261 for reading in non-blocking mode.
+2026-04-05T00:14:01.7082361Z Successfully opened named pipe: /podr/container/pipe/a79e2a5b60cf_travelbox-backend-prod/stdout_1d65117eddf74194855326119acf1261.
+2026-04-05T00:14:01.7083094Z Successfully removed non-blocking flag from /podr/container/pipe/a79e2a5b60cf_travelbox-backend-prod/stdout_1d65117eddf74194855326119acf1261.
+2026-04-05T00:14:01.7084255Z Creating stderr named pipe at /podr/container/pipe/a79e2a5b60cf_travelbox-backend-prod/stderr_b54a856879eb4f0f9fca221f58179fc8.
+2026-04-05T00:14:01.7085473Z Successfully created stderr named pipe at: /podr/container/pipe/a79e2a5b60cf_travelbox-backend-prod/stderr_b54a856879eb4f0f9fca221f58179fc8.
+2026-04-05T00:14:01.7086184Z Opening named pipe /podr/container/pipe/a79e2a5b60cf_travelbox-backend-prod/stderr_b54a856879eb4f0f9fca221f58179fc8 for reading in non-blocking mode.
+2026-04-05T00:14:01.7087022Z Successfully opened named pipe: /podr/container/pipe/a79e2a5b60cf_travelbox-backend-prod/stderr_b54a856879eb4f0f9fca221f58179fc8.
+2026-04-05T00:14:01.7087691Z Successfully removed non-blocking flag from /podr/container/pipe/a79e2a5b60cf_travelbox-backend-prod/stderr_b54a856879eb4f0f9fca221f58179fc8.
+2026-04-05T00:14:01.7088653Z Creating container with image: azure-app-service/java:21.0.9-r260110 from registry: 10.1.0.6:13209 and fully qualified image name: 10.1.0.6:13209/azure-app-service/java:21.0.9-r260110
+2026-04-05T00:14:02.7700241Z Starting container: a79e2a5b60cf_travelbox-backend-prod.
+2026-04-05T00:14:02.8986700Z Starting watchers and probes.
+2026-04-05T00:14:02.9186401Z Starting metrics collection.
+2026-04-05T00:14:02.9188954Z Container is running.
+2026-04-05T00:14:02.9189882Z State: Starting, Action: CreatingContainer, LastError: ContainerTimeout, LastErrorTimestamp: 04/05/2026 00:10:06, LastErrorDetails: Container did not start within expected time limit of 230s. Please inspect your container logs for more details., Details: Container travelbox-backend-prod successfully created and is running., DetailsLevel: INFO
+2026-04-05T00:14:03.3119138Z Container start method finished after 2332 ms.
+2026-04-05T00:14:03.3121385Z State: Starting, Action: InitiatingSiteWarmUpProbe, LastError: ContainerTimeout, LastErrorTimestamp: 04/05/2026 00:10:06, LastErrorDetails: Container did not start within expected time limit of 230s. Please inspect your container logs for more details., Details: Container travelbox-backend-prod successfully created and is running., DetailsLevel: INFO
+2026-04-05T00:14:03.3121653Z State: Starting, Action: WaitingForSiteWarmUpProbeSuccess, LastError: ContainerTimeout, LastErrorTimestamp: 04/05/2026 00:10:06, LastErrorDetails: Container did not start within expected time limit of 230s. Please inspect your container logs for more details., Details: Pinging warmup path to ensure container is ready to receive requests., DetailsLevel: INFO
+2026-04-05T00:18:57.4416914Z Site startup probe succeeded after 293.9694714 seconds.
+2026-04-05T00:18:57.7939283Z State: Starting, Action: WarmUpProbeSucceeded, LastError: ContainerTimeout, LastErrorTimestamp: 04/05/2026 00:10:06, LastErrorDetails: Container did not start within expected time limit of 230s. Please inspect your container logs for more details., Details: Site startup probe succeeded after 293.9694714 seconds., DetailsLevel: INFO
+2026-04-05T00:18:58.1967723Z State: Starting, Action: StartingAuthContainer, LastError: ContainerTimeout, LastErrorTimestamp: 04/05/2026 00:10:06, LastErrorDetails: Container did not start within expected time limit of 230s. Please inspect your container logs for more details., Details: Site startup probe succeeded after 293.9694714 seconds., DetailsLevel: INFO
+2026-04-05T00:19:10.3913574Z Site is running with deployment version: 5887c59b-921d-48d3-8296-e80adc11666c
+2026-04-05T00:19:10.4139428Z Site started.
+2026-04-05T00:19:10.4927158Z State: Started, Action: None, LastError: ContainerTimeout, LastErrorTimestamp: 04/05/2026 00:10:06, LastErrorDetails: Container did not start within expected time limit of 230s. Please inspect your container logs for more details., Details: Site started at 04/05/2026 00:19:10 (UTC), DetailsLevel: INFO
+2026-04-05T00:19:10.7133539Z Site is running with patch version JAVA 21.0.9

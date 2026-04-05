@@ -81,8 +81,7 @@ public class DeliveryOrder extends AuditableEntity {
             String type,
             String address,
             String zone,
-            BigDecimal cost
-    ) {
+            BigDecimal cost) {
         DeliveryOrder order = new DeliveryOrder();
         order.reservation = reservation;
         order.type = type;
@@ -103,8 +102,7 @@ public class DeliveryOrder extends AuditableEntity {
             double originLongitude,
             double destinationLatitude,
             double destinationLongitude,
-            int etaMinutes
-    ) {
+            int etaMinutes) {
         this.driverName = trim(driverName, 120);
         this.driverPhone = trim(driverPhone, 30);
         this.vehicleType = trim(vehicleType, 40);
@@ -118,7 +116,8 @@ public class DeliveryOrder extends AuditableEntity {
         this.nextTrackingAt = Instant.now();
     }
 
-    public void advanceTracking(double latitude, double longitude, DeliveryStatus status, int etaMinutes, Instant nextTrackingAt) {
+    public void advanceTracking(double latitude, double longitude, DeliveryStatus status, int etaMinutes,
+            Instant nextTrackingAt) {
         this.currentLatitude = latitude;
         this.currentLongitude = longitude;
         this.status = status;
@@ -133,6 +132,16 @@ public class DeliveryOrder extends AuditableEntity {
             this.driverName = trim(courier.getFullName(), 120);
             this.driverPhone = trim(courier.getPhone(), 30);
         }
+    }
+
+    public void resetAssignment() {
+        this.assignedCourier = null;
+        this.driverName = null;
+        this.driverPhone = null;
+        this.vehicleType = null;
+        this.vehiclePlate = null;
+        this.status = DeliveryStatus.REQUESTED;
+        this.trackingStage = 0;
     }
 
     public void updateVehicle(String vehicleType, String vehiclePlate) {

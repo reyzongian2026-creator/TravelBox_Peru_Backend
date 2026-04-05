@@ -1,0 +1,89 @@
+2026-04-05T00:02:36.1982294Z Deploy Async
+2026-04-05T00:02:39.5269524Z Run rsync from: /tmp/zipdeploy/extracted/ to: /home/site/wwwroot/ in 8 parallel threads
+2026-04-05T00:02:39.5969391Z Delete options: clean=False, use manifest=False, directory to ignore=
+2026-04-05T00:02:39.7594367Z Prev manifest = /home/site/deployments/90cb0e8f-9b0e-4144-ad96-4e22dbf82758/manifest and next /home/site/deployments/6c1d8847-5f7c-4450-a90b-869b3044919e/manifest
+2026-04-05T00:02:39.9490274Z Cleaning up /tmp//filelist.txt and /tmp//splits
+2026-04-05T00:02:40.0584829Z Creating a list of all files at /tmp//filelist.txt
+2026-04-05T00:02:40.1573932Z No directory to exclude.
+2026-04-05T00:02:40.2694743Z Created /tmp//filelist.txt. Total number of files to be synced = 1.
+2026-04-05T00:02:40.3784866Z Created batches from the list of files. Processing 1 files in each thread
+2026-04-05T00:02:40.4489586Z Running rsync for filelist /tmp//splits/split.aa from /tmp/zipdeploy/extracted/ to /home/site/wwwroot/
+2026-04-05T00:03:03.8192973Z .................
+2026-04-05T00:03:03.8193373Z 
+2026-04-05T00:03:03.8982395Z Number of files: 1 (reg: 1)
+2026-04-05T00:03:03.9586925Z Number of created files: 0
+2026-04-05T00:03:04.1013950Z Number of deleted files: 0
+2026-04-05T00:03:04.2531330Z Number of regular files transferred: 1
+2026-04-05T00:03:04.2673140Z Total file size: 128.50M bytes
+2026-04-05T00:03:04.3082829Z Total transferred file size: 128.50M bytes
+2026-04-05T00:03:04.3655205Z Literal data: 128.50M bytes
+2026-04-05T00:03:04.4484467Z Matched data: 0 bytes
+2026-04-05T00:03:04.4887227Z File list size: 0
+2026-04-05T00:03:04.5374186Z File list generation time: 0.029 seconds
+2026-04-05T00:03:04.6069284Z File list transfer time: 0.000 seconds
+2026-04-05T00:03:04.6894767Z Total bytes sent: 113.56M
+2026-04-05T00:03:04.7591850Z Total bytes received: 35
+2026-04-05T00:03:04.7991250Z 
+2026-04-05T00:03:04.8372053Z sent 113.56M bytes  received 35 bytes  4.83M bytes/sec
+2026-04-05T00:03:04.9670855Z total size is 128.50M  speedup is 1.13
+2026-04-05T00:03:05.0070729Z Attempt 1: Rsync for filelist /tmp//splits/split.aa completed with exit code 0
+2026-04-05T00:03:05.0762822Z Completed successfully in 24 seconds
+2026-04-05T00:09:00.7551261Z Deploy Async
+2026-04-05T00:09:09.1589511Z Run rsync from: /tmp/zipdeploy/extracted/ to: /home/site/wwwroot/ in 8 parallel threads
+2026-04-05T00:09:09.2910252Z Delete options: clean=False, use manifest=False, directory to ignore=
+2026-04-05T00:09:09.4794585Z Prev manifest = /home/site/deployments/6c1d8847-5f7c-4450-a90b-869b3044919e/manifest and next /home/site/deployments/5887c59b-921d-48d3-8296-e80adc11666c/manifest
+2026-04-05T00:09:09.5716346Z Cleaning up /tmp//filelist.txt and /tmp//splits
+2026-04-05T00:09:09.7209492Z Creating a list of all files at /tmp//filelist.txt
+2026-04-05T00:09:09.9115097Z No directory to exclude.
+2026-04-05T00:09:10.2413102Z Created /tmp//filelist.txt. Total number of files to be synced = 1.
+2026-04-05T00:09:10.4404411Z Created batches from the list of files. Processing 1 files in each thread
+2026-04-05T00:09:10.7314724Z Running rsync for filelist /tmp//splits/split.aa from /tmp/zipdeploy/extracted/ to /home/site/wwwroot/
+2026-04-05T00:09:31.7379181Z ................
+2026-04-05T00:09:31.7384750Z 
+2026-04-05T00:09:31.7781801Z Number of files: 1 (reg: 1)
+2026-04-05T00:09:31.8005997Z Number of created files: 0
+2026-04-05T00:09:31.8207104Z Number of deleted files: 0
+2026-04-05T00:09:31.8794979Z Number of regular files transferred: 1
+2026-04-05T00:09:31.8997677Z Total file size: 128.50M bytes
+2026-04-05T00:09:31.9398841Z Total transferred file size: 128.50M bytes
+2026-04-05T00:09:32.0314449Z Literal data: 128.50M bytes
+2026-04-05T00:09:32.0906711Z Matched data: 0 bytes
+2026-04-05T00:09:32.1524423Z File list size: 0
+2026-04-05T00:09:32.2116041Z File list generation time: 0.007 seconds
+2026-04-05T00:09:32.2404836Z File list transfer time: 0.000 seconds
+2026-04-05T00:09:32.2717503Z Total bytes sent: 113.56M
+2026-04-05T00:09:32.3039684Z Total bytes received: 35
+2026-04-05T00:09:32.3513456Z 
+2026-04-05T00:09:32.4023893Z sent 113.56M bytes  received 35 bytes  5.28M bytes/sec
+2026-04-05T00:09:32.4718388Z total size is 128.50M  speedup is 1.13
+2026-04-05T00:09:32.5125335Z Attempt 1: Rsync for filelist /tmp//splits/split.aa completed with exit code 0
+2026-04-05T00:09:32.5727654Z Completed successfully in 23 seconds
+2026-04-05T00:10:17.6206521Z     __ __          __      __    _ __     
+2026-04-05T00:10:17.6306666Z    / //_/_  _ ____/ /_  __/ /   (_) /____ 
+2026-04-05T00:10:17.6307877Z   / ,< / / / / __  / / / / /   / / __/ _  
+2026-04-05T00:10:17.6307916Z  / /| / /_/ / /_/ / /_/ / /___/ / /_/  __/
+2026-04-05T00:10:17.6307935Z /_/ |_\__,_/\__,_/\__,_/_____/_/\__/\___/ 
+2026-04-05T00:10:17.6308033Z 
+2026-04-05T00:10:17.6308065Z                                           
+2026-04-05T00:10:17.6308083Z DEBUG CONSOLE | AZURE APP SERVICE ON LINUX
+2026-04-05T00:10:17.6308099Z 
+2026-04-05T00:10:17.6308119Z Documentation: http://aka.ms/webapp-linux
+2026-04-05T00:10:17.6308139Z Kudu Version : 20260204.5
+2026-04-05T00:10:17.6308162Z Commit       : f2123a3d94768058c9d9e002efc0a31e9c1580a3
+2026-04-05T00:10:17.6308181Z Instance Name: lw1sdlwk0007H9
+2026-04-05T00:10:17.6308230Z Instance Id  : 1dbea7bfe708b9b6cf563d7816aa3d6524a539ef5b1d672aead49e43942c44a2
+2026-04-05T00:10:17.6308248Z 
+2026-04-05T00:10:19.4676946Z chown: changing ownership of '/temp': Operation not permitted
+2026-04-05T00:10:19.5075371Z chmod: changing permissions of '/temp': Operation not permitted
+2026-04-05T00:10:25.8194077Z Restarting OpenBSD Secure Shell server: sshd.
+2026-04-05T00:10:25.9193594Z node not running, starting node /opt/webssh/index.js
+2026-04-05T00:10:35.2642776Z Sun Apr 5 00:10:35 UTC 2026 running .net core
+2026-04-05T00:10:36.3041862Z Startup : 12.10.36.290870
+2026-04-05T00:10:36.3305910Z Configure Services : 12.10.36.330404
+2026-04-05T00:10:36.7616441Z Configure : 12.10.36.761425
+2026-04-05T00:10:37.1306238Z Setting Up Routes : 12.10.37.122527
+2026-04-05T00:10:37.2015900Z Exiting Configure : 12.10.37.201430
+2026-04-05T00:10:37.3829382Z Hosting environment: Production
+2026-04-05T00:10:37.3840397Z Content root path: /opt/Kudu
+2026-04-05T00:10:37.3840599Z Now listening on: http://0.0.0.0:8181
+2026-04-05T00:10:37.3840642Z Application started. Press Ctrl+C to shut down.

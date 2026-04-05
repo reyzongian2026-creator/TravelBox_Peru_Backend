@@ -14,6 +14,8 @@ import com.tuempresa.storage.shared.infrastructure.reactive.ReactiveBlockingExec
 import com.tuempresa.storage.shared.infrastructure.security.SecurityUtils;
 import com.tuempresa.storage.shared.infrastructure.web.PagedResponse;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -90,8 +92,8 @@ public class ReservationController {
 
         @GetMapping("/page")
         public Mono<PagedResponse<ReservationResponse>> page(
-                        @RequestParam(defaultValue = "0") int page,
-                        @RequestParam(defaultValue = "20") int size,
+                        @RequestParam(defaultValue = "0") @Min(0) int page,
+                        @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
                         @RequestParam(required = false) ReservationStatus status,
                         @RequestParam(required = false) String query) {
                 return securityUtils.currentUserOrThrowReactive()

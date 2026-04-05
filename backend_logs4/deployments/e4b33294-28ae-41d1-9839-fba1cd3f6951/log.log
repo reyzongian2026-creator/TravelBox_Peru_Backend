@@ -1,0 +1,40 @@
+2026-04-03T12:39:35.6611946Z,Updating submodules.,d3855521-c70c-41f7-a331-491c47debf0d,0
+2026-04-03T12:39:36.8061071Z,Preparing deployment for commit id 'e4b33294-2'.,08f52195-3ea7-4f81-aced-cdf3fa05b101,0
+2026-04-03T12:39:37.2056663Z,PreDeployment: context.CleanOutputPath False,7228fa8d-de42-4292-8a57-7fc7cd2dd726,0
+2026-04-03T12:39:37.3838436Z,PreDeployment: context.OutputPath /home/site/wwwroot,80bea828-5cfa-419d-bbc5-f7b333ac8083,0
+2026-04-03T12:39:37.5683597Z,Running build. Project type: OneDeploy,57d57c07-a86c-472c-99d2-72d2efa00a5c,0
+2026-04-03T12:39:37.7248217Z,Copying the manifest,833bfbca-6d2d-41f2-9755-1ca0674d9685,0
+2026-04-03T12:39:37.9029836Z,Running deployment command...,c302d97e-0d5d-4f16-b33b-5ee91254e8da,0
+	2026-04-03T12:39:37.9308568Z,Command: /opt/Kudu/Scripts/parallel_rsync.sh /tmp/zipdeploy/extracted /home/site/wwwroot 8 /tmp/ False False  ,,0
+	2026-04-03T12:39:38.1569677Z,Run rsync from: /tmp/zipdeploy/extracted/ to: /home/site/wwwroot/ in 8 parallel threads,,0
+	2026-04-03T12:39:38.2466104Z,Delete options: clean=False&comma; use manifest=False&comma; directory to ignore=,,0
+	2026-04-03T12:39:38.3161983Z,Prev manifest = /home/site/deployments/955db290-2576-4a7e-bd15-7b4aae48313f/manifest and next /home/site/deployments/e4b33294-28ae-41d1-9839-fba1cd3f6951/manifest,,0
+	2026-04-03T12:39:38.4396246Z,Cleaning up /tmp//filelist.txt and /tmp//splits,,0
+	2026-04-03T12:39:38.5180309Z,Creating a list of all files at /tmp//filelist.txt,,0
+	2026-04-03T12:39:38.5986896Z,No directory to exclude.,,0
+	2026-04-03T12:39:38.7293274Z,Created /tmp//filelist.txt. Total number of files to be synced = 1.,,0
+	2026-04-03T12:39:38.8624258Z,Created batches from the list of files. Processing 1 files in each thread,,0
+	2026-04-03T12:39:38.9322005Z,Running rsync for filelist /tmp//splits/split.aa from /tmp/zipdeploy/extracted/ to /home/site/wwwroot/,,0
+	2026-04-03T12:39:57.9483952Z,,,0
+	2026-04-03T12:39:58.0588712Z,Number of files: 1 (reg: 1),,0
+	2026-04-03T12:39:58.1087790Z,Number of created files: 0,,0
+	2026-04-03T12:39:58.1689284Z,Number of deleted files: 0,,0
+	2026-04-03T12:39:58.2115392Z,Number of regular files transferred: 1,,0
+	2026-04-03T12:39:58.2591166Z,Total file size: 128.47M bytes,,0
+	2026-04-03T12:39:58.2777547Z,Total transferred file size: 128.47M bytes,,0
+	2026-04-03T12:39:58.2894696Z,Literal data: 128.47M bytes,,0
+	2026-04-03T12:39:58.3200058Z,Matched data: 0 bytes,,0
+	2026-04-03T12:39:58.3316584Z,File list size: 0,,0
+	2026-04-03T12:39:58.3598327Z,File list generation time: 0.001 seconds,,0
+	2026-04-03T12:39:58.3804016Z,File list transfer time: 0.000 seconds,,0
+	2026-04-03T12:39:58.3917865Z,Total bytes sent: 113.63M,,0
+	2026-04-03T12:39:58.4086581Z,Total bytes received: 35,,0
+	2026-04-03T12:39:58.4223573Z,,,0
+	2026-04-03T12:39:58.4312956Z,sent 113.63M bytes  received 35 bytes  5.83M bytes/sec,,0
+	2026-04-03T12:39:58.4492674Z,total size is 128.47M  speedup is 1.13,,0
+	2026-04-03T12:39:58.4615659Z,Attempt 1: Rsync for filelist /tmp//splits/split.aa completed with exit code 0,,0
+	2026-04-03T12:39:58.4812930Z,Completed successfully in 19 seconds,,0
+2026-04-03T12:39:58.6261116Z,Build completed succesfully.,f9b8853f-713f-4701-97e2-5a5279d2cb8a,0
+2026-04-03T12:39:58.7800496Z,Running post deployment command(s)...,0736ba73-cc0b-40b9-94b4-ef05117f2d9c,0
+2026-04-03T12:39:58.9622421Z,Triggering container recycle for OneDeploy by adding/updating restartTrigger.txt to the site root path,b4700956-418c-4f6d-9aa0-f6be707a85c7,0
+2026-04-03T12:39:59.1960413Z,Deployment successful. deployer = OneDeploy deploymentPath = OneDeploy,ec00475f-8a07-4ef1-923b-37780d8bb6a6,0

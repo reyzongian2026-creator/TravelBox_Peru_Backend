@@ -56,7 +56,10 @@ import java.util.Map;
 import java.util.Set;
 
 import com.tuempresa.storage.payments.application.dto.SavedCardResponse;
+import com.tuempresa.storage.payments.application.dto.PromoCodeResponse;
+import com.tuempresa.storage.payments.domain.PromoCode;
 import com.tuempresa.storage.payments.domain.SavedCard;
+import com.tuempresa.storage.payments.infrastructure.out.persistence.PromoCodeRepository;
 import com.tuempresa.storage.payments.infrastructure.out.persistence.SavedCardRepository;
 
 @Service
@@ -76,6 +79,7 @@ public class PaymentService {
     private final UserRepository userRepository;
     private final WebhookEventInserter webhookEventInserter;
     private final RefundPolicyEngine refundPolicyEngine;
+    private final PromoCodeRepository promoCodeRepository;
     private final String paymentProvider;
     private final boolean forceCashOnly;
     private final boolean allowMockConfirmation;
@@ -97,6 +101,7 @@ public class PaymentService {
             UserRepository userRepository,
             WebhookEventInserter webhookEventInserter,
             RefundPolicyEngine refundPolicyEngine,
+            PromoCodeRepository promoCodeRepository,
             @Value("${app.payments.provider:izipay}") String paymentProvider,
             @Value("${app.payments.force-cash-only:false}") boolean forceCashOnly,
             @Value("${app.payments.allow-mock-confirmation:true}") boolean allowMockConfirmation,
@@ -116,6 +121,7 @@ public class PaymentService {
         this.userRepository = userRepository;
         this.webhookEventInserter = webhookEventInserter;
         this.refundPolicyEngine = refundPolicyEngine;
+        this.promoCodeRepository = promoCodeRepository;
         this.paymentProvider = paymentProvider == null ? "izipay" : paymentProvider.trim().toLowerCase(Locale.ROOT);
         this.forceCashOnly = forceCashOnly;
         this.allowMockConfirmation = allowMockConfirmation;
@@ -137,18 +143,96 @@ public class PaymentService {
         // Verificar si ya existe un pago confirmado para esta reserva (evita doble
         // cobro)
         paymentAttemptRepository
-                .findFirstByReservationIdAndStatusOrderByCreatedAtDesc(reservation.getId(), PaymentStatus.CONFIRMED)
+                .findFirstByReservationIdAndStatusForUpdate(reservation.getId(), PaymentStatus.CONFIRMED)
                 .ifPresent(confirmed -> {
                     throw new ApiException(HttpStatus.CONFLICT, "PAYMENT_ALREADY_CONFIRMED",
                             "Esta reserva ya tiene un pago confirmado.");
                 });
+
+        BigDecimal originalAmount = reservation.getTotalPrice();
+        BigDecimal discountAmount = BigDecimal.ZERO;
+        PromoCode promoCode = null;
+
+        if (StringUtils.hasText(request.promoCode())) {
+            promoCode = promoCodeRepository.findByCodeIgnoreCase(request.promoCode().trim())
+                    .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "PROMO_CODE_INVALID",
+                            "El codigo promocional no existe."));
+            if (!promoCode.isUsable(Instant.now())) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "PROMO_CODE_EXPIRED",
+                        "El codigo promocional ha expirado o no esta disponible.");
+            }
+            if (!promoCode.meetsMinimum(originalAmount)) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "PROMO_CODE_MIN_NOT_MET",
+                        "El monto minimo para este codigo es S/ " + promoCode.getMinOrderAmount());
+            }
+            discountAmount = promoCode.calculateDiscount(originalAmount);
+        }
+
+        BigDecimal finalAmount = originalAmount.subtract(discountAmount);
+        if (finalAmount.compareTo(BigDecimal.ZERO) < 0) {
+            finalAmount = BigDecimal.ZERO;
+        }
+
+        // Wallet credit deduction
+        BigDecimal walletUsed = BigDecimal.ZERO;
+        User walletUser = null;
+        if (request.walletAmount() != null && request.walletAmount().compareTo(BigDecimal.ZERO) > 0) {
+            walletUser = userRepository.findById(principal.getId())
+                    .orElseThrow(
+                            () -> new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "Usuario no encontrado."));
+            BigDecimal requested = request.walletAmount();
+            if (requested.compareTo(walletUser.getWalletBalance()) > 0) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "INSUFFICIENT_WALLET",
+                        "Saldo insuficiente en la billetera.");
+            }
+            walletUsed = requested.min(finalAmount);
+            finalAmount = finalAmount.subtract(walletUsed);
+            walletUser.deductWalletBalance(walletUsed);
+        }
+
+        final PromoCode appliedPromo = promoCode;
+        final BigDecimal appliedDiscount = discountAmount;
+        final BigDecimal chargeAmount = finalAmount;
+
         PaymentAttempt attempt = paymentAttemptRepository
-                .findFirstByReservationIdAndStatusOrderByCreatedAtDesc(reservation.getId(), PaymentStatus.PENDING)
-                .orElseGet(() -> paymentAttemptRepository
-                        .save(PaymentAttempt.pending(reservation, reservation.getTotalPrice())));
+                .findFirstByReservationIdAndStatusForUpdate(reservation.getId(), PaymentStatus.PENDING)
+                .orElseGet(() -> {
+                    PaymentAttempt a = PaymentAttempt.pending(reservation, chargeAmount);
+                    if (appliedPromo != null) {
+                        a.setPromoCode(appliedPromo);
+                        a.setDiscountAmount(appliedDiscount);
+                        appliedPromo.incrementUses();
+                    }
+                    return paymentAttemptRepository.save(a);
+                });
         attempt.registerGatewayOutcome("INTENT_CREATED", "Intento de pago creado.");
         return toIntentResponse(attempt, providerLabel(attempt), "unknown", "INTENT_CREATED", "Intento de pago creado.",
                 null);
+    }
+
+    @Transactional(readOnly = true)
+    public PromoCodeResponse validatePromoCode(String code, BigDecimal orderAmount) {
+        if (!StringUtils.hasText(code)) {
+            return PromoCodeResponse.invalid("Ingrese un codigo promocional.");
+        }
+        return promoCodeRepository.findByCodeIgnoreCase(code.trim())
+                .map(promo -> {
+                    if (!promo.isUsable(Instant.now())) {
+                        return PromoCodeResponse.invalid("El codigo promocional ha expirado o no esta disponible.");
+                    }
+                    if (!promo.meetsMinimum(orderAmount)) {
+                        return PromoCodeResponse.invalid(
+                                "El monto minimo para este codigo es S/ " + promo.getMinOrderAmount());
+                    }
+                    BigDecimal discount = promo.calculateDiscount(orderAmount);
+                    return PromoCodeResponse.valid(
+                            promo.getCode(),
+                            promo.getDescription(),
+                            promo.getDiscountType().name(),
+                            promo.getDiscountValue(),
+                            discount);
+                })
+                .orElse(PromoCodeResponse.invalid("El codigo promocional no existe."));
     }
 
     @Transactional
@@ -429,6 +513,16 @@ public class PaymentService {
         if (!(method == PaymentMethod.COUNTER || method == PaymentMethod.CASH)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "PAYMENT_NOT_CASH", "Este pago no es de caja.");
         }
+
+        // Daily cash approval limit per operator: max 20 per day (UTC)
+        Instant dayStart = Instant.now().truncatedTo(java.time.temporal.ChronoUnit.DAYS);
+        long todayApprovals = paymentAttemptRepository.countCashApprovalsBy(
+                principal.getId().toString(), dayStart);
+        if (todayApprovals >= 20) {
+            throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "CASH_DAILY_LIMIT_EXCEEDED",
+                    "Se ha alcanzado el limite diario de 20 aprobaciones en efectivo por operador.");
+        }
+
         String ref = normalizeRef(attempt, providerReference, method.label());
         attempt.confirm(ref);
         attempt.registerGatewayOutcome("OFFLINE_CONFIRMED_BY_OPERATOR",
@@ -534,6 +628,9 @@ public class PaymentService {
         String summaryMessage = buildRefundSummary(providerMessage, refundAmount, fee);
         attempt.refund(providerReference, refundAmount, fee, normalizedReason);
         attempt.registerGatewayOutcome("REFUNDED", summaryMessage);
+        // Persist refund state immediately — if Izipay already processed it,
+        // we must record it in DB before any cascading operation can fail.
+        paymentAttemptRepository.save(attempt);
 
         String cancelReason = "Reserva cancelada por reembolso. " + summaryMessage;
         reservationService.cancel(
@@ -900,6 +997,22 @@ public class PaymentService {
                         existing.getReservationId());
             }
 
+            // Validate signature BEFORE persisting event — reject forgeries without DB
+            // write
+            String effectiveSignature = firstNonBlank(signature, textAt(payload, "signature"));
+            if (!izipayGatewayClient.validateWebhookSignature(payloadHttp, effectiveSignature)) {
+                return new PaymentWebhookResponse(
+                        false,
+                        false,
+                        eventId,
+                        eventType,
+                        providerReference,
+                        "INVALID_SIGNATURE",
+                        "Firma webhook invalida.",
+                        null,
+                        null);
+            }
+
             // insertOrGetExisting runs in REQUIRES_NEW: if a concurrent thread already
             // holds
             // the same (provider, eventId) row, the inner tx rolls back cleanly and we get
@@ -920,21 +1033,6 @@ public class PaymentService {
                         "Evento webhook ya procesado.",
                         event.getPaymentAttemptId(),
                         event.getReservationId());
-            }
-
-            String effectiveSignature = firstNonBlank(signature, textAt(payload, "signature"));
-            if (!izipayGatewayClient.validateWebhookSignature(payloadHttp, effectiveSignature)) {
-                event.markFailed("Firma webhook invalida.", null, null);
-                return new PaymentWebhookResponse(
-                        false,
-                        false,
-                        eventId,
-                        eventType,
-                        providerReference,
-                        "INVALID_SIGNATURE",
-                        "Firma webhook invalida.",
-                        null,
-                        null);
             }
 
             try {

@@ -283,3 +283,14 @@ azure:
         exports: ${AZURE_STORAGE_EXPORTS_CONTAINER:travelbox-exports}
     sas:
       expiry-minutes: ${AZURE_STORAGE_SAS_EXPIRY_MINUTES:60}
+
+# ── Resilience4j Circuit Breaker ─────────────────────────────────────
+resilience4j:
+  circuitbreaker:
+    instances:
+      izipay:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 3
+        register-health-indicator: true

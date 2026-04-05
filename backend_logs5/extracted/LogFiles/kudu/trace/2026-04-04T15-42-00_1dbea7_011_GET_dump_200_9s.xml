@@ -1,0 +1,4 @@
+<step title="Incoming Request" date="2026-04-04T15:42:00.968" instance="1dbea7" url="/dump" method="GET" type="request" pid="769,1,19" Host="travelbox-backend-prod.scm.azurewebsites.net" User-Agent="AZURECLI/2.84.0 (MSI)" Accept-Encoding="identity" Authorization="Bea..." x-ms-client-request-id="cde9fd31-303c-11f1-b19d-902e16de9505" X-ARR-LOG-ID="cde9fd31-303c-11f1-b19d-902e16de9505" CLIENT-IP="190.238.223.65:2236" X-SITE-DEPLOYMENT-ID="travelbox-backend-prod" WAS-DEFAULT-HOSTNAME="travelbox-backend-prod.scm.azurewebsites.net" X-Forwarded-Proto="https" X-AppService-Proto="https" X-Forwarded-TlsVersion="1.3" X-WAWS-Unencoded-URL="/dump" X-Client-IP="190.238.223.65" X-Client-Port="2236" >
+  <step title="Cleanup Xml Logs" date="2026-04-04T15:42:00.971" /><!-- duration: 6ms -->
+  <step title="Outgoing response" date="2026-04-04T15:42:10.139" type="response" statusCode="200" statusText="OK" /><!-- duration: 22ms -->
+</step><!-- duration: 9223ms -->

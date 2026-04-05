@@ -22,8 +22,7 @@ public class ReservationCheckoutService {
     public ReservationCheckoutService(
             ReservationService reservationService,
             PaymentService paymentService,
-            ReservationCheckoutAsyncProcessor reservationCheckoutAsyncProcessor
-    ) {
+            ReservationCheckoutAsyncProcessor reservationCheckoutAsyncProcessor) {
         this.reservationService = reservationService;
         this.paymentService = paymentService;
         this.reservationCheckoutAsyncProcessor = reservationCheckoutAsyncProcessor;
@@ -34,7 +33,7 @@ public class ReservationCheckoutService {
         Long reservationId = created.id();
         try {
             Long paymentIntentId = paymentService
-                    .createIntent(new CreatePaymentIntentRequest(reservationId), principal)
+                    .createIntent(new CreatePaymentIntentRequest(reservationId, null, null), principal)
                     .id();
             ConfirmPaymentRequest basePaymentRequest = request.toPaymentRequest(reservationId);
             ConfirmPaymentRequest asyncPaymentRequest = new ConfirmPaymentRequest(
@@ -48,15 +47,13 @@ public class ReservationCheckoutService {
                     basePaymentRequest.customerFirstName(),
                     basePaymentRequest.customerLastName(),
                     basePaymentRequest.customerPhone(),
-                    basePaymentRequest.customerDocument()
-            );
+                    basePaymentRequest.customerDocument());
             reservationCheckoutAsyncProcessor.confirmAsync(asyncPaymentRequest, principal);
         } catch (Exception ex) {
             log.warn(
                     "No se pudo iniciar flujo asincrono de pago checkout para reserva {}. La reserva queda pendiente de pago.",
                     reservationId,
-                    ex
-            );
+                    ex);
         }
         return reservationService.getById(reservationId, principal);
     }

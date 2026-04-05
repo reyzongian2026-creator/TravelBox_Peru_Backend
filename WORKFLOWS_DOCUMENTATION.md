@@ -186,18 +186,11 @@ Step 10: Courier completes delivery with PIN
 
 | Endpoint | Auth | Description |
 |----------|------|-------------|
-| `/health` | None | Simple liveness check for Cloud Run |
+| `/health` | None | Simple liveness check |
 | `/` | None | Root endpoint returning service info |
 | `/actuator/health` | None | Spring Boot Actuator health (includes DB, Redis, etc.) |
 | `/actuator/health/liveness` | None | Kubernetes liveness probe |
 | `/actuator/health/readiness` | None | Kubernetes readiness probe |
-
-### Cloud Run Deployment Notes
-
-- Health check timeout: 5 minutes (default)
-- Container port: 8080 (via `PORT` environment variable)
-- Min instances: 0 (scale to zero)
-- Startup timeout: 600 seconds (10 minutes)
 
 ### Required Azure Key Vault Secrets
 

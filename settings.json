@@ -1,0 +1,1 @@
+[{"name":"TBX_BACK_PAYMENTS_IZIPAY_CHECKOUT_SCRIPT_URL","value":"@Microsoft.KeyVault(VaultName=kvtravelboxpe;SecretName=tbx-back-payments-izipay-checkout-script-url)","slotSetting":false}]

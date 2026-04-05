@@ -11,7 +11,7 @@ import java.util.concurrent.ConcurrentMap;
 @Component
 public class SseTokenStore {
 
-    private static final long TOKEN_TTL_SECONDS = 60;
+    private static final long TOKEN_TTL_SECONDS = 120;
     private static final long CLEANUP_INTERVAL_SECONDS = 300;
     private static final SecureRandom RANDOM = new SecureRandom();
 
@@ -31,11 +31,12 @@ public class SseTokenStore {
         if (token == null || token.isBlank()) {
             return null;
         }
-        SseTokenEntry entry = tokens.remove(token);
+        SseTokenEntry entry = tokens.get(token);
         if (entry == null) {
             return null;
         }
         if (Instant.now().getEpochSecond() > entry.expiresAt()) {
+            tokens.remove(token);
             return null;
         }
         return entry.username();

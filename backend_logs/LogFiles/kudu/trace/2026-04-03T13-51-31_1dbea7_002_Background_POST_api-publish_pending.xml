@@ -1,0 +1,32 @@
+<step title="BackgroundTrace" date="2026-04-03T13:51:31.494" instance="1dbea7" url="/api/publish" method="POST" >
+  <step title="Cleanup Xml Logs" date="2026-04-03T13:51:31.517" /><!-- duration: 6ms -->
+  <step title="Creating temporary deployment - FetchDeploymentManager" date="2026-04-03T13:51:31.604" /><!-- duration: 4ms -->
+  <step title="Creating temporary deployment" date="2026-04-03T13:51:31.613" /><!-- duration: 185ms -->
+  <step title="Performing fetch based deployment" date="2026-04-03T13:51:31.884" >
+    <step title="Moving /tmp/zipdeploy/extracted to /tmp/zipdeploy/extracted/app.jar" date="2026-04-03T13:51:33.080" /><!-- duration: 22ms -->
+    <step title="Deployment timer started" date="2026-04-03T13:51:35.173" >
+      <step title="DeploymentManager.Deploy(id:e2b6ed06-f01f-42de-8acb-879ad2941355)" date="2026-04-03T13:51:35.193" >
+        <step title="Collecting changeset information" date="2026-04-03T13:51:35.251" /><!-- duration: 121ms -->
+        <step title="Updating submodules" date="2026-04-03T13:51:35.378" /><!-- duration: 1138ms -->
+        <step title="Determining deployment builder" date="2026-04-03T13:51:36.775" >
+          <step title="Builder is OneDeployBuilder" date="2026-04-03T13:51:36.785" /><!-- duration: 19ms -->
+        </step><!-- duration: 33ms -->
+        <step title="PreDeployment: context.CleanOutputPath False" date="2026-04-03T13:51:36.876" >
+          <step title="PreDeployment: context.OutputPath /home/site/wwwroot" date="2026-04-03T13:51:37.005" >
+            <step title="Building" date="2026-04-03T13:51:37.179" >
+              <step title="Executing external process" date="2026-04-03T13:51:37.740" type="process" path="starter.sh" arguments="/opt/Kudu/Scripts/parallel_rsync.sh /tmp/zipdeploy/extracted /home/site/wwwroot 8 /tmp/ False False  " /><!-- duration: 9287ms -->
+              <step title="Modified file to trigger a restart of the app container." date="2026-04-03T13:51:47.517" /><!-- duration: 4ms -->
+              <step title="Skip function trigger and logicapp sync because function is not enabled." date="2026-04-03T13:51:47.533" /><!-- duration: 11ms -->
+              <step title="Purge deployment items" date="2026-04-03T13:51:48.859" >
+                <step title="Remove 78e3bb90-, Success, received at 04/03/2026 02:02:56" date="2026-04-03T13:51:49.050" /><!-- duration: 47ms -->
+              </step><!-- duration: 250ms -->
+            </step><!-- duration: 12065ms -->
+          </step><!-- duration: 12244ms -->
+          <step title="Cleaning up temp files" date="2026-04-03T13:51:49.252" /><!-- duration: 6ms -->
+          <step title="Cleaning up temp files" date="2026-04-03T13:51:49.279" /><!-- duration: 533ms -->
+          <step title="Reloading status file with latest updates" date="2026-04-03T13:51:49.955" >
+            <step title="WebHooksManager.PublishEventAsync: PostDeployment" date="2026-04-03T13:51:50.014" /><!-- duration: 482ms -->
+          </step><!-- duration: 567ms -->
+          <step title="Cleaning up temporary deployment - fetch deployment was successful" date="2026-04-03T13:51:50.558" /><!-- duration: 3ms -->
+        </step><!-- duration: 13720ms -->
+      </step><!-- duration: 15420ms -->

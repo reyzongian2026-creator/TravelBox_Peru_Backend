@@ -1,0 +1,52 @@
+<step title="Incoming Request" date="2026-04-03T03:32:49.209" instance="1dbea7" url="/api/publish?type=jar" method="POST" type="request" pid="772,1,5" Accept="*/*" Host="travelbox-backend-prod.scm.azurewebsites.net" User-Agent="AZURECLI/2.84.0 (MSI)" Accept-Encoding="gzip, deflate" Authorization="Bea..." Cache-Control="no-cache" Content-Type="application/octet-stream" Cookie="ARRAffinity=1dbea7bfe708b9b6cf563d7816aa3d6524a539ef5b1d672aead49e43942c44a2; ARRAffinitySameSite=1dbea7bfe708b9b6cf563d7816aa3d6524a539ef5b1d672aead49e43942c44a2" Content-Length="128469135" x-ms-client-request-id="be912564-2f0d-11f1-9694-c8a362cc63f7" x-ms-artifact-checksum="dd0978c062c21cdfff8b0ace35dcb74dfadf74d66bfddc415a7d7efd1fb77952" X-ARR-LOG-ID="be912564-2f0d-11f1-9694-c8a362cc63f7" CLIENT-IP="190.238.223.65:17339" X-SITE-DEPLOYMENT-ID="travelbox-backend-prod" WAS-DEFAULT-HOSTNAME="travelbox-backend-prod.scm.azurewebsites.net" X-Forwarded-Proto="https" X-AppService-Proto="https" X-Forwarded-TlsVersion="1.3" X-WAWS-Unencoded-URL="/api/publish?type=jar" X-Client-IP="190.238.223.65" X-Client-Port="17339" >
+  <step title="Cleanup Xml Logs" date="2026-04-03T03:32:49.229" /><!-- duration: 36ms -->
+  <step title="OneDeploy" date="2026-04-03T03:32:49.387" >
+    <step title="Starting PushDeployAsync" date="2026-04-03T03:32:49.417" /><!-- duration: 17ms -->
+    <step title="Writing artifact to /tmp/zipdeploy/app.jar" date="2026-04-03T03:32:49.557" >
+      <step title="Writing multipart request body to /tmp/zipdeploy/app.jar" date="2026-04-03T03:32:49.569" /><!-- duration: 25ms -->
+      <step title="Error occurred" date="2026-04-03T03:32:49.790" type="error" text="Exception in copying zip file to temp path. Exception: System.IO.IOException: The process cannot access the file &apos;/tmp/zipdeploy/app.jar&apos; because it is being used by another process.
+   at Microsoft.Win32.SafeHandles.SafeFileHandle.Init(String path, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Int64&amp; fileLength, UnixFileMode&amp; filePermissions)
+   at Microsoft.Win32.SafeHandles.SafeFileHandle.Open(String fullPath, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, UnixFileMode openPermissions, Int64&amp; fileLength, UnixFileMode&amp; filePermissions, Boolean failForSymlink, Boolean&amp; wasSymlink, Func`4 createOpenException)
+   at System.IO.Strategies.OSFileStreamStrategy..ctor(String path, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Nullable`1 unixCreateMode)
+   at System.IO.File.Create(String path)
+   at Kudu.Services.Deployment.PushDeploymentController.CopyZipFromRequestBody(String artifactTempPath, ITracer tracer) in /tmp/KuduLite/Kudu.Services/Deployment/PushDeploymentController.cs:line 1494: The process cannot access the file &apos;/tmp/zipdeploy/app.jar&apos; because it is being used by another process." stackTrace="   at Microsoft.Win32.SafeHandles.SafeFileHandle.Init(String path, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Int64&amp; fileLength, UnixFileMode&amp; filePermissions)
+   at Microsoft.Win32.SafeHandles.SafeFileHandle.Open(String fullPath, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, UnixFileMode openPermissions, Int64&amp; fileLength, UnixFileMode&amp; filePermissions, Boolean failForSymlink, Boolean&amp; wasSymlink, Func`4 createOpenException)
+   at System.IO.Strategies.OSFileStreamStrategy..ctor(String path, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Nullable`1 unixCreateMode)
+   at System.IO.File.Create(String path)
+   at Kudu.Services.Deployment.PushDeploymentController.CopyZipFromRequestBody(String artifactTempPath, ITracer tracer) in /tmp/KuduLite/Kudu.Services/Deployment/PushDeploymentController.cs:line 1494" /><!-- duration: 19ms -->
+    </step><!-- duration: 291ms -->
+    <step title="Attempting to fetch target branch HEAD" date="2026-04-03T03:32:49.977" /><!-- duration: 26ms -->
+    <step title="Acquiring Deployment Lock" date="2026-04-03T03:32:50.013" /><!-- duration: 27ms -->
+    <step title="Acquired Deployment Lock" date="2026-04-03T03:32:50.125" /><!-- duration: 20ms -->
+    <step title="Performing fetch based deployment" date="2026-04-03T03:32:50.230" >
+      <step title="Creating temporary deployment" date="2026-04-03T03:32:50.259" /><!-- duration: 264ms -->
+      <step title="Releasing Deployment Lock" date="2026-04-03T03:32:52.052" /><!-- duration: 39ms -->
+      <step title="Moving /tmp/zipdeploy/extracted to /tmp/zipdeploy/extracted/app.jar" date="2026-04-03T03:32:52.172" /><!-- duration: 31ms -->
+      <step title="None repository commit" date="2026-04-03T03:32:52.257" >
+        <step title="Commit id: a2ad0b6f-872d-4cf6-96ec-4045fbc7070e" date="2026-04-03T03:32:52.268" Message="OneDeploy" AuthorName="N/A" AuthorEmail="N/A" /><!-- duration: 37ms -->
+      </step><!-- duration: 61ms -->
+      <step title="Deployment timer started" date="2026-04-03T03:32:54.361" >
+        <step title="DeploymentManager.Deploy(id:a2ad0b6f-872d-4cf6-96ec-4045fbc7070e)" date="2026-04-03T03:32:54.380" >
+          <step title="Collecting changeset information" date="2026-04-03T03:32:54.440" /><!-- duration: 247ms -->
+          <step title="Updating submodules" date="2026-04-03T03:32:54.707" /><!-- duration: 1468ms -->
+          <step title="Determining deployment builder" date="2026-04-03T03:32:56.746" >
+            <step title="Builder is OneDeployBuilder" date="2026-04-03T03:32:56.810" /><!-- duration: 26ms -->
+          </step><!-- duration: 100ms -->
+          <step title="PreDeployment: context.CleanOutputPath False" date="2026-04-03T03:32:57.010" >
+            <step title="PreDeployment: context.OutputPath /home/site/wwwroot" date="2026-04-03T03:32:57.468" >
+              <step title="Building" date="2026-04-03T03:32:57.776" >
+                <step title="Executing external process" date="2026-04-03T03:32:59.423" type="process" path="starter.sh" arguments="/opt/Kudu/Scripts/parallel_rsync.sh /tmp/zipdeploy/extracted /home/site/wwwroot 8 /tmp/ False False  " /><!-- duration: 4893ms -->
+                <step title="Modified file to trigger a restart of the app container." date="2026-04-03T03:33:05.846" /><!-- duration: 67ms -->
+                <step title="Skip function trigger and logicapp sync because function is not enabled." date="2026-04-03T03:33:05.991" /><!-- duration: 29ms -->
+              </step><!-- duration: 10352ms -->
+            </step><!-- duration: 10721ms -->
+            <step title="Cleaning up temp files" date="2026-04-03T03:33:08.258" /><!-- duration: 41ms -->
+            <step title="Cleaning up temp files" date="2026-04-03T03:33:08.348" /><!-- duration: 558ms -->
+            <step title="Reloading status file with latest updates" date="2026-04-03T03:33:08.999" >
+              <step title="WebHooksManager.PublishEventAsync: PostDeployment" date="2026-04-03T03:33:09.038" /><!-- duration: 762ms -->
+            </step><!-- duration: 821ms -->
+            <step title="Cleaning up temporary deployment - fetch deployment was successful" date="2026-04-03T03:33:09.840" /><!-- duration: 10ms -->
+          </step><!-- duration: 13012ms -->
+        </step><!-- duration: 15723ms -->
+        <step title="Outgoing response" date="2026-04-03T03:33:10.201" type="response" statusCode="200" statusText="OK" /><!-- duration: 20ms -->
+      </step><!-- duration: 15872ms -->

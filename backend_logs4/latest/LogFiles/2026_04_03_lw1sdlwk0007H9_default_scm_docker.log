@@ -1,0 +1,167 @@
+2026-04-03T15:24:21.5886724Z     __ __          __      __    _ __     
+2026-04-03T15:24:21.6982439Z    / //_/_  _ ____/ /_  __/ /   (_) /____ 
+2026-04-03T15:24:21.6982664Z   / ,< / / / / __  / / / / /   / / __/ _  
+2026-04-03T15:24:21.6983922Z  / /| / /_/ / /_/ / /_/ / /___/ / /_/  __/
+2026-04-03T15:24:21.6983948Z /_/ |_\__,_/\__,_/\__,_/_____/_/\__/\___/ 
+2026-04-03T15:24:21.6983965Z 
+2026-04-03T15:24:21.6984038Z                                           
+2026-04-03T15:24:21.6984101Z DEBUG CONSOLE | AZURE APP SERVICE ON LINUX
+2026-04-03T15:24:21.6984118Z 
+2026-04-03T15:24:21.6984136Z Documentation: http://aka.ms/webapp-linux
+2026-04-03T15:24:21.6984158Z Kudu Version : 20260204.5
+2026-04-03T15:24:21.6984181Z Commit       : f2123a3d94768058c9d9e002efc0a31e9c1580a3
+2026-04-03T15:24:21.6984200Z Instance Name: lw1sdlwk0007H9
+2026-04-03T15:24:21.6984229Z Instance Id  : 1dbea7bfe708b9b6cf563d7816aa3d6524a539ef5b1d672aead49e43942c44a2
+2026-04-03T15:24:21.6984246Z 
+2026-04-03T15:24:25.2802391Z chown: changing ownership of '/temp': Operation not permitted
+2026-04-03T15:24:25.3424415Z chmod: changing permissions of '/temp': Operation not permitted
+2026-04-03T15:24:39.9635308Z Restarting OpenBSD Secure Shell server: sshd.
+2026-04-03T15:24:41.0844756Z node not running, starting node /opt/webssh/index.js
+2026-04-03T15:25:16.4979417Z Fri Apr 3 15:25:16 UTC 2026 running .net core
+2026-04-03T15:25:22.4918161Z Startup : 03.25.22.380947
+2026-04-03T15:25:22.5424529Z Configure Services : 03.25.22.541934
+2026-04-03T15:25:24.8740295Z Configure : 03.25.24.873835
+2026-04-03T15:25:26.1722350Z Setting Up Routes : 03.25.26.172024
+2026-04-03T15:25:26.3024429Z Exiting Configure : 03.25.26.302263
+2026-04-03T15:25:27.1989848Z Hosting environment: Production
+2026-04-03T15:25:27.2092962Z Content root path: /opt/Kudu
+2026-04-03T15:25:27.2093211Z Now listening on: http://0.0.0.0:8181
+2026-04-03T15:25:27.2093245Z Application started. Press Ctrl+C to shut down.
+2026-04-03T15:27:26.1043887Z     __ __          __      __    _ __     
+2026-04-03T15:27:26.1048265Z    / //_/_  _ ____/ /_  __/ /   (_) /____ 
+2026-04-03T15:27:26.1048373Z   / ,< / / / / __  / / / / /   / / __/ _  
+2026-04-03T15:27:26.1048453Z  / /| / /_/ / /_/ / /_/ / /___/ / /_/  __/
+2026-04-03T15:27:26.1048474Z /_/ |_\__,_/\__,_/\__,_/_____/_/\__/\___/ 
+2026-04-03T15:27:26.1048499Z 
+2026-04-03T15:27:26.1048533Z                                           
+2026-04-03T15:27:26.1048551Z DEBUG CONSOLE | AZURE APP SERVICE ON LINUX
+2026-04-03T15:27:26.1048567Z 
+2026-04-03T15:27:26.1048587Z Documentation: http://aka.ms/webapp-linux
+2026-04-03T15:27:26.1048606Z Kudu Version : 20260204.5
+2026-04-03T15:27:26.1048646Z Commit       : f2123a3d94768058c9d9e002efc0a31e9c1580a3
+2026-04-03T15:27:26.1048666Z Instance Name: lw1sdlwk0007H9
+2026-04-03T15:27:26.1048689Z Instance Id  : 1dbea7bfe708b9b6cf563d7816aa3d6524a539ef5b1d672aead49e43942c44a2
+2026-04-03T15:27:26.1048707Z 
+2026-04-03T15:27:28.1479589Z chown: changing ownership of '/temp': Operation not permitted
+2026-04-03T15:27:28.1763349Z chmod: changing permissions of '/temp': Operation not permitted
+2026-04-03T15:27:36.7965279Z Restarting OpenBSD Secure Shell server: sshd.
+2026-04-03T15:27:37.0779759Z node not running, starting node /opt/webssh/index.js
+2026-04-03T15:27:56.7092031Z Fri Apr 3 15:27:56 UTC 2026 running .net core
+2026-04-03T15:28:03.0239311Z Startup : 03.28.02.883335
+2026-04-03T15:28:03.1631694Z Configure Services : 03.28.03.162616
+2026-04-03T15:28:05.3553206Z Configure : 03.28.05.355013
+2026-04-03T15:28:07.0544862Z Setting Up Routes : 03.28.07.036371
+2026-04-03T15:28:07.1954522Z Exiting Configure : 03.28.07.187214
+2026-04-03T15:28:07.7716980Z Hosting environment: Production
+2026-04-03T15:28:07.7889759Z Content root path: /opt/Kudu
+2026-04-03T15:28:07.7890177Z Now listening on: http://0.0.0.0:8181
+2026-04-03T15:28:07.7890214Z Application started. Press Ctrl+C to shut down.
+2026-04-03T15:34:18.6622197Z Exception Message : Response Content-Length mismatch: too many bytes written (93982 of 87435).
+2026-04-03T15:34:19.6951636Z Exception StackTrace :    at Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http.HttpProtocol.VerifyAndUpdateWrite(Int32 count)
+2026-04-03T15:34:19.6952043Z    at Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http.HttpProtocol.WritePipeAsync(ReadOnlyMemory`1 data, CancellationToken cancellationToken)
+2026-04-03T15:34:19.6952065Z    at Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http.HttpResponseStream.WriteAsync(ReadOnlyMemory`1 source, CancellationToken cancellationToken)
+2026-04-03T15:34:19.6952083Z    at Microsoft.AspNetCore.Http.StreamCopyOperationInternal.CopyToAsync(Stream source, Stream destination, Nullable`1 count, Int32 bufferSize, CancellationToken cancel)
+2026-04-03T15:34:19.6952101Z    at Microsoft.AspNetCore.Internal.FileResultHelper.WriteFileAsync(HttpContext context, Stream fileStream, RangeItemHeaderValue range, Int64 rangeLength)
+2026-04-03T15:34:19.6952118Z    at Microsoft.AspNetCore.Mvc.Infrastructure.FileResultExecutorBase.WriteFileAsync(HttpContext context, Stream fileStream, RangeItemHeaderValue range, Int64 rangeLength)
+2026-04-03T15:34:19.6952137Z    at Microsoft.AspNetCore.Mvc.Infrastructure.FileStreamResultExecutor.ExecuteAsync(ActionContext context, FileStreamResult result)
+2026-04-03T15:34:19.6952157Z    at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.<InvokeNextResultFilterAsync>g__Awaited|30_0[TFilter,TFilterAsync](ResourceInvoker invoker, Task lastTask, State next, Scope scope, Object state, Boolean isCompleted)
+2026-04-03T15:34:19.6952172Z    at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.Rethrow(ResultExecutedContextSealed context)
+2026-04-03T15:34:19.6952268Z    at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.ResultNext[TFilter,TFilterAsync](State& next, Scope& scope, Object& state, Boolean& isCompleted)
+2026-04-03T15:34:19.6952288Z    at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.<InvokeResultFilters>g__Awaited|28_0(ResourceInvoker invoker, Task lastTask, State next, Scope scope, Object state, Boolean isCompleted)
+2026-04-03T15:34:19.6952306Z    at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.<InvokeNextResourceFilter>g__Awaited|25_0(ResourceInvoker invoker, Task lastTask, State next, Scope scope, Object state, Boolean isCompleted)
+2026-04-03T15:34:19.6952323Z    at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.Rethrow(ResourceExecutedContextSealed context)
+2026-04-03T15:34:19.6952338Z    at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.Next(State& next, Scope& scope, Object& state, Boolean& isCompleted)
+2026-04-03T15:34:19.6952357Z    at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.<InvokeFilterPipelineAsync>g__Awaited|20_0(ResourceInvoker invoker, Task lastTask, State next, Scope scope, Object state, Boolean isCompleted)
+2026-04-03T15:34:19.6952373Z    at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.<InvokeAsync>g__Awaited|17_0(ResourceInvoker invoker, Task task, IDisposable scope)
+2026-04-03T15:34:19.6952389Z    at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.<InvokeAsync>g__Awaited|17_0(ResourceInvoker invoker, Task task, IDisposable scope)
+2026-04-03T15:34:19.6952431Z    at Microsoft.AspNetCore.Builder.RouterMiddleware.Invoke(HttpContext httpContext)
+2026-04-03T15:34:19.6952448Z    at Kudu.Services.Web.Startup.<>c.<<Configure>b__11_7>d.MoveNext() in /tmp/KuduLite/Kudu.Services.Web/Startup.cs:line 428
+2026-04-03T15:34:19.6952485Z --- End of stack trace from previous location ---
+2026-04-03T15:34:19.6952503Z    at Kudu.Services.Web.Tracing.TraceMiddleware.Invoke(HttpContext context) in /tmp/KuduLite/Kudu.Services.Web/Tracing/TraceMiddleware.cs:line 101
+2026-04-03T15:34:19.9041155Z fail: Microsoft.AspNetCore.Diagnostics.ExceptionHandlerMiddleware[1]
+2026-04-03T15:34:19.9041573Z       An unhandled exception has occurred while executing the request.
+2026-04-03T15:34:19.9041598Z       System.InvalidOperationException: Response Content-Length mismatch: too many bytes written (93982 of 87435).
+2026-04-03T15:34:19.9041614Z          at Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http.HttpProtocol.VerifyAndUpdateWrite(Int32 count)
+2026-04-03T15:34:19.9041631Z          at Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http.HttpProtocol.WritePipeAsync(ReadOnlyMemory`1 data, CancellationToken cancellationToken)
+2026-04-03T15:34:19.9041650Z          at Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http.HttpResponseStream.WriteAsync(ReadOnlyMemory`1 source, CancellationToken cancellationToken)
+2026-04-03T15:34:19.9041674Z          at Microsoft.AspNetCore.Http.StreamCopyOperationInternal.CopyToAsync(Stream source, Stream destination, Nullable`1 count, Int32 bufferSize, CancellationToken cancel)
+2026-04-03T15:34:19.9041690Z          at Microsoft.AspNetCore.Internal.FileResultHelper.WriteFileAsync(HttpContext context, Stream fileStream, RangeItemHeaderValue range, Int64 rangeLength)
+2026-04-03T15:34:19.9041709Z          at Microsoft.AspNetCore.Mvc.Infrastructure.FileResultExecutorBase.WriteFileAsync(HttpContext context, Stream fileStream, RangeItemHeaderValue range, Int64 rangeLength)
+2026-04-03T15:34:19.9041820Z          at Microsoft.AspNetCore.Mvc.Infrastructure.FileStreamResultExecutor.ExecuteAsync(ActionContext context, FileStreamResult result)
+2026-04-03T15:34:19.9041842Z          at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.<InvokeNextResultFilterAsync>g__Awaited|30_0[TFilter,TFilterAsync](ResourceInvoker invoker, Task lastTask, State next, Scope scope, Object state, Boolean isCompleted)
+2026-04-03T15:34:19.9041857Z          at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.Rethrow(ResultExecutedContextSealed context)
+2026-04-03T15:34:19.9041874Z          at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.ResultNext[TFilter,TFilterAsync](State& next, Scope& scope, Object& state, Boolean& isCompleted)
+2026-04-03T15:34:19.9041893Z          at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.<InvokeResultFilters>g__Awaited|28_0(ResourceInvoker invoker, Task lastTask, State next, Scope scope, Object state, Boolean isCompleted)
+2026-04-03T15:34:19.9041911Z          at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.<InvokeNextResourceFilter>g__Awaited|25_0(ResourceInvoker invoker, Task lastTask, State next, Scope scope, Object state, Boolean isCompleted)
+2026-04-03T15:34:19.9041926Z          at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.Rethrow(ResourceExecutedContextSealed context)
+2026-04-03T15:34:19.9041942Z          at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.Next(State& next, Scope& scope, Object& state, Boolean& isCompleted)
+2026-04-03T15:34:19.9041960Z          at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.<InvokeFilterPipelineAsync>g__Awaited|20_0(ResourceInvoker invoker, Task lastTask, State next, Scope scope, Object state, Boolean isCompleted)
+2026-04-03T15:34:19.9041978Z          at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.<InvokeAsync>g__Awaited|17_0(ResourceInvoker invoker, Task task, IDisposable scope)
+2026-04-03T15:34:19.9041993Z          at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.<InvokeAsync>g__Awaited|17_0(ResourceInvoker invoker, Task task, IDisposable scope)
+2026-04-03T15:34:19.9042030Z          at Microsoft.AspNetCore.Builder.RouterMiddleware.Invoke(HttpContext httpContext)
+2026-04-03T15:34:19.9042046Z          at Kudu.Services.Web.Startup.<>c.<<Configure>b__11_7>d.MoveNext() in /tmp/KuduLite/Kudu.Services.Web/Startup.cs:line 428
+2026-04-03T15:34:19.9042059Z       --- End of stack trace from previous location ---
+2026-04-03T15:34:19.9042076Z          at Kudu.Services.Web.Tracing.TraceMiddleware.Invoke(HttpContext context) in /tmp/KuduLite/Kudu.Services.Web/Tracing/TraceMiddleware.cs:line 101
+2026-04-03T15:34:19.9042093Z          at Kudu.Services.Web.Tracing.TraceMiddleware.Invoke(HttpContext context) in /tmp/KuduLite/Kudu.Services.Web/Tracing/TraceMiddleware.cs:line 107
+2026-04-03T15:34:19.9042111Z          at Microsoft.AspNetCore.Diagnostics.ExceptionHandlerMiddlewareImpl.<Invoke>g__Awaited|10_0(ExceptionHandlerMiddlewareImpl middleware, HttpContext context, Task task)
+2026-04-03T15:34:19.9253118Z warn: Microsoft.AspNetCore.Diagnostics.ExceptionHandlerMiddleware[2]
+2026-04-03T15:34:19.9253344Z       The response has already started, the error handler will not be executed.
+2026-04-03T15:34:20.0030902Z fail: Microsoft.AspNetCore.Server.Kestrel[13]
+2026-04-03T15:34:20.0031436Z       Connection id "0HNKHIMDQ6S1B", Request id "0HNKHIMDQ6S1B:00000001": An unhandled exception was thrown by the application.
+2026-04-03T15:34:20.0031457Z       System.InvalidOperationException: Response Content-Length mismatch: too many bytes written (93982 of 87435).
+2026-04-03T15:34:20.0031568Z          at Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http.HttpProtocol.VerifyAndUpdateWrite(Int32 count)
+2026-04-03T15:34:20.0031588Z          at Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http.HttpProtocol.WritePipeAsync(ReadOnlyMemory`1 data, CancellationToken cancellationToken)
+2026-04-03T15:34:20.0031604Z          at Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http.HttpResponseStream.WriteAsync(ReadOnlyMemory`1 source, CancellationToken cancellationToken)
+2026-04-03T15:34:20.0031622Z          at Microsoft.AspNetCore.Http.StreamCopyOperationInternal.CopyToAsync(Stream source, Stream destination, Nullable`1 count, Int32 bufferSize, CancellationToken cancel)
+2026-04-03T15:34:20.0031638Z          at Microsoft.AspNetCore.Internal.FileResultHelper.WriteFileAsync(HttpContext context, Stream fileStream, RangeItemHeaderValue range, Int64 rangeLength)
+2026-04-03T15:34:20.0031656Z          at Microsoft.AspNetCore.Mvc.Infrastructure.FileResultExecutorBase.WriteFileAsync(HttpContext context, Stream fileStream, RangeItemHeaderValue range, Int64 rangeLength)
+2026-04-03T15:34:20.0031672Z          at Microsoft.AspNetCore.Mvc.Infrastructure.FileStreamResultExecutor.ExecuteAsync(ActionContext context, FileStreamResult result)
+2026-04-03T15:34:20.0031691Z          at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.<InvokeNextResultFilterAsync>g__Awaited|30_0[TFilter,TFilterAsync](ResourceInvoker invoker, Task lastTask, State next, Scope scope, Object state, Boolean isCompleted)
+2026-04-03T15:34:20.0031706Z          at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.Rethrow(ResultExecutedContextSealed context)
+2026-04-03T15:34:20.0031724Z          at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.ResultNext[TFilter,TFilterAsync](State& next, Scope& scope, Object& state, Boolean& isCompleted)
+2026-04-03T15:34:20.0031743Z          at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.<InvokeResultFilters>g__Awaited|28_0(ResourceInvoker invoker, Task lastTask, State next, Scope scope, Object state, Boolean isCompleted)
+2026-04-03T15:34:20.0031791Z          at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.<InvokeNextResourceFilter>g__Awaited|25_0(ResourceInvoker invoker, Task lastTask, State next, Scope scope, Object state, Boolean isCompleted)
+2026-04-03T15:34:20.0031806Z          at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.Rethrow(ResourceExecutedContextSealed context)
+2026-04-03T15:34:20.0031822Z          at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.Next(State& next, Scope& scope, Object& state, Boolean& isCompleted)
+2026-04-03T15:34:20.0031840Z          at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.<InvokeFilterPipelineAsync>g__Awaited|20_0(ResourceInvoker invoker, Task lastTask, State next, Scope scope, Object state, Boolean isCompleted)
+2026-04-03T15:34:20.0031857Z          at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.<InvokeAsync>g__Awaited|17_0(ResourceInvoker invoker, Task task, IDisposable scope)
+2026-04-03T15:34:20.0031873Z          at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.<InvokeAsync>g__Awaited|17_0(ResourceInvoker invoker, Task task, IDisposable scope)
+2026-04-03T15:34:20.0031887Z          at Microsoft.AspNetCore.Builder.RouterMiddleware.Invoke(HttpContext httpContext)
+2026-04-03T15:34:20.0031902Z          at Kudu.Services.Web.Startup.<>c.<<Configure>b__11_7>d.MoveNext() in /tmp/KuduLite/Kudu.Services.Web/Startup.cs:line 428
+2026-04-03T15:34:20.0031915Z       --- End of stack trace from previous location ---
+2026-04-03T15:34:20.0031932Z          at Kudu.Services.Web.Tracing.TraceMiddleware.Invoke(HttpContext context) in /tmp/KuduLite/Kudu.Services.Web/Tracing/TraceMiddleware.cs:line 101
+2026-04-03T15:34:20.0031947Z          at Kudu.Services.Web.Tracing.TraceMiddleware.Invoke(HttpContext context) in /tmp/KuduLite/Kudu.Services.Web/Tracing/TraceMiddleware.cs:line 107
+2026-04-03T15:34:20.0031986Z          at Microsoft.AspNetCore.Diagnostics.ExceptionHandlerMiddlewareImpl.<Invoke>g__Awaited|10_0(ExceptionHandlerMiddlewareImpl middleware, HttpContext context, Task task)
+2026-04-03T15:34:20.0032003Z          at Microsoft.AspNetCore.Diagnostics.ExceptionHandlerMiddlewareImpl.HandleException(HttpContext context, ExceptionDispatchInfo edi)
+2026-04-03T15:34:20.0032264Z          at Microsoft.AspNetCore.Diagnostics.ExceptionHandlerMiddlewareImpl.<Invoke>g__Awaited|10_0(ExceptionHandlerMiddlewareImpl middleware, HttpContext context, Task task)
+2026-04-03T15:34:20.0032282Z          at Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http.HttpProtocol.ProcessRequests[TContext](IHttpApplication`1 application)
+2026-04-03T16:16:23.2139320Z Deploy Async
+2026-04-03T16:16:26.0662210Z Run rsync from: /tmp/zipdeploy/extracted/ to: /home/site/wwwroot/ in 8 parallel threads
+2026-04-03T16:16:26.1064387Z Delete options: clean=False, use manifest=False, directory to ignore=
+2026-04-03T16:16:26.1783521Z Prev manifest = /home/site/deployments/8109edfc-6800-44bd-9869-c102c8d90917/manifest and next /home/site/deployments/c6b6d7bd-591a-450d-8bb5-cc3e00e46f75/manifest
+2026-04-03T16:16:26.2284353Z Cleaning up /tmp//filelist.txt and /tmp//splits
+2026-04-03T16:16:26.3188069Z Creating a list of all files at /tmp//filelist.txt
+2026-04-03T16:16:26.3891812Z No directory to exclude.
+2026-04-03T16:16:26.4798194Z Created /tmp//filelist.txt. Total number of files to be synced = 1.
+2026-04-03T16:16:26.5386538Z Created batches from the list of files. Processing 1 files in each thread
+2026-04-03T16:16:26.7004155Z Running rsync for filelist /tmp//splits/split.aa from /tmp/zipdeploy/extracted/ to /home/site/wwwroot/
+2026-04-03T16:16:37.6727935Z ......
+2026-04-03T16:16:37.6728463Z 
+2026-04-03T16:16:37.7109117Z Number of files: 1 (reg: 1)
+2026-04-03T16:16:37.7348283Z Number of created files: 0
+2026-04-03T16:16:37.7564886Z Number of deleted files: 0
+2026-04-03T16:16:37.7745346Z Number of regular files transferred: 1
+2026-04-03T16:16:37.8070043Z Total file size: 128.47M bytes
+2026-04-03T16:16:37.8247458Z Total transferred file size: 128.47M bytes
+2026-04-03T16:16:37.8450462Z Literal data: 128.47M bytes
+2026-04-03T16:16:37.8650719Z Matched data: 0 bytes
+2026-04-03T16:16:37.8782438Z File list size: 0
+2026-04-03T16:16:37.8968279Z File list generation time: 0.008 seconds
+2026-04-03T16:16:37.9295192Z File list transfer time: 0.000 seconds
+2026-04-03T16:16:37.9724652Z Total bytes sent: 113.68M
+2026-04-03T16:16:37.9899537Z Total bytes received: 35
+2026-04-03T16:16:38.0084087Z 
+2026-04-03T16:16:38.0210470Z sent 113.68M bytes  received 35 bytes  9.88M bytes/sec
+2026-04-03T16:16:38.0410715Z total size is 128.47M  speedup is 1.13
+2026-04-03T16:16:38.0597730Z Attempt 1: Rsync for filelist /tmp//splits/split.aa completed with exit code 0
+2026-04-03T16:16:38.0798309Z Completed successfully in 11 seconds
