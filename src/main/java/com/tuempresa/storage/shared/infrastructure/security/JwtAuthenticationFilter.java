@@ -19,13 +19,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider jwtTokenProvider;
     private final AppUserDetailsService userDetailsService;
+    private final SseTokenStore sseTokenStore;
 
     public JwtAuthenticationFilter(
             JwtTokenProvider jwtTokenProvider,
-            AppUserDetailsService userDetailsService
-    ) {
+            AppUserDetailsService userDetailsService,
+            SseTokenStore sseTokenStore) {
         this.jwtTokenProvider = jwtTokenProvider;
         this.userDetailsService = userDetailsService;
+        this.sseTokenStore = sseTokenStore;
     }
 
     @Override
@@ -37,8 +39,25 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(
             HttpServletRequest request,
             HttpServletResponse response,
-            FilterChain filterChain
-    ) throws ServletException, IOException {
+            FilterChain filterChain) throws ServletException, IOException {
+
+        // SSE endpoints: resolve short-lived opaque token instead of JWT
+        if (isNotificationSseRequest(request)) {
+            String sseToken = request.getParameter("accessToken");
+            if (sseToken != null && !sseToken.isBlank()) {
+                String username = sseTokenStore.resolveUsername(sseToken);
+                if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                    AuthUserPrincipal principal = (AuthUserPrincipal) userDetailsService.loadUserByUsername(username);
+                    UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                            principal, null, principal.getAuthorities());
+                    authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                }
+            }
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         String token = resolveBearerToken(request);
         if (token == null || token.isBlank()) {
             filterChain.doFilter(request, response);
@@ -53,8 +72,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                 principal,
                 null,
-                principal.getAuthorities()
-        );
+                principal.getAuthorities());
         authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
         SecurityContextHolder.getContext().setAuthentication(authentication);
         filterChain.doFilter(request, response);
@@ -65,19 +83,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (header != null && header.startsWith("Bearer ")) {
             return header.substring(7);
         }
-
-        if (!isNotificationSseRequest(request)) {
-            return null;
-        }
-
-        String accessToken = request.getParameter("accessToken");
-        if (accessToken == null || accessToken.isBlank()) {
-            return null;
-        }
-        if (accessToken.startsWith("Bearer ")) {
-            return accessToken.substring(7);
-        }
-        return accessToken;
+        return null;
     }
 
     private boolean isNotificationSseRequest(HttpServletRequest request) {

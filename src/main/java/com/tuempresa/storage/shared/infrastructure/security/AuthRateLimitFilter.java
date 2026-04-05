@@ -33,8 +33,16 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
             "/api/v1/auth/verify-email",
             "/api/v1/auth/resend-verification",
             "/api/v1/auth/password-reset/request",
-            "/api/v1/auth/password-reset/confirm"
-    );
+            "/api/v1/auth/password-reset/confirm");
+
+    private static final List<String> PROTECTED_PREFIXES = List.of(
+            "/api/v1/payments/confirm",
+            "/api/v1/payments/checkout",
+            "/api/v1/payments/process",
+            "/api/v1/payments/intents",
+            "/api/v1/payments/intent",
+            "/api/v1/payments/one-click",
+            "/api/v1/payments/cancellation-confirm");
 
     private static final long CLEANUP_EVERY_N_REQUESTS = 250;
 
@@ -51,8 +59,7 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
             @Value("${app.security.rate-limit.auth.enabled:true}") boolean enabled,
             @Value("${app.security.rate-limit.auth.max-requests-per-window:12}") int maxRequestsPerWindow,
             @Value("${app.security.rate-limit.auth.window-seconds:60}") int windowSeconds,
-            @Value("${app.security.rate-limit.auth.block-seconds:300}") int blockSeconds
-    ) {
+            @Value("${app.security.rate-limit.auth.block-seconds:300}") int blockSeconds) {
         this.objectMapper = objectMapper;
         this.enabled = enabled;
         this.maxRequestsPerWindow = Math.max(3, maxRequestsPerWindow);
@@ -69,15 +76,22 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
             return true;
         }
         String path = request.getRequestURI();
-        return !PROTECTED_PATHS.contains(path);
+        if (PROTECTED_PATHS.contains(path)) {
+            return false;
+        }
+        for (String prefix : PROTECTED_PREFIXES) {
+            if (path.startsWith(prefix)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override
     protected void doFilterInternal(
             HttpServletRequest request,
             HttpServletResponse response,
-            FilterChain filterChain
-    ) throws ServletException, IOException {
+            FilterChain filterChain) throws ServletException, IOException {
         long nowEpochSeconds = Instant.now().getEpochSecond();
         cleanupIfNeeded(nowEpochSeconds);
 
@@ -87,8 +101,7 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
                 nowEpochSeconds,
                 maxRequestsPerWindow,
                 windowSeconds,
-                blockSeconds
-        );
+                blockSeconds);
 
         if (retryAfterSeconds > 0) {
             writeRateLimitResponse(response, request.getRequestURI(), retryAfterSeconds);
@@ -123,8 +136,7 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
     private void writeRateLimitResponse(
             HttpServletResponse response,
             String path,
-            long retryAfterSeconds
-    ) throws IOException {
+            long retryAfterSeconds) throws IOException {
         response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding("UTF-8");
@@ -137,8 +149,7 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
                 "RATE_LIMIT_EXCEEDED",
                 "Demasiados intentos en autenticacion. Intenta nuevamente en unos minutos.",
                 path,
-                List.of("retryAfterSeconds=" + Math.max(1L, retryAfterSeconds))
-        );
+                List.of("retryAfterSeconds=" + Math.max(1L, retryAfterSeconds)));
         response.getWriter().write(objectMapper.writeValueAsString(body));
     }
 
@@ -152,8 +163,7 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
                 long nowEpochSeconds,
                 int maxRequestsPerWindow,
                 int windowSeconds,
-                int blockSeconds
-        ) {
+                int blockSeconds) {
             lastSeenEpochSeconds = nowEpochSeconds;
             if (blockedUntilEpochSeconds > nowEpochSeconds) {
                 return blockedUntilEpochSeconds - nowEpochSeconds;

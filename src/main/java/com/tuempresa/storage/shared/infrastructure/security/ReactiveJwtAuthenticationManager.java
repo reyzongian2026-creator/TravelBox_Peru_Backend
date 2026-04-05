@@ -23,8 +23,7 @@ public class ReactiveJwtAuthenticationManager implements ReactiveAuthenticationM
     public ReactiveJwtAuthenticationManager(
             UserRepository userRepository,
             JwtTokenProvider jwtTokenProvider,
-            ReactiveBlockingExecutor reactiveBlockingExecutor
-    ) {
+            ReactiveBlockingExecutor reactiveBlockingExecutor) {
         this.userRepository = userRepository;
         this.jwtTokenProvider = jwtTokenProvider;
         this.reactiveBlockingExecutor = reactiveBlockingExecutor;
@@ -39,6 +38,16 @@ public class ReactiveJwtAuthenticationManager implements ReactiveAuthenticationM
         if (token.isEmpty()) {
             return Mono.empty();
         }
+        // Handle SSE tokens resolved by converter
+        if (ReactiveBearerTokenServerAuthenticationConverter.isSseResolved(token)) {
+            String username = ReactiveBearerTokenServerAuthenticationConverter.extractSseUsername(token);
+            return reactiveBlockingExecutor.call(() -> resolveUserByEmail(username))
+                    .map(user -> {
+                        AuthUserPrincipal principal = AuthUserPrincipal.from(user);
+                        return (Authentication) new UsernamePasswordAuthenticationToken(
+                                principal, null, principal.getAuthorities());
+                    });
+        }
         if (!jwtTokenProvider.isValid(token)) {
             return Mono.error(new BadCredentialsException("Token de autenticacion invalido."));
         }
@@ -48,8 +57,7 @@ public class ReactiveJwtAuthenticationManager implements ReactiveAuthenticationM
                     return (Authentication) new UsernamePasswordAuthenticationToken(
                             principal,
                             token,
-                            principal.getAuthorities()
-                    );
+                            principal.getAuthorities());
                 });
     }
 
@@ -58,10 +66,13 @@ public class ReactiveJwtAuthenticationManager implements ReactiveAuthenticationM
         if (email == null || email.isBlank()) {
             throw new BadCredentialsException("Token de autenticacion invalido.");
         }
+        return resolveUserByEmail(email);
+    }
+
+    private User resolveUserByEmail(String email) {
         return userRepository.findByEmailIgnoreCase(email)
                 .filter(User::isActive)
                 .orElseThrow(() -> new BadCredentialsException(
-                        "El usuario del token no existe o esta inactivo."
-                ));
+                        "El usuario del token no existe o esta inactivo."));
     }
 }

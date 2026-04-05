@@ -12,6 +12,13 @@ import reactor.core.publisher.Mono;
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.REACTIVE)
 public class ReactiveBearerTokenServerAuthenticationConverter implements ServerAuthenticationConverter {
 
+    private static final String SSE_TOKEN_PREFIX = "SSE_RESOLVED:";
+    private final SseTokenStore sseTokenStore;
+
+    public ReactiveBearerTokenServerAuthenticationConverter(SseTokenStore sseTokenStore) {
+        this.sseTokenStore = sseTokenStore;
+    }
+
     @Override
     public Mono<Authentication> convert(ServerWebExchange exchange) {
         String token = resolveBearerToken(exchange);
@@ -19,6 +26,14 @@ public class ReactiveBearerTokenServerAuthenticationConverter implements ServerA
             return Mono.empty();
         }
         return Mono.just(new UsernamePasswordAuthenticationToken(token, token));
+    }
+
+    static boolean isSseResolved(String token) {
+        return token != null && token.startsWith(SSE_TOKEN_PREFIX);
+    }
+
+    static String extractSseUsername(String token) {
+        return token.substring(SSE_TOKEN_PREFIX.length());
     }
 
     private String resolveBearerToken(ServerWebExchange exchange) {
@@ -37,9 +52,11 @@ public class ReactiveBearerTokenServerAuthenticationConverter implements ServerA
         if (accessToken == null || accessToken.isBlank()) {
             return null;
         }
-        if (accessToken.startsWith("Bearer ")) {
-            return accessToken.substring(7);
+        // Resolve opaque SSE token to username
+        String username = sseTokenStore.resolveUsername(accessToken);
+        if (username != null) {
+            return SSE_TOKEN_PREFIX + username;
         }
-        return accessToken;
+        return null;
     }
 }

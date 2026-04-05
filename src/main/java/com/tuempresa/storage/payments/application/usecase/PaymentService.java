@@ -1375,7 +1375,7 @@ public class PaymentService {
 
     private PaymentAttempt resolveAttempt(ConfirmPaymentRequest request, AuthUserPrincipal principal) {
         if (request.paymentIntentId() != null) {
-            PaymentAttempt attempt = paymentAttemptRepository.findById(request.paymentIntentId())
+            PaymentAttempt attempt = paymentAttemptRepository.findByIdForUpdate(request.paymentIntentId())
                     .orElseThrow(
                             () -> new ApiException(HttpStatus.NOT_FOUND, "PAYMENT_NOT_FOUND", "Pago no encontrado."));
             assertPaymentPermission(attempt.getReservation(), principal);
@@ -1400,7 +1400,7 @@ public class PaymentService {
                     "La reserva no esta pendiente de pago.");
         }
         return paymentAttemptRepository
-                .findFirstByReservationIdAndStatusOrderByCreatedAtDesc(reservation.getId(), PaymentStatus.PENDING)
+                .findFirstByReservationIdAndStatusForUpdate(reservation.getId(), PaymentStatus.PENDING)
                 .orElseGet(() -> paymentAttemptRepository
                         .save(PaymentAttempt.pending(reservation, reservation.getTotalPrice())));
     }

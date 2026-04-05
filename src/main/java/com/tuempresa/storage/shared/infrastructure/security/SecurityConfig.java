@@ -51,8 +51,7 @@ public class SecurityConfig {
             AccessDeniedHandler restAccessDeniedHandler,
             PasswordEncoder passwordEncoder,
             @Value("${app.cors.allowed-origins}") String allowedOrigins,
-            @Value("${azure.entra.jwk-set-uri:}") String entraJwkSetUri
-    ) {
+            @Value("${azure.entra.jwk-set-uri:}") String entraJwkSetUri) {
         this.userDetailsService = userDetailsService;
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.authRateLimitFilter = authRateLimitFilter;
@@ -73,8 +72,7 @@ public class SecurityConfig {
                 .cors(Customizer.withDefaults())
                 .exceptionHandling(exceptionHandling -> exceptionHandling
                         .authenticationEntryPoint(restAuthenticationEntryPoint)
-                        .accessDeniedHandler(restAccessDeniedHandler)
-                )
+                        .accessDeniedHandler(restAccessDeniedHandler))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/", "/health").permitAll()
@@ -83,11 +81,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/payments/webhooks/**").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
                         .requestMatchers(HttpMethod.GET, "/images/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/reservations/*/qr").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/files/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/geo/**", "/api/v1/warehouses/**").permitAll()
-                        .anyRequest().authenticated()
-                )
+                        .anyRequest().authenticated())
                 .authenticationProvider(authenticationProvider())
                 .addFilterBefore(authRateLimitFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
@@ -104,12 +100,10 @@ public class SecurityConfig {
                             "style-src 'self' 'unsafe-inline'; " +
                             "script-src 'self'; " +
                             "object-src 'none'; " +
-                            "form-action 'self'"
-            ));
+                            "form-action 'self'"));
             headers.httpStrictTransportSecurity(hsts -> hsts
                     .maxAgeInSeconds(31536000)
-                    .includeSubDomains(true)
-            );
+                    .includeSubDomains(true));
         });
         return http.build();
     }
@@ -154,8 +148,7 @@ public class SecurityConfig {
                 "Expires",
                 "Pragma",
                 "Access-Control-Request-Headers",
-                "Access-Control-Request-Method"
-        ));
+                "Access-Control-Request-Method"));
         config.setExposedHeaders(List.of("Authorization", "X-Correlation-Id", "Retry-After"));
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);

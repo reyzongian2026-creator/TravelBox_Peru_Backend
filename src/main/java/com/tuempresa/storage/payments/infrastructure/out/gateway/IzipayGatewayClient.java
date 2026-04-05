@@ -225,7 +225,7 @@ public class IzipayGatewayClient {
 
     public boolean validateWebhookSignature(String payloadHttp, String providedSignature) {
         if (!hasHashKey()) {
-            return true;
+            return false;
         }
         if (!StringUtils.hasText(payloadHttp) || !StringUtils.hasText(providedSignature)) {
             return false;
