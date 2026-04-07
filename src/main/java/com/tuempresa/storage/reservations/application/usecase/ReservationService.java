@@ -258,7 +258,7 @@ public class ReservationService {
                 pricing.pickupFee(),
                 pricing.dropoffFee(),
                 pricing.insuranceFee(),
-                Instant.now().plus(Duration.ofMinutes(30)));
+                Instant.now().plus(Duration.ofMinutes(5)));
         Reservation saved = reservationRepository.save(reservation);
         notificationService.notifyReservationCreated(
                 saved.getUser().getId(),

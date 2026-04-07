@@ -25,6 +25,8 @@ Backend para plataforma de almacenamiento turistico, construido en Java 21 + Spr
 - Spring Data JPA + Flyway
 - PostgreSQL (runtime) + H2 solo para pruebas automatizadas
 - Actuator + correlation id
+- Caffeine cache (QR, warehouses)
+- Resilience4j circuit breaker + retry
 
 ## Modulos implementados
 
@@ -313,4 +315,74 @@ Configuracion recomendada por entorno:
 ```
 
 Resultado actual: `BUILD SUCCESS` con pruebas de auth, reservas, pagos (status/history/caja/webhook), notificaciones, inventory, disponibilidad GPS y contexto.
-nibilidad GPS y contexto.
+
+## Despliegue produccion
+
+### Backend (Azure App Service B1 — West US 3)
+
+```powershell
+# Build
+cd C:\Users\MiniOS\Documents\TravelBox_Peru_Backend
+.\mvnw package -DskipTests -q
+
+# Deploy
+$ErrorActionPreference = "SilentlyContinue"
+az webapp deploy --resource-group travelbox-peru-rg --name travelbox-backend-prod `
+  --src-path target/storage-0.0.1-SNAPSHOT.jar --type jar --timeout 600
+```
+
+- URL: `https://api.inkavoy.pe`
+- Health check: `GET /actuator/health` → `{"status":"UP"}`
+- Tiempo de arranque tipico: **~5 min** (B1 plan: 1 vCPU, 1.75 GB RAM)
+- El CLI devuelve timeout si el polling excede 600s pero el deploy continua en background
+- Flyway ejecuta migraciones automaticamente al arrancar (V1–V40)
+- Logs: Kudu → `LogFiles/*_default_docker.log` o `az webapp log tail`
+
+### Frontend (Azure Static Web App)
+
+```powershell
+cd C:\Users\MiniOS\Documents\TravelBox_Peru_App
+flutter build web --release
+
+$token = az staticwebapp secrets list --resource-group travelbox-peru-rg `
+  --name travelbox-frontend --query "properties.apiKey" -o tsv
+swa deploy build/web --deployment-token $token --env production
+```
+
+- URL: `https://www.inkavoy.pe`
+
+### Consideraciones de despliegue
+
+- **Flyway**: Las migraciones son transaccionales. Si falla una, el backend no arranca. Corregir el SQL, limpiar `flyway_schema_history` (`DELETE WHERE version='XX' AND success=false`) y redesplegar.
+- **Key Vault**: Credenciales en `kvtravelboxpe`. Variables de entorno del App Service apuntan via `@Microsoft.KeyVault(VaultName=kvtravelboxpe;SecretName=...)`.
+- **Cache QR**: QR codes cacheados con Caffeine 24h. El texto QR (`TRAVELBOX-{uuid}`) es inmutable — no requiere invalidacion. HTTP headers: `Cache-Control: public, max-age=86400, immutable`.
+- **Resilience4j**: Circuit breaker activo para `emailGraphApi`, `emailBrevoApi`, `izipay` (sliding window 10, failure 50%, wait 30s). Retry con backoff exponencial para emails.
+- **Correlation ID**: Todas las requests llevan `X-Correlation-Id` (generado si no viene). Se propaga via MDC para logs.
+- **Rate Limiting**: Auth endpoints 5 req/min, payment endpoints 15 req/min por IP.
+- **Swagger**: Restringido a rol `ADMIN` en produccion.
+- **Sesion unica**: Un usuario solo puede tener una sesion activa. Login nuevo invalida sesion anterior.
+- **Expiracion reservas**: Scheduler cada 1 minuto cancela reservas `PENDING_PAYMENT` con >5 min sin pagar.
+
+### Tenant y recursos Azure
+
+| Recurso | Nombre | Region |
+|---------|--------|--------|
+| Subscription | `33815caa-4cfb-4a9e-b60a-8fee5caa2b08` | — |
+| Resource Group | `travelbox-peru-rg` | West US 3 |
+| App Service (backend) | `travelbox-backend-prod` | West US 3 |
+| Static Web App (frontend) | `travelbox-frontend` | — |
+| PostgreSQL Flexible | `travelbox-peru-db` | West US 3 |
+| Key Vault | `kvtravelboxpe` | West US 3 |
+| Storage Account | (blob images/reports/exports) | West US 3 |
+| Entra Tenant | `inkavoy.pe` | — |
+| Custom domains | `api.inkavoy.pe` (backend), `www.inkavoy.pe` (frontend) | — |
+
+### Migraciones DB (Flyway V1–V40)
+
+| Version | Descripcion |
+|---------|-------------|
+| V1–V36 | Schema base (users, reservations, payments, warehouses, notifications, etc.) |
+| V37 | Platform settings (admin config key-value) |
+| V38 | User session version (single-session enforcement) |
+| V39 | Refresh token cleanup index |
+| V40 | FK indexes + composite indexes (performance) |

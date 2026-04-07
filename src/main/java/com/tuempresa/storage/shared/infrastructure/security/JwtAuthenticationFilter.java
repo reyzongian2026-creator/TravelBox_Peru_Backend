@@ -69,6 +69,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
         String username = jwtTokenProvider.extractSubject(token);
         AuthUserPrincipal principal = (AuthUserPrincipal) userDetailsService.loadUserByUsername(username);
+
+        long tokenSv = jwtTokenProvider.extractSessionVersion(token);
+        if (tokenSv != principal.getSessionVersion()) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                 principal,
                 null,

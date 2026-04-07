@@ -37,8 +37,12 @@ public enum PaymentMethod {
         return this == PLIN || this == WALLET;
     }
 
+    public boolean isManualTransfer() {
+        return this == YAPE || this == PLIN || this == WALLET;
+    }
+
     public boolean isDigitalOnline() {
-        return this == CARD || this == SAVED_CARD || this == YAPE || this == PLIN || this == WALLET;
+        return this == CARD || this == SAVED_CARD;
     }
 
     public String label() {

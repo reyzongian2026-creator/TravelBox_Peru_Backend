@@ -16,7 +16,7 @@ public class ReservationExpirationScheduler {
         this.reservationService = reservationService;
     }
 
-    @Scheduled(fixedDelayString = "${app.reservations.expiration-check-ms:300000}")
+    @Scheduled(fixedDelayString = "${app.reservations.expiration-check-ms:60000}")
     public void expirePendingReservations() {
         try {
             int expired = reservationService.expirePendingPaymentsNow();

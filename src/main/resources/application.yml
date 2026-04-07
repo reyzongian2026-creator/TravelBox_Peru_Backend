@@ -58,6 +58,10 @@ spring:
         format_sql: true
         jdbc:
           time_zone: UTC
+          batch_size: 25
+          fetch_size: 50
+        order_inserts: true
+        order_updates: true
   flyway:
     enabled: true
   webflux:
@@ -91,7 +95,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info,metrics,loggers,caches
   health:
     mail:
       enabled: false
@@ -99,6 +103,42 @@ management:
     health:
       probes:
         enabled: true
+    loggers:
+      enabled: true
+    caches:
+      enabled: true
+
+resilience4j:
+  retry:
+    instances:
+      emailGraphApi:
+        maxAttempts: 3
+        waitDuration: 2s
+        enableExponentialBackoff: true
+        exponentialBackoffMultiplier: 2
+      emailBrevoApi:
+        maxAttempts: 3
+        waitDuration: 1s
+        enableExponentialBackoff: true
+        exponentialBackoffMultiplier: 2
+  circuitbreaker:
+    instances:
+      emailGraphApi:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 30s
+        permittedNumberOfCallsInHalfOpenState: 3
+      emailBrevoApi:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 30s
+        permittedNumberOfCallsInHalfOpenState: 3
+      izipay:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 30s
+        permittedNumberOfCallsInHalfOpenState: 3
+        registerHealthIndicator: true
 
 server:
   port: ${PORT:8080}
@@ -284,13 +324,4 @@ azure:
     sas:
       expiry-minutes: ${AZURE_STORAGE_SAS_EXPIRY_MINUTES:60}
 
-# ── Resilience4j Circuit Breaker ─────────────────────────────────────
-resilience4j:
-  circuitbreaker:
-    instances:
-      izipay:
-        sliding-window-size: 10
-        failure-rate-threshold: 50
-        wait-duration-in-open-state: 30s
-        permitted-number-of-calls-in-half-open-state: 3
-        register-health-indicator: true
+# Resilience4j izipay circuit breaker merged into main resilience4j block above

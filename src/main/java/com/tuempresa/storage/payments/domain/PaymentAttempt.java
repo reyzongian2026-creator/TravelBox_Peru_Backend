@@ -102,6 +102,10 @@ public class PaymentAttempt extends AuditableEntity {
         return amount;
     }
 
+    public void overrideAmount(BigDecimal newAmount) {
+        this.amount = newAmount;
+    }
+
     public PaymentStatus getStatus() {
         return status;
     }

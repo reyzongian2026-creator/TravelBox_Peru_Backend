@@ -174,6 +174,9 @@ public class User extends AuditableEntity {
     @Column(name = "wallet_balance", nullable = false, precision = 12, scale = 2)
     private java.math.BigDecimal walletBalance = java.math.BigDecimal.ZERO;
 
+    @Column(name = "session_version", nullable = false)
+    private long sessionVersion;
+
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "user_roles", joinColumns = @JoinColumn(name = "user_id"))
     @Enumerated(EnumType.STRING)
@@ -393,6 +396,14 @@ public class User extends AuditableEntity {
 
     public java.math.BigDecimal getWalletBalance() {
         return walletBalance;
+    }
+
+    public long getSessionVersion() {
+        return sessionVersion;
+    }
+
+    public void incrementSessionVersion() {
+        this.sessionVersion++;
     }
 
     public void addWalletCredit(java.math.BigDecimal amount) {

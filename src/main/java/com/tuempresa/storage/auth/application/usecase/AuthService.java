@@ -81,8 +81,7 @@ public class AuthService {
             @Value("${app.auth.email-provider:mock}") String emailProvider,
             @Value("${app.auth.expose-code-preview:false}") boolean exposeCodePreview,
             @Value("${app.auth.allow-internal-self-register:false}") boolean allowInternalSelfRegister,
-            @Value("${app.auth.internal-domains:inkavoy.pe,inkavoy.onmicrosoft.com}") String internalDomains
-    ) {
+            @Value("${app.auth.internal-domains:inkavoy.pe,inkavoy.onmicrosoft.com}") String internalDomains) {
         this.authenticationManager = authenticationManagerProvider.getIfAvailable();
         this.jwtTokenProvider = jwtTokenProvider;
         this.refreshTokenRepository = refreshTokenRepository;
@@ -110,16 +109,14 @@ public class AuthService {
                     throw new ApiException(
                             HttpStatus.UNAUTHORIZED,
                             "AUTH_USE_SOCIAL_LOGIN",
-                            "Este cliente debe ingresar con su proveedor social."
-                    );
+                            "Este cliente debe ingresar con su proveedor social.");
                 });
 
         Authentication authentication;
         try {
             if (authenticationManager != null) {
                 authentication = authenticationManager.authenticate(
-                        new UsernamePasswordAuthenticationToken(request.email(), request.password())
-                );
+                        new UsernamePasswordAuthenticationToken(request.email(), request.password()));
             } else {
                 authentication = authenticateLocally(request);
             }
@@ -128,7 +125,10 @@ public class AuthService {
         }
         AuthUserPrincipal principal = (AuthUserPrincipal) authentication.getPrincipal();
         User user = requireUser(principal.getId());
+        user.incrementSessionVersion();
+        userRepository.save(user);
         refreshTokenRepository.revokeAllByUserId(user.getId());
+        principal = AuthUserPrincipal.from(user);
         String accessToken = jwtTokenProvider.generateAccessToken(principal);
         String refreshTokenValue = jwtTokenProvider.generateRefreshToken(principal);
         refreshTokenRepository.save(RefreshToken.of(refreshTokenValue, user, jwtTokenProvider.refreshTokenExpiry()));
@@ -145,10 +145,12 @@ public class AuthService {
             throw new ApiException(HttpStatus.CONFLICT, "AUTH_EMAIL_ALREADY_EXISTS", "El email ya esta registrado.");
         }
         if (request.confirmPassword() != null && !request.password().equals(request.confirmPassword())) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "AUTH_PASSWORD_MISMATCH", "La confirmacion de contrasena no coincide.");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "AUTH_PASSWORD_MISMATCH",
+                    "La confirmacion de contrasena no coincide.");
         }
         if (!Boolean.TRUE.equals(request.termsAccepted())) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "AUTH_TERMS_REQUIRED", "Debes aceptar terminos y condiciones.");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "AUTH_TERMS_REQUIRED",
+                    "Debes aceptar terminos y condiciones.");
         }
 
         String[] names = resolveNames(request);
@@ -156,11 +158,13 @@ public class AuthService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "AUTH_NAME_REQUIRED", "Debes enviar nombres y apellidos.");
         }
         if (normalize(request.nationality()) == null) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "AUTH_NATIONALITY_REQUIRED", "Debes seleccionar nacionalidad.");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "AUTH_NATIONALITY_REQUIRED",
+                    "Debes seleccionar nacionalidad.");
         }
         String preferredLanguage = normalizePreferredLanguage(request.preferredLanguage());
         if (preferredLanguage == null) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "AUTH_LANGUAGE_REQUIRED", "Debes seleccionar idioma preferido.");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "AUTH_LANGUAGE_REQUIRED",
+                    "Debes seleccionar idioma preferido.");
         }
         String phone = normalizePhone(request.phone());
         if (phone == null) {
@@ -173,8 +177,7 @@ public class AuthService {
                 normalizedEmail,
                 passwordEncoder.encode(request.password()),
                 phone,
-                registrationRoles
-        );
+                registrationRoles);
         user.applyRegistrationDetails(
                 names[0],
                 names[1],
@@ -182,8 +185,7 @@ public class AuthService {
                 preferredLanguage,
                 phone,
                 true,
-                request.profilePhotoPath()
-        );
+                request.profilePhotoPath());
         user.markManagedByAdmin(isInternalRoleSet(registrationRoles));
         if (isInternalRoleSet(registrationRoles)) {
             user.markEmailVerified();
@@ -203,13 +205,16 @@ public class AuthService {
 
     @Transactional
     public AuthTokenResponse entraSocialLogin(EntraSocialAuthRequest request) {
-        EntraGraphIdentityService.EntraUserIdentity identity = entraGraphIdentityService.resolveUser(request.accessToken());
+        EntraGraphIdentityService.EntraUserIdentity identity = entraGraphIdentityService
+                .resolveUser(request.accessToken());
         AuthProvider provider = resolveEntraProvider(request.provider());
 
         User user = userRepository.findByEmailIgnoreCase(identity.email())
                 .map(existing -> updateEntraClient(existing, identity))
                 .orElseGet(() -> createEntraClient(identity, provider, request));
 
+        user.incrementSessionVersion();
+        user = userRepository.save(user);
         AuthUserPrincipal principal = AuthUserPrincipal.from(user);
         refreshTokenRepository.revokeAllByUserId(user.getId());
         String accessToken = jwtTokenProvider.generateAccessToken(principal);
@@ -230,21 +235,22 @@ public class AuthService {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     "SOCIAL_EMAIL_REQUIRED",
-                    "El proveedor social no devolvio un correo utilizable."
-            );
+                    "El proveedor social no devolvio un correo utilizable.");
         }
 
         final String resolvedEmail = normalizedEmail;
         User user = userRepository.findByEmailIgnoreCase(resolvedEmail)
-                .map(existing -> updateDirectSocialClient(existing, identity, authProvider, requiresRealEmailCompletion))
+                .map(existing -> updateDirectSocialClient(existing, identity, authProvider,
+                        requiresRealEmailCompletion))
                 .orElseGet(() -> createDirectSocialClient(
                         identity,
                         resolvedEmail,
                         authProvider,
                         termsAccepted,
-                        requiresRealEmailCompletion
-                ));
+                        requiresRealEmailCompletion));
 
+        user.incrementSessionVersion();
+        user = userRepository.save(user);
         AuthUserPrincipal principal = AuthUserPrincipal.from(user);
         refreshTokenRepository.revokeAllByUserId(user.getId());
         String accessToken = jwtTokenProvider.generateAccessToken(principal);
@@ -256,7 +262,8 @@ public class AuthService {
     @Transactional
     public AuthTokenResponse refresh(RefreshRequest request) {
         RefreshToken refreshToken = refreshTokenRepository.findByTokenAndRevokedFalse(request.refreshToken())
-                .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "REFRESH_INVALID", "Refresh token invalido."));
+                .orElseThrow(
+                        () -> new ApiException(HttpStatus.UNAUTHORIZED, "REFRESH_INVALID", "Refresh token invalido."));
         if (refreshToken.getExpiresAt().isBefore(Instant.now())) {
             refreshToken.revoke();
             throw new ApiException(HttpStatus.UNAUTHORIZED, "REFRESH_EXPIRED", "Refresh token expirado.");
@@ -291,7 +298,8 @@ public class AuthService {
         }
         boolean verified = user.verifyEmailCode(request.code(), Instant.now());
         if (!verified) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "AUTH_EMAIL_VERIFICATION_INVALID", "Codigo de verificacion invalido o expirado.");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "AUTH_EMAIL_VERIFICATION_INVALID",
+                    "Codigo de verificacion invalido o expirado.");
         }
         if (user.requiresRealEmailCompletion()) {
             String pendingRealEmail = normalizeEmail(user.getPendingRealEmail());
@@ -299,13 +307,13 @@ public class AuthService {
                 throw new ApiException(
                         HttpStatus.BAD_REQUEST,
                         "REAL_EMAIL_REQUIRED",
-                        "Debes registrar un correo real antes de verificar."
-                );
+                        "Debes registrar un correo real antes de verificar.");
             }
             userRepository.findByEmailIgnoreCase(pendingRealEmail)
                     .filter(existing -> !existing.getId().equals(user.getId()))
                     .ifPresent(existing -> {
-                        throw new ApiException(HttpStatus.CONFLICT, "AUTH_EMAIL_ALREADY_EXISTS", "El email ya esta registrado.");
+                        throw new ApiException(HttpStatus.CONFLICT, "AUTH_EMAIL_ALREADY_EXISTS",
+                                "El email ya esta registrado.");
                     });
             user.setEmail(pendingRealEmail);
             user.clearPendingRealEmail();
@@ -316,7 +324,8 @@ public class AuthService {
                 userRepository.findByEmailIgnoreCase(pendingEmail)
                         .filter(existing -> !existing.getId().equals(user.getId()))
                         .ifPresent(existing -> {
-                            throw new ApiException(HttpStatus.CONFLICT, "AUTH_EMAIL_ALREADY_EXISTS", "El email ya esta registrado.");
+                            throw new ApiException(HttpStatus.CONFLICT, "AUTH_EMAIL_ALREADY_EXISTS",
+                                    "El email ya esta registrado.");
                         });
                 user.setEmail(pendingEmail);
                 user.incrementEmailChangeCount();
@@ -340,8 +349,7 @@ public class AuthService {
                 throw new ApiException(
                         HttpStatus.BAD_REQUEST,
                         "REAL_EMAIL_REQUIRED",
-                        "Debes registrar un correo real antes de solicitar otro codigo."
-                );
+                        "Debes registrar un correo real antes de solicitar otro codigo.");
             }
             verificationCodePreview = issueVerificationCodeForPendingEmail(user, pendingRealEmail);
         } else {
@@ -352,29 +360,25 @@ public class AuthService {
                 false,
                 resendVerificationMessage(verificationCodePreview),
                 verificationCodePreview,
-                user.getEmailVerificationExpiresAt()
-        );
+                user.getEmailVerificationExpiresAt());
     }
 
     @Transactional
     public EmailVerificationResponse requestRealEmailCompletion(
             RealEmailRequest request,
-            AuthUserPrincipal principal
-    ) {
+            AuthUserPrincipal principal) {
         User user = requireUser(principal.getId());
         if (!user.isClientSelfManaged()) {
             throw new ApiException(
                     HttpStatus.FORBIDDEN,
                     "REAL_EMAIL_ADMIN_MANAGED",
-                    "Este perfil es administrado por un administrador y no puede completar el correo desde esta cuenta."
-            );
+                    "Este perfil es administrado por un administrador y no puede completar el correo desde esta cuenta.");
         }
         if (!user.requiresRealEmailCompletion()) {
             throw new ApiException(
-                HttpStatus.BAD_REQUEST,
-                "REAL_EMAIL_NOT_REQUIRED",
-                "Esta cuenta ya tiene un correo real registrado."
-            );
+                    HttpStatus.BAD_REQUEST,
+                    "REAL_EMAIL_NOT_REQUIRED",
+                    "Esta cuenta ya tiene un correo real registrado.");
         }
 
         String normalizedEmail = normalizeEmail(request.email());
@@ -382,21 +386,20 @@ public class AuthService {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     "AUTH_EMAIL_REQUIRED",
-                    "Debes enviar un correo valido."
-            );
+                    "Debes enviar un correo valido.");
         }
         if (normalizedEmail.endsWith("@social.inkavoy.pe")) {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     "REAL_EMAIL_INVALID_DOMAIN",
-                    "Debes registrar un correo real para continuar."
-            );
+                    "Debes registrar un correo real para continuar.");
         }
 
         userRepository.findByEmailIgnoreCase(normalizedEmail)
                 .filter(existing -> !existing.getId().equals(user.getId()))
                 .ifPresent(existing -> {
-                    throw new ApiException(HttpStatus.CONFLICT, "AUTH_EMAIL_ALREADY_EXISTS", "El email ya esta registrado.");
+                    throw new ApiException(HttpStatus.CONFLICT, "AUTH_EMAIL_ALREADY_EXISTS",
+                            "El email ya esta registrado.");
                 });
 
         user.setPendingRealEmail(normalizedEmail);
@@ -406,8 +409,7 @@ public class AuthService {
                 false,
                 realEmailRequestMessage(verificationCodePreview),
                 verificationCodePreview,
-                user.getEmailVerificationExpiresAt()
-        );
+                user.getEmailVerificationExpiresAt());
     }
 
     @Transactional
@@ -422,8 +424,7 @@ public class AuthService {
             return new PasswordResetResponse(
                     "Si el correo existe, se envio un codigo de recuperacion.",
                     null,
-                    null
-            );
+                    null);
         }
 
         String resetCodePreview = issuePasswordResetCode(user);
@@ -432,8 +433,7 @@ public class AuthService {
         return new PasswordResetResponse(
                 passwordResetMessage(resetCodePreview),
                 resetCodePreview,
-                user.getPasswordResetExpiresAt()
-        );
+                user.getPasswordResetExpiresAt());
     }
 
     @Transactional
@@ -443,28 +443,26 @@ public class AuthService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "AUTH_EMAIL_REQUIRED", "Debes enviar un correo valido.");
         }
         if (request.confirmPassword() != null && !request.newPassword().equals(request.confirmPassword())) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "AUTH_PASSWORD_MISMATCH", "La confirmacion de contrasena no coincide.");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "AUTH_PASSWORD_MISMATCH",
+                    "La confirmacion de contrasena no coincide.");
         }
 
         User user = userRepository.findByEmailIgnoreCase(normalizedEmail)
                 .orElseThrow(() -> new ApiException(
                         HttpStatus.BAD_REQUEST,
                         "AUTH_PASSWORD_RESET_INVALID",
-                        "Codigo de recuperacion invalido o expirado."
-                ));
+                        "Codigo de recuperacion invalido o expirado."));
         if (user.isSocialClientAuth()) {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     "AUTH_PASSWORD_RESET_SOCIAL_ONLY",
-                    "Esta cuenta usa acceso social. Debes ingresar con tu proveedor social."
-            );
+                    "Esta cuenta usa acceso social. Debes ingresar con tu proveedor social.");
         }
         if (!user.verifyPasswordResetCode(request.code(), Instant.now())) {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     "AUTH_PASSWORD_RESET_INVALID",
-                    "Codigo de recuperacion invalido o expirado."
-            );
+                    "Codigo de recuperacion invalido o expirado.");
         }
 
         user.updatePasswordHash(passwordEncoder.encode(request.newPassword()));
@@ -489,15 +487,13 @@ public class AuthService {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     "AUTH_EMAIL_REQUIRED",
-                    "Debes enviar el correo para verificar sin sesion activa."
-            );
+                    "Debes enviar el correo para verificar sin sesion activa.");
         }
         return userRepository.findByEmailIgnoreCase(normalizedEmail)
                 .orElseThrow(() -> new ApiException(
                         HttpStatus.BAD_REQUEST,
                         "AUTH_EMAIL_VERIFICATION_INVALID",
-                        "Codigo de verificacion invalido o expirado."
-                ));
+                        "Codigo de verificacion invalido o expirado."));
     }
 
     private Authentication authenticateLocally(LoginRequest request) {
@@ -507,7 +503,8 @@ public class AuthService {
         }
         User user = userRepository.findByEmailIgnoreCase(normalizedEmail)
                 .filter(User::isActive)
-                .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "AUTH_INVALID", "Credenciales invalidas."));
+                .orElseThrow(
+                        () -> new ApiException(HttpStatus.UNAUTHORIZED, "AUTH_INVALID", "Credenciales invalidas."));
         if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "AUTH_INVALID", "Credenciales invalidas.");
         }
@@ -520,8 +517,7 @@ public class AuthService {
             AuthUserPrincipal principal,
             String accessToken,
             String refreshToken,
-            String verificationCodePreview
-    ) {
+            String verificationCodePreview) {
         return new AuthTokenResponse(
                 user.getId(),
                 user.getEmail(),
@@ -536,8 +532,7 @@ public class AuthService {
                 user.isProfileCompleted(),
                 !user.isEmailVerified(),
                 verificationCodePreview,
-                accountState(user)
-        );
+                accountState(user));
     }
 
     private AuthUserSummaryResponse toSummary(User user) {
@@ -564,8 +559,8 @@ public class AuthService {
                 user.remainingDocumentChanges(),
                 user.getRoles().stream().map(Role::name).sorted(Comparator.naturalOrder()).toList(),
                 user.getWarehouseAssignments().stream().map(warehouse -> warehouse.getId()).sorted().toList(),
-                user.getWarehouseAssignments().stream().map(warehouse -> warehouse.getName()).sorted(String::compareToIgnoreCase).toList()
-        );
+                user.getWarehouseAssignments().stream().map(warehouse -> warehouse.getName())
+                        .sorted(String::compareToIgnoreCase).toList());
     }
 
     private String accountState(User user) {
@@ -594,16 +589,13 @@ public class AuthService {
                     java.util.Map.of(
                             "email", user.getEmail(),
                             "code", verificationCode,
-                            "expiresAt", expiresAt
-                    )
-            );
+                            "expiresAt", expiresAt));
         }
         customerEmailService.sendEmailVerification(
                 user,
                 verificationCode,
                 expiresAt,
-                "verificar tu cuenta"
-        );
+                "verificar tu cuenta");
         return shouldExposeCodePreview() ? verificationCode : null;
     }
 
@@ -620,16 +612,13 @@ public class AuthService {
                     java.util.Map.of(
                             "email", pendingEmail,
                             "code", verificationCode,
-                            "expiresAt", expiresAt
-                    )
-            );
+                            "expiresAt", expiresAt));
         }
         customerEmailService.sendEmailChangeVerification(
                 user,
                 pendingEmail,
                 verificationCode,
-                expiresAt
-        );
+                expiresAt);
         return shouldExposeCodePreview() ? verificationCode : null;
     }
 
@@ -646,9 +635,7 @@ public class AuthService {
                     java.util.Map.of(
                             "email", user.getEmail(),
                             "code", resetCode,
-                            "expiresAt", expiresAt
-                    )
-            );
+                            "expiresAt", expiresAt));
         }
         customerEmailService.sendPasswordResetCode(user, resetCode, expiresAt);
         return shouldExposeCodePreview() ? resetCode : null;
@@ -704,8 +691,7 @@ public class AuthService {
                     null,
                     null,
                     null,
-                    null
-            );
+                    null);
         }
         return userRepository.save(existing);
     }
@@ -713,15 +699,14 @@ public class AuthService {
     private User createEntraClient(
             EntraGraphIdentityService.EntraUserIdentity identity,
             AuthProvider provider,
-            EntraSocialAuthRequest request
-    ) {
+            EntraSocialAuthRequest request) {
         if (!Boolean.TRUE.equals(request.termsAccepted())) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "AUTH_TERMS_REQUIRED", "Debes aceptar terminos y condiciones.");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "AUTH_TERMS_REQUIRED",
+                    "Debes aceptar terminos y condiciones.");
         }
         String[] names = splitDisplayName(
                 normalize(request.displayName()) != null ? request.displayName() : identity.displayName(),
-                identity.email()
-        );
+                identity.email());
         String firstName = normalize(identity.givenName()) != null ? identity.givenName() : names[0];
         String lastName = normalize(identity.surname()) != null ? identity.surname() : names[1];
 
@@ -730,8 +715,7 @@ public class AuthService {
                 identity.email(),
                 passwordEncoder.encode(generateSystemPassword()),
                 null,
-                Set.of(Role.CLIENT)
-        );
+                Set.of(Role.CLIENT));
         user.linkSocialIdentity(provider);
         user.applyRegistrationDetails(
                 firstName,
@@ -740,8 +724,7 @@ public class AuthService {
                 "es",
                 null,
                 true,
-                null
-        );
+                null);
         user.markEmailVerified();
         user.setActive(true);
         return userRepository.save(user);
@@ -751,8 +734,7 @@ public class AuthService {
             User existing,
             SocialIdentity identity,
             AuthProvider provider,
-            boolean requiresRealEmailCompletion
-    ) {
+            boolean requiresRealEmailCompletion) {
         String[] names = splitDisplayName(identity.displayName(), identity.email());
         existing.updateAdminProfile(
                 names[0],
@@ -762,8 +744,7 @@ public class AuthService {
                 existing.getNationality(),
                 normalizePreferredLanguage(existing.getPreferredLanguage()) == null
                         ? "es"
-                        : existing.getPreferredLanguage()
-        );
+                        : existing.getPreferredLanguage());
         existing.linkSocialIdentity(provider);
         if (requiresRealEmailCompletion || existing.requiresRealEmailCompletion()) {
             existing.requireRealEmailCompletion();
@@ -781,14 +762,12 @@ public class AuthService {
             String resolvedEmail,
             AuthProvider provider,
             boolean termsAccepted,
-            boolean requiresRealEmailCompletion
-    ) {
+            boolean requiresRealEmailCompletion) {
         if (!termsAccepted) {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     "AUTH_TERMS_REQUIRED",
-                    "Debes aceptar los terminos y condiciones."
-            );
+                    "Debes aceptar los terminos y condiciones.");
         }
         String[] names = splitDisplayName(identity.displayName(), resolvedEmail);
         User user = User.of(
@@ -796,8 +775,7 @@ public class AuthService {
                 resolvedEmail,
                 passwordEncoder.encode(generateSystemPassword()),
                 null,
-                Set.of(Role.CLIENT)
-        );
+                Set.of(Role.CLIENT));
         user.applyRegistrationDetails(
                 names[0],
                 names[1],
@@ -805,8 +783,7 @@ public class AuthService {
                 "es",
                 null,
                 true,
-                null
-        );
+                null);
         user.linkSocialIdentity(provider);
         if (requiresRealEmailCompletion) {
             user.requireRealEmailCompletion();
@@ -830,8 +807,7 @@ public class AuthService {
             default -> throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     "SOCIAL_PROVIDER_UNSUPPORTED",
-                    "Solo Google o Facebook estan permitidos."
-            );
+                    "Solo Google o Facebook estan permitidos.");
         };
     }
 
@@ -845,8 +821,7 @@ public class AuthService {
             default -> throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     "ENTRA_PROVIDER_UNSUPPORTED",
-                    "Solo Microsoft Entra esta permitido."
-            );
+                    "Solo Microsoft Entra esta permitido.");
         };
     }
 
@@ -854,20 +829,20 @@ public class AuthService {
         String firstName = normalize(request.firstName());
         String lastName = normalize(request.lastName());
         if (firstName != null && lastName != null) {
-            return new String[]{firstName, lastName};
+            return new String[] { firstName, lastName };
         }
         String name = normalize(request.name());
         if (name == null) {
-            return new String[]{firstName, lastName};
+            return new String[] { firstName, lastName };
         }
         String[] parts = name.split("\\s+");
         if (parts.length == 1) {
-            return new String[]{parts[0], lastName};
+            return new String[] { parts[0], lastName };
         }
         int middle = Math.max(1, parts.length / 2);
         String resolvedFirst = String.join(" ", Arrays.copyOfRange(parts, 0, middle));
         String resolvedLast = String.join(" ", Arrays.copyOfRange(parts, middle, parts.length));
-        return new String[]{resolvedFirst, resolvedLast};
+        return new String[] { resolvedFirst, resolvedLast };
     }
 
     private String[] splitDisplayName(String displayName, String fallbackEmail) {
@@ -878,12 +853,12 @@ public class AuthService {
         }
         String[] parts = normalized.split("\\s+");
         if (parts.length == 1) {
-            return new String[]{parts[0], "InkaVoy"};
+            return new String[] { parts[0], "InkaVoy" };
         }
         int middle = Math.max(1, parts.length / 2);
         String first = String.join(" ", Arrays.copyOfRange(parts, 0, middle));
         String last = String.join(" ", Arrays.copyOfRange(parts, middle, parts.length));
-        return new String[]{normalize(first), normalize(last)};
+        return new String[] { normalize(first), normalize(last) };
     }
 
     private String syntheticFacebookEmail(SocialIdentity identity) {
@@ -929,6 +904,7 @@ public class AuthService {
             return Optional.empty();
         }
     }
+
     private String normalizePreferredLanguage(String value) {
         String normalized = normalize(value);
         if (normalized == null) {
@@ -998,7 +974,6 @@ public class AuthService {
             String email,
             String displayName,
             String firstName,
-            String surname
-    ) {
+            String surname) {
     }
 }

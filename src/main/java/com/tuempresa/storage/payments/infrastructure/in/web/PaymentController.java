@@ -14,12 +14,15 @@ import com.tuempresa.storage.payments.application.dto.PaymentWebhookResponse;
 import com.tuempresa.storage.payments.application.dto.SavedCardResponse;
 import com.tuempresa.storage.payments.application.dto.ValidateCheckoutResultRequest;
 import com.tuempresa.storage.payments.application.usecase.PaymentService;
+import com.tuempresa.storage.payments.application.usecase.YapeEmailReconciliationService;
 import com.tuempresa.storage.users.infrastructure.out.persistence.UserRepository;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tuempresa.storage.payments.domain.PaymentStatus;
 import com.tuempresa.storage.shared.infrastructure.reactive.ReactiveBlockingExecutor;
 import com.tuempresa.storage.shared.infrastructure.security.SecurityUtils;
@@ -50,16 +53,22 @@ public class PaymentController {
         private final SecurityUtils securityUtils;
         private final ReactiveBlockingExecutor reactiveBlockingExecutor;
         private final UserRepository userRepository;
+        private final YapeEmailReconciliationService yapeReconciliationService;
+        private final ObjectMapper objectMapper;
 
         public PaymentController(
                         PaymentService paymentService,
                         SecurityUtils securityUtils,
                         ReactiveBlockingExecutor reactiveBlockingExecutor,
-                        UserRepository userRepository) {
+                        UserRepository userRepository,
+                        YapeEmailReconciliationService yapeReconciliationService,
+                        ObjectMapper objectMapper) {
                 this.paymentService = paymentService;
                 this.securityUtils = securityUtils;
                 this.reactiveBlockingExecutor = reactiveBlockingExecutor;
                 this.userRepository = userRepository;
+                this.yapeReconciliationService = yapeReconciliationService;
+                this.objectMapper = objectMapper;
         }
 
         @PostMapping({ "/intents", "/intent" })
@@ -285,5 +294,68 @@ public class PaymentController {
                                 .flatMap(currentUser -> reactiveBlockingExecutor.call(
                                                 () -> paymentService.validateCheckoutResult(request, currentUser)))
                                 .map(ResponseEntity::ok);
+        }
+
+        /**
+         * Graph API webhook for mail change notifications.
+         * - Validation: Graph sends GET with ?validationToken=... → must echo it back.
+         * - Notification: Graph sends POST with JSON body containing new message IDs.
+         */
+        @PostMapping(value = "/webhooks/graph-mail", consumes = MediaType.ALL_VALUE)
+        public Mono<ResponseEntity<String>> graphMailWebhook(
+                        ServerWebExchange exchange,
+                        @RequestParam(name = "validationToken", required = false) String validationToken) {
+
+                // Subscription validation handshake — echo the token
+                if (validationToken != null && !validationToken.isBlank()) {
+                        return Mono.just(ResponseEntity.ok()
+                                        .contentType(MediaType.TEXT_PLAIN)
+                                        .body(validationToken));
+                }
+
+                // Process notification payload
+                return DataBufferUtils.join(exchange.getRequest().getBody())
+                                .map(buf -> {
+                                        String body = buf.toString(StandardCharsets.UTF_8);
+                                        DataBufferUtils.release(buf);
+                                        return body;
+                                })
+                                .defaultIfEmpty("")
+                                .flatMap(payload -> reactiveBlockingExecutor.<String>call(() -> {
+                                        handleGraphMailNotification(payload);
+                                        return "";
+                                }))
+                                .map(r -> ResponseEntity.accepted().<String>build())
+                                .onErrorReturn(ResponseEntity.accepted().build());
+        }
+
+        private void handleGraphMailNotification(String payload) {
+                try {
+                        JsonNode root = objectMapper.readTree(payload);
+                        JsonNode notifications = root.path("value");
+                        if (!notifications.isArray())
+                                return;
+
+                        String expectedState = yapeReconciliationService.getWebhookClientState();
+                        for (JsonNode notif : notifications) {
+                                // Validate clientState to ensure it's from our subscription
+                                String clientState = notif.path("clientState").asText("");
+                                if (!expectedState.equals(clientState))
+                                        continue;
+
+                                String resourceData = notif.path("resource").asText("");
+                                // resource = "users/{mailbox}/messages/{messageId}"
+                                int lastSlash = resourceData.lastIndexOf('/');
+                                if (lastSlash < 0)
+                                        continue;
+                                String messageId = resourceData.substring(lastSlash + 1);
+                                if (messageId.isBlank())
+                                        continue;
+
+                                yapeReconciliationService.processMessageById(messageId);
+                        }
+                } catch (Exception ex) {
+                        // Always return 202 to Graph — errors are handled internally
+                }
         }
 }

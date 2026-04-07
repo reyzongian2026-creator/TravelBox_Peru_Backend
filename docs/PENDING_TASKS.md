@@ -1,30 +1,18 @@
 # Pending Tasks - TravelBox Peru Migration
 
-**Last Updated:** March 24, 2026
+**Last Updated:** April 7, 2026
 
 ---
 
 ## 🔴 High Priority
 
 ### 1. Authentication Replacement
-- **Issue:** Firebase Auth is disabled, no replacement configured
-- **Impact:** Users cannot login/register
-- **Options:**
-  - Azure AD B2C (not available for new projects)
-  - Build custom auth service with JWT
-  - Use third-party auth (Auth0, Okta, etc.)
-- **Owner:** Backend Team
+- **Status:** ✅ Done — Custom JWT auth with access/refresh tokens, single-session enforcement, OAuth Google/Facebook/Entra
 
 ### 2. Email - Graph API (Microsoft 365)
-- **Issue:** Graph API requires M365 license with Exchange Online mailbox
-- **Current:** Using Brevo SMTP relay as workaround
-- **Impact:** Cannot send emails from corporate domain
-- **Steps to fix:**
-  1. Purchase M365 license (E3 or Business Basic)
-  2. Assign license to user `admin@Weesystem.onmicrosoft.com`
-  3. Set `tbx-back-email-provider=graph` in Key Vault
-  4. Restart backend
-- **Owner:** DevOps/Admin
+- **Status:** ✅ Done — Graph API provider active in prod (`admin@inkavoy.pe`), Brevo as fallback
+- Circuit breaker + retry con Resilience4j
+- Yape email reconciliation via Graph webhook (subscription auto-renew)
 
 ---
 
@@ -85,6 +73,25 @@
 | 2026-03-24 | Azure Resources monitoring endpoint | Done |
 | 2026-03-24 | Azure Resources tab in frontend | Done |
 | 2026-03-24 | Firebase files moved to deprecated | Done |
+| 2026-04-04 | Custom JWT auth + OAuth social | Done |
+| 2026-04-04 | Graph API email in prod | Done |
+| 2026-04-04 | Izipay payment integration | Done |
+| 2026-04-05 | Manual transfer + cash + refund flows | Done |
+| 2026-04-05 | QR handoff + checkout flow | Done |
+| 2026-04-05 | Admin payment settings + history | Done |
+| 2026-04-06 | Rate limiting (auth 5/min, payment 15/min) | Done |
+| 2026-04-06 | Reservation auto-cancel (5 min) | Done |
+| 2026-04-06 | Refresh token cleanup scheduler | Done |
+| 2026-04-06 | Single-session enforcement (V38) | Done |
+| 2026-04-07 | QR code Caffeine cache (24h) | Done |
+| 2026-04-07 | Correlation ID filter (X-Correlation-Id) | Done |
+| 2026-04-07 | Resilience4j circuit breaker + retry | Done |
+| 2026-04-07 | DB performance indexes (V40) | Done |
+| 2026-04-07 | JDBC batch optimization (batch_size=25) | Done |
+| 2026-04-07 | Swagger restricted to ADMIN | Done |
+| 2026-04-07 | Frontend: shimmer loading, brand tokens, page transitions | Done |
+| 2026-04-07 | Frontend: status/payment colors centralized | Done |
+| 2026-04-07 | Frontend: image cache + fadeIn, state views i18n + a11y | Done |
 
 ---
 

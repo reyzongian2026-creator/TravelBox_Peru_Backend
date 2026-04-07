@@ -85,6 +85,20 @@ app:
     provider: ${APP_PAYMENT_PROVIDER:izipay}
     force-cash-only: ${APP_PAYMENTS_FORCE_CASH_ONLY:false}
     allow-mock-confirmation: ${APP_PAYMENTS_ALLOW_MOCK_CONFIRMATION:false}
+    manual-transfer:
+      yape-phone: ${APP_PAYMENTS_YAPE_PHONE:}
+      yape-name: ${APP_PAYMENTS_YAPE_NAME:Reyzon Gianfranco Lopez Huaman}
+      yape-qr-url: ${APP_PAYMENTS_YAPE_QR_URL:}
+      plin-phone: ${APP_PAYMENTS_PLIN_PHONE:}
+      plin-name: ${APP_PAYMENTS_PLIN_NAME:Reyzon Gianfranco Lopez Huaman}
+      plin-qr-url: ${APP_PAYMENTS_PLIN_QR_URL:}
+      qr-phone: ${APP_PAYMENTS_QR_PHONE:}
+      qr-name: ${APP_PAYMENTS_QR_NAME:Reyzon Gianfranco Lopez Huaman}
+      qr-qr-url: ${APP_PAYMENTS_QR_QR_URL:}
+    yape-reconciliation:
+      enabled: ${APP_PAYMENTS_YAPE_RECONCILIATION_ENABLED:true}
+      poll-ms: ${APP_PAYMENTS_YAPE_RECONCILIATION_POLL_MS:300000}
+      backend-base-url: ${APP_PAYMENTS_YAPE_RECONCILIATION_BACKEND_URL:https://travelbox-backend-prod.azurewebsites.net}
     izipay:
       production-mode: ${APP_IZIPAY_PRODUCTION_MODE:true}
       merchant-code: ${tbx-back-payments-izipay-merchant-code:${APP_IZIPAY_MERCHANT_CODE:23662223}}

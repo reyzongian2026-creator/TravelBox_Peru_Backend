@@ -83,6 +83,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/images/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/files/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/geo/**", "/api/v1/warehouses/**").permitAll()
+                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .authenticationProvider(authenticationProvider())
                 .addFilterBefore(authRateLimitFilter, UsernamePasswordAuthenticationFilter.class)

@@ -48,7 +48,8 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
 
     private final ObjectMapper objectMapper;
     private final boolean enabled;
-    private final int maxRequestsPerWindow;
+    private final int maxAuthRequestsPerWindow;
+    private final int maxPaymentRequestsPerWindow;
     private final int windowSeconds;
     private final int blockSeconds;
     private final ConcurrentMap<String, AttemptWindow> attemptsByClient = new ConcurrentHashMap<>();
@@ -57,12 +58,14 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
     public AuthRateLimitFilter(
             ObjectMapper objectMapper,
             @Value("${app.security.rate-limit.auth.enabled:true}") boolean enabled,
-            @Value("${app.security.rate-limit.auth.max-requests-per-window:12}") int maxRequestsPerWindow,
+            @Value("${app.security.rate-limit.auth.max-requests-per-window:5}") int maxAuthRequestsPerWindow,
+            @Value("${app.security.rate-limit.payments.max-requests-per-window:15}") int maxPaymentRequestsPerWindow,
             @Value("${app.security.rate-limit.auth.window-seconds:60}") int windowSeconds,
             @Value("${app.security.rate-limit.auth.block-seconds:300}") int blockSeconds) {
         this.objectMapper = objectMapper;
         this.enabled = enabled;
-        this.maxRequestsPerWindow = Math.max(3, maxRequestsPerWindow);
+        this.maxAuthRequestsPerWindow = Math.max(3, maxAuthRequestsPerWindow);
+        this.maxPaymentRequestsPerWindow = Math.max(3, maxPaymentRequestsPerWindow);
         this.windowSeconds = Math.max(10, windowSeconds);
         this.blockSeconds = Math.max(30, blockSeconds);
     }
@@ -96,10 +99,13 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
         cleanupIfNeeded(nowEpochSeconds);
 
         String clientKey = buildClientKey(request);
+        int limit = isPaymentPath(request.getRequestURI())
+                ? maxPaymentRequestsPerWindow
+                : maxAuthRequestsPerWindow;
         AttemptWindow window = attemptsByClient.computeIfAbsent(clientKey, ignored -> new AttemptWindow());
         long retryAfterSeconds = window.tryConsume(
                 nowEpochSeconds,
-                maxRequestsPerWindow,
+                limit,
                 windowSeconds,
                 blockSeconds);
 
@@ -131,6 +137,15 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
         }
         String endpoint = request.getRequestURI();
         return endpoint + "|" + (ip == null ? "unknown" : ip.trim());
+    }
+
+    private static boolean isPaymentPath(String path) {
+        for (String prefix : PROTECTED_PREFIXES) {
+            if (path.startsWith(prefix)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void writeRateLimitResponse(

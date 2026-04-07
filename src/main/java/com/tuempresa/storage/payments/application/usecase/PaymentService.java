@@ -28,6 +28,7 @@ import com.tuempresa.storage.reservations.application.usecase.ReservationService
 import com.tuempresa.storage.reservations.domain.Reservation;
 import com.tuempresa.storage.reservations.domain.ReservationStatus;
 import com.tuempresa.storage.shared.domain.exception.ApiException;
+import com.tuempresa.storage.shared.application.PlatformSettingService;
 import com.tuempresa.storage.shared.infrastructure.security.AuthUserPrincipal;
 import com.tuempresa.storage.shared.infrastructure.security.WarehouseAccessService;
 import com.tuempresa.storage.shared.infrastructure.web.PagedResponse;
@@ -80,6 +81,7 @@ public class PaymentService {
     private final WebhookEventInserter webhookEventInserter;
     private final RefundPolicyEngine refundPolicyEngine;
     private final PromoCodeRepository promoCodeRepository;
+    private final PlatformSettingService platformSettingService;
     private final String paymentProvider;
     private final boolean forceCashOnly;
     private final boolean allowMockConfirmation;
@@ -87,6 +89,15 @@ public class PaymentService {
     private final int refundCommissionGraceMinutes;
     private final BigDecimal refundCommissionPercentAfterGrace;
     private final BigDecimal refundMinimumFee;
+    private final String yapePhone;
+    private final String yapeName;
+    private final String yapeQrUrl;
+    private final String plinPhone;
+    private final String plinName;
+    private final String plinQrUrl;
+    private final String qrPhone;
+    private final String qrName;
+    private final String qrQrUrl;
 
     public PaymentService(
             PaymentAttemptRepository paymentAttemptRepository,
@@ -102,13 +113,23 @@ public class PaymentService {
             WebhookEventInserter webhookEventInserter,
             RefundPolicyEngine refundPolicyEngine,
             PromoCodeRepository promoCodeRepository,
+            PlatformSettingService platformSettingService,
             @Value("${app.payments.provider:izipay}") String paymentProvider,
             @Value("${app.payments.force-cash-only:false}") boolean forceCashOnly,
             @Value("${app.payments.allow-mock-confirmation:true}") boolean allowMockConfirmation,
             @Value("${app.payments.currency:PEN}") String currencyCode,
             @Value("${app.payments.refunds.commission-grace-minutes:60}") int refundCommissionGraceMinutes,
             @Value("${app.payments.refunds.commission-percent-after-grace:4.50}") BigDecimal refundCommissionPercentAfterGrace,
-            @Value("${app.payments.refunds.minimum-fee:0.00}") BigDecimal refundMinimumFee) {
+            @Value("${app.payments.refunds.minimum-fee:0.00}") BigDecimal refundMinimumFee,
+            @Value("${app.payments.manual-transfer.yape-phone:}") String yapePhone,
+            @Value("${app.payments.manual-transfer.yape-name:InkaVoy Peru}") String yapeName,
+            @Value("${app.payments.manual-transfer.yape-qr-url:}") String yapeQrUrl,
+            @Value("${app.payments.manual-transfer.plin-phone:}") String plinPhone,
+            @Value("${app.payments.manual-transfer.plin-name:InkaVoy Peru}") String plinName,
+            @Value("${app.payments.manual-transfer.plin-qr-url:}") String plinQrUrl,
+            @Value("${app.payments.manual-transfer.qr-phone:}") String qrPhone,
+            @Value("${app.payments.manual-transfer.qr-name:InkaVoy Peru}") String qrName,
+            @Value("${app.payments.manual-transfer.qr-qr-url:}") String qrQrUrl) {
         this.paymentAttemptRepository = paymentAttemptRepository;
         this.paymentWebhookEventRepository = paymentWebhookEventRepository;
         this.savedCardRepository = savedCardRepository;
@@ -122,6 +143,7 @@ public class PaymentService {
         this.webhookEventInserter = webhookEventInserter;
         this.refundPolicyEngine = refundPolicyEngine;
         this.promoCodeRepository = promoCodeRepository;
+        this.platformSettingService = platformSettingService;
         this.paymentProvider = paymentProvider == null ? "izipay" : paymentProvider.trim().toLowerCase(Locale.ROOT);
         this.forceCashOnly = forceCashOnly;
         this.allowMockConfirmation = allowMockConfirmation;
@@ -129,6 +151,15 @@ public class PaymentService {
         this.refundCommissionGraceMinutes = Math.max(0, refundCommissionGraceMinutes);
         this.refundCommissionPercentAfterGrace = normalizePercent(refundCommissionPercentAfterGrace);
         this.refundMinimumFee = normalizeMoney(refundMinimumFee);
+        this.yapePhone = yapePhone;
+        this.yapeName = yapeName;
+        this.yapeQrUrl = yapeQrUrl;
+        this.plinPhone = plinPhone;
+        this.plinName = plinName;
+        this.plinQrUrl = plinQrUrl;
+        this.qrPhone = qrPhone;
+        this.qrName = qrName;
+        this.qrQrUrl = qrQrUrl;
     }
 
     @Transactional
@@ -249,6 +280,9 @@ public class PaymentService {
         boolean approved = request.approved() == null || request.approved();
         if (method == PaymentMethod.COUNTER || method == PaymentMethod.CASH) {
             return processOffline(attempt, method, approved, request.providerReference(), principal);
+        }
+        if (method.isManualTransfer()) {
+            return processManualTransfer(attempt, method);
         }
         if (!approved) {
             String ref = normalizeRef(attempt, request.providerReference(), method.label());
@@ -510,8 +544,9 @@ public class PaymentService {
         PaymentAttempt attempt = requirePending(paymentIntentId);
         assertPaymentPermission(attempt.getReservation(), principal);
         PaymentMethod method = resolveMethod(attempt, null);
-        if (!(method == PaymentMethod.COUNTER || method == PaymentMethod.CASH)) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "PAYMENT_NOT_CASH", "Este pago no es de caja.");
+        if (!(method == PaymentMethod.COUNTER || method == PaymentMethod.CASH || method.isManualTransfer())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "PAYMENT_NOT_CASH",
+                    "Este pago no es de caja ni transferencia manual.");
         }
 
         // Daily cash approval limit per operator: max 20 per day (UTC)
@@ -539,8 +574,9 @@ public class PaymentService {
         PaymentAttempt attempt = requirePending(paymentIntentId);
         assertPaymentPermission(attempt.getReservation(), principal);
         PaymentMethod method = resolveMethod(attempt, null);
-        if (!(method == PaymentMethod.COUNTER || method == PaymentMethod.CASH)) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "PAYMENT_NOT_CASH", "Este pago no es de caja.");
+        if (!(method == PaymentMethod.COUNTER || method == PaymentMethod.CASH || method.isManualTransfer())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "PAYMENT_NOT_CASH",
+                    "Este pago no es de caja ni transferencia manual.");
         }
         String ref = normalizeRef(attempt, providerReference, method.label());
         String message = defaultReason(reason, "Pago en caja rechazado por operador.");
@@ -573,12 +609,6 @@ public class PaymentService {
         }
 
         PaymentMethod method = resolveMethod(attempt, null);
-        if (!method.isDigitalOnline()) {
-            throw new ApiException(
-                    HttpStatus.CONFLICT,
-                    "PAYMENT_REFUND_NOT_REQUIRED",
-                    "Este pago no requiere reembolso digital. Puedes cancelarlo por flujo operativo.");
-        }
 
         BigDecimal amount = normalizeMoney(attempt.getAmount());
         BigDecimal fee = calculateRefundFee(amount, attempt.getCreatedAt(), Instant.now());
@@ -592,8 +622,17 @@ public class PaymentService {
         String providerMessage = "Reembolso aplicado en modo interno.";
         String flow = "REFUND_EXECUTED_INTERNAL";
 
-        // Si el proveedor es Izipay, ejecutamos el reembolso real a traves de su API
-        if ("izipay".equals(paymentProvider) && StringUtils.hasText(providerReference)) {
+        if (method.isManualTransfer()) {
+            // Transferencias manuales (Yape/Plin/QR): el admin confirma que ya devolvio
+            // el dinero manualmente. No hay API de reembolso automatico.
+            providerMessage = "Reembolso manual confirmado por operador. "
+                    + "Metodo original: " + method.label().toUpperCase(Locale.ROOT) + ". "
+                    + "El operador confirma haber devuelto S/" + refundAmount.toPlainString()
+                    + " al cliente.";
+            flow = "REFUND_EXECUTED_MANUAL_TRANSFER";
+        } else if ("izipay".equals(paymentProvider) && StringUtils.hasText(providerReference)
+                && method.isDigitalOnline()) {
+            // Si el proveedor es Izipay, ejecutamos el reembolso real a traves de su API
             try {
                 JsonNode refundResponse = izipayGatewayClient.refund(
                         providerReference,
@@ -681,7 +720,7 @@ public class PaymentService {
         }
 
         PaymentMethod method = resolveMethod(attempt, null);
-        boolean requiresRefund = method.isDigitalOnline();
+        boolean requiresRefund = method.isDigitalOnline() || method.isManualTransfer();
 
         if (!requiresRefund) {
             return new CancellationPreviewResponse(
@@ -1386,6 +1425,71 @@ public class PaymentService {
         }
     }
 
+    private PaymentIntentResponse processManualTransfer(PaymentAttempt attempt, PaymentMethod method) {
+        // --- Anti-fraud: max 3 pending manual transfers per user ---
+        Long userId = attempt.getReservation().getUser().getId();
+        long pendingCount = paymentAttemptRepository
+                .countPendingManualTransfersByUserId(userId);
+        if (pendingCount >= 3) {
+            throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "TOO_MANY_PENDING_TRANSFERS",
+                    "Tienes demasiadas transferencias pendientes. Espera a que un operador las verifique.");
+        }
+
+        String phone;
+        String recipientName;
+        String qrUrl;
+        switch (method) {
+            case YAPE -> {
+                phone = platformSettingService.getOrDefault("payments.yape.phone", yapePhone);
+                recipientName = platformSettingService.getOrDefault("payments.yape.name", yapeName);
+                qrUrl = platformSettingService.getOrDefault("payments.yape.qr_url", yapeQrUrl);
+            }
+            case PLIN -> {
+                phone = platformSettingService.getOrDefault("payments.plin.phone", plinPhone);
+                recipientName = platformSettingService.getOrDefault("payments.plin.name", plinName);
+                qrUrl = platformSettingService.getOrDefault("payments.plin.qr_url", plinQrUrl);
+            }
+            default -> {
+                phone = platformSettingService.getOrDefault("payments.qr.phone", qrPhone);
+                recipientName = platformSettingService.getOrDefault("payments.qr.name", qrName);
+                qrUrl = platformSettingService.getOrDefault("payments.qr.qr_url", qrQrUrl);
+            }
+        }
+
+        String reference = "TRANSFER-" + method.label().toUpperCase(Locale.ROOT) + "-" + attempt.getId();
+        attempt.registerProviderReference(reference);
+        attempt.registerGatewayOutcome("WAITING_MANUAL_TRANSFER",
+                "Pago por " + method.label() + " pendiente de verificacion.");
+
+        notificationService.notifyPaymentPendingCashValidation(
+                attempt.getReservation().getUser().getId(),
+                attempt.getReservation().getId(),
+                attempt.getReservation().getQrCode());
+        notifyOperationalCashPending(attempt);
+
+        Map<String, Object> nextAction = new LinkedHashMap<>();
+        nextAction.put("type", "SHOW_TRANSFER_QR");
+        nextAction.put("method", method.label());
+        nextAction.put("phone", phone);
+        nextAction.put("recipientName", recipientName);
+        nextAction.put("qrUrl", qrUrl);
+        nextAction.put("amount", attempt.getAmount().toPlainString());
+        nextAction.put("currency", currencyCode);
+        nextAction.put("reservationId", attempt.getReservation().getId());
+        nextAction.put("paymentIntentId", attempt.getId());
+        nextAction.put("instructions", "Transfiere S/ " + attempt.getAmount().toPlainString()
+                + " a " + recipientName + " (" + phone + ") por " + method.label().toUpperCase(Locale.ROOT)
+                + ". Un operador verificara tu pago.");
+
+        return toIntentResponse(
+                attempt,
+                "MANUAL_TRANSFER",
+                method.label(),
+                "WAITING_MANUAL_TRANSFER",
+                "Realiza la transferencia y un operador verificara tu pago.",
+                nextAction);
+    }
+
     private PaymentIntentResponse openIzipayCheckout(
             PaymentAttempt attempt,
             PaymentMethod method,
@@ -1627,6 +1731,8 @@ public class PaymentService {
                 attempt.getAmount(),
                 method.label(),
                 attempt.getProviderReference(),
+                attempt.getGatewayStatus(),
+                attempt.getGatewayMessage(),
                 attempt.getCreatedAt(),
                 attempt.getReservation().getStartAt(),
                 attempt.getReservation().getEndAt());

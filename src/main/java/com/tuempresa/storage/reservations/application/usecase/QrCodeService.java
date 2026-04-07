@@ -6,6 +6,7 @@ import com.google.zxing.client.j2se.MatrixToImageWriter;
 import com.google.zxing.common.BitMatrix;
 import com.google.zxing.qrcode.QRCodeWriter;
 import com.tuempresa.storage.shared.domain.exception.ApiException;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -16,6 +17,7 @@ import java.util.Base64;
 @Service
 public class QrCodeService {
 
+    @Cacheable(value = "qrPng", key = "#text")
     public byte[] generatePng(String text) {
         try {
             QRCodeWriter writer = new QRCodeWriter();
@@ -24,10 +26,12 @@ public class QrCodeService {
             MatrixToImageWriter.writeToStream(bitMatrix, "PNG", outputStream);
             return outputStream.toByteArray();
         } catch (WriterException | IOException ex) {
-            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "QR_GENERATION_ERROR", "No se pudo generar el código QR.");
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "QR_GENERATION_ERROR",
+                    "No se pudo generar el código QR.");
         }
     }
 
+    @Cacheable(value = "qrDataUrl", key = "#text")
     public String generateDataUrl(String text) {
         byte[] png = generatePng(text);
         return "data:image/png;base64," + Base64.getEncoder().encodeToString(png);

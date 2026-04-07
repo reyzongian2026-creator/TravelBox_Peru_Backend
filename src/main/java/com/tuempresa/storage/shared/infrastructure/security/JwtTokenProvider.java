@@ -26,8 +26,7 @@ public class JwtTokenProvider {
     public JwtTokenProvider(
             @Value("${app.security.jwt.secret}") String secret,
             @Value("${app.security.jwt.access-token-minutes}") long accessMinutes,
-            @Value("${app.security.jwt.refresh-token-days}") long refreshDays
-    ) {
+            @Value("${app.security.jwt.refresh-token-days}") long refreshDays) {
         this.signingKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.accessMinutes = accessMinutes;
         this.refreshDays = refreshDays;
@@ -38,8 +37,8 @@ public class JwtTokenProvider {
         Instant expiry = now.plus(accessMinutes, ChronoUnit.MINUTES);
         Map<String, Object> claims = Map.of(
                 "roles", principal.roleNames(),
-                "uid", principal.getId()
-        );
+                "uid", principal.getId(),
+                "sv", principal.getSessionVersion());
         return Jwts.builder()
                 .id(UUID.randomUUID().toString())
                 .subject(principal.getUsername())
@@ -99,6 +98,15 @@ public class JwtTokenProvider {
             return number.longValue();
         }
         return null;
+    }
+
+    public long extractSessionVersion(String token) {
+        Claims claims = parseClaims(token);
+        Object sv = claims.get("sv");
+        if (sv instanceof Number number) {
+            return number.longValue();
+        }
+        return 0L;
     }
 
     private Claims parseClaims(String token) {

@@ -15,17 +15,19 @@ public class AuthUserPrincipal implements UserDetails {
     private final String username;
     private final String password;
     private final Collection<? extends GrantedAuthority> authorities;
+    private final long sessionVersion;
 
     private AuthUserPrincipal(
             Long id,
             String username,
             String password,
-            Collection<? extends GrantedAuthority> authorities
-    ) {
+            Collection<? extends GrantedAuthority> authorities,
+            long sessionVersion) {
         this.id = id;
         this.username = username;
         this.password = password;
         this.authorities = authorities;
+        this.sessionVersion = sessionVersion;
     }
 
     public static AuthUserPrincipal from(User user) {
@@ -33,12 +35,16 @@ public class AuthUserPrincipal implements UserDetails {
                 user.getId(),
                 user.getEmail(),
                 user.getPasswordHash(),
-                user.getRoles().stream().map(Role::asAuthority).map(SimpleGrantedAuthority::new).toList()
-        );
+                user.getRoles().stream().map(Role::asAuthority).map(SimpleGrantedAuthority::new).toList(),
+                user.getSessionVersion());
     }
 
     public Long getId() {
         return id;
+    }
+
+    public long getSessionVersion() {
+        return sessionVersion;
     }
 
     public Set<String> roleNames() {

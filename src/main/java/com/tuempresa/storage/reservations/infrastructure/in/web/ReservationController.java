@@ -125,7 +125,7 @@ public class ReservationController {
                                 .flatMap(currentUser -> reactiveBlockingExecutor.call(
                                                 () -> reservationService.qrPng(id, currentUser)))
                                 .map(png -> ResponseEntity.ok()
-                                                .header(HttpHeaders.CACHE_CONTROL, "no-store")
+                                                .header(HttpHeaders.CACHE_CONTROL, "public, max-age=86400, immutable")
                                                 .contentType(MediaType.IMAGE_PNG)
                                                 .body(png));
         }

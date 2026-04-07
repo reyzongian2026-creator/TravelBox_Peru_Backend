@@ -57,8 +57,7 @@ public class ProfileService {
             CustomerEmailService customerEmailService,
             StorageService storageService,
             SensitiveDataService sensitiveDataService,
-            @Value("${app.auth.email-provider:mock}") String emailProvider
-    ) {
+            @Value("${app.auth.email-provider:mock}") String emailProvider) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.notificationService = notificationService;
@@ -103,15 +102,15 @@ public class ProfileService {
         }
         String normalizedPhone = normalizePhone(request.phone());
         if (request.phone() != null && normalizedPhone == null) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "PROFILE_PHONE_INVALID", "Telefono invalido en formato internacional.");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "PROFILE_PHONE_INVALID",
+                    "Telefono invalido en formato internacional.");
         }
         String normalizedEmergencyPhone = normalizePhone(request.emergencyContactPhone());
         if (request.emergencyContactPhone() != null && normalizedEmergencyPhone == null) {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     "PROFILE_EMERGENCY_PHONE_INVALID",
-                    "Telefono de emergencia invalido en formato internacional."
-            );
+                    "Telefono de emergencia invalido en formato internacional.");
         }
 
         DocumentType nextPrimaryDocumentType = parseDocumentType(request.documentType());
@@ -121,11 +120,10 @@ public class ProfileService {
         boolean phoneChanged = request.phone() != null && isTrackedFieldChange(user.getPhone(), normalizedPhone);
         boolean documentChanged = (request.documentType() != null || request.documentNumber() != null)
                 && isTrackedDocumentChange(
-                user.getPrimaryDocumentType(),
-                user.getPrimaryDocumentNumber(),
-                nextPrimaryDocumentType,
-                normalizedPrimaryDocumentNumber
-        );
+                        user.getPrimaryDocumentType(),
+                        user.getPrimaryDocumentNumber(),
+                        nextPrimaryDocumentType,
+                        normalizedPrimaryDocumentNumber);
         boolean sensitiveChange = emailChanged || phoneChanged || documentChanged;
 
         if (sensitiveChange
@@ -134,35 +132,32 @@ public class ProfileService {
             throw new ApiException(
                     HttpStatus.PRECONDITION_REQUIRED,
                     "PROFILE_REAUTH_REQUIRED",
-                    "Para cambiar correo, telefono o documento debes confirmar tu contrasena actual."
-            );
+                    "Para cambiar correo, telefono o documento debes confirmar tu contrasena actual.");
         }
         if (emailChanged && user.remainingEmailChanges() <= 0) {
             throw new ApiException(
                     HttpStatus.CONFLICT,
                     "PROFILE_EMAIL_CHANGE_LIMIT_REACHED",
-                    "Ya alcanzaste el maximo de cambios permitidos para el correo."
-            );
+                    "Ya alcanzaste el maximo de cambios permitidos para el correo.");
         }
         if (phoneChanged && user.remainingPhoneChanges() <= 0) {
             throw new ApiException(
                     HttpStatus.CONFLICT,
                     "PROFILE_PHONE_CHANGE_LIMIT_REACHED",
-                    "Ya alcanzaste el maximo de cambios permitidos para el telefono."
-            );
+                    "Ya alcanzaste el maximo de cambios permitidos para el telefono.");
         }
         if (documentChanged && user.remainingDocumentChanges() <= 0) {
             throw new ApiException(
                     HttpStatus.CONFLICT,
                     "PROFILE_DOCUMENT_CHANGE_LIMIT_REACHED",
-                    "Ya alcanzaste el maximo de cambios permitidos para el documento."
-            );
+                    "Ya alcanzaste el maximo de cambios permitidos para el documento.");
         }
         if (emailChanged && userRepository.existsByEmailIgnoreCase(normalizedEmail)) {
             userRepository.findByEmailIgnoreCase(normalizedEmail)
                     .filter(existing -> !existing.getId().equals(user.getId()))
                     .ifPresent(existing -> {
-                        throw new ApiException(HttpStatus.CONFLICT, "AUTH_EMAIL_ALREADY_EXISTS", "El email ya esta registrado.");
+                        throw new ApiException(HttpStatus.CONFLICT, "AUTH_EMAIL_ALREADY_EXISTS",
+                                "El email ya esta registrado.");
                     });
         }
 
@@ -184,8 +179,7 @@ public class ProfileService {
                 parseDocumentType(request.secondaryDocumentType()),
                 normalize(request.secondaryDocumentNumber()),
                 normalize(request.emergencyContactName()),
-                normalizedEmergencyPhone
-        );
+                normalizedEmergencyPhone);
 
         encryptSensitiveFields(user);
 
@@ -217,22 +211,21 @@ public class ProfileService {
             notifyRemainingChanges(saved, "telefono", "PROFILE_PHONE_CHANGE_REMAINING", saved.remainingPhoneChanges());
         }
         if (documentChanged) {
-            notifyRemainingChanges(saved, "documento", "PROFILE_DOCUMENT_CHANGE_REMAINING", saved.remainingDocumentChanges());
+            notifyRemainingChanges(saved, "documento", "PROFILE_DOCUMENT_CHANGE_REMAINING",
+                    saved.remainingDocumentChanges());
         }
         if (emailChanged && requiresEmailValidation) {
             customerEmailService.sendEmailChangeVerification(
                     saved,
                     normalizedEmail,
                     verificationCodePreview,
-                    saved.getEmailVerificationExpiresAt()
-            );
+                    saved.getEmailVerificationExpiresAt());
         } else if (requiresEmailValidation) {
             customerEmailService.sendProfileUpdateVerification(
                     saved,
                     changedFields,
                     verificationCodePreview,
-                    saved.getEmailVerificationExpiresAt()
-            );
+                    saved.getEmailVerificationExpiresAt());
         } else if (!changedFields.isEmpty()) {
             customerEmailService.sendProfileUpdatedNotice(saved, changedFields);
         }
@@ -264,8 +257,7 @@ public class ProfileService {
                     null,
                     null,
                     null,
-                    null
-            );
+                    null);
         } catch (ApiException e) {
             throw e;
         } catch (Exception e) {
@@ -273,8 +265,7 @@ public class ProfileService {
             throw new ApiException(
                     HttpStatus.INTERNAL_SERVER_ERROR,
                     "PROFILE_PHOTO_UPLOAD_FAILED",
-                    "No se pudo subir la foto de perfil."
-            );
+                    "No se pudo subir la foto de perfil.");
         }
         User saved = userRepository.save(user);
         return toResponse(saved, null);
@@ -293,8 +284,7 @@ public class ProfileService {
             throw new ApiException(
                     HttpStatus.FORBIDDEN,
                     "PROFILE_ADMIN_MANAGED",
-                    "Este perfil es administrado por un administrador y no puede editarse desde esta cuenta."
-            );
+                    "Este perfil es administrado por un administrador y no puede editarse desde esta cuenta.");
         }
     }
 
@@ -310,7 +300,8 @@ public class ProfileService {
         }
         DocumentType type = DocumentType.fromNullable(rawValue);
         if (type == null) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "PROFILE_DOCUMENT_TYPE_INVALID", "Tipo de documento no soportado.");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "PROFILE_DOCUMENT_TYPE_INVALID",
+                    "Tipo de documento no soportado.");
         }
         return type;
     }
@@ -342,9 +333,7 @@ public class ProfileService {
                 java.util.Map.of(
                         "field", fieldLabel,
                         "remaining", remaining,
-                        "route", "/profile"
-                )
-        );
+                        "route", "/profile"));
     }
 
     private boolean isTrackedFieldChange(String currentValue, String nextValue) {
@@ -357,13 +346,13 @@ public class ProfileService {
             DocumentType currentType,
             String currentNumber,
             DocumentType nextType,
-            String nextNumber
-    ) {
+            String nextNumber) {
         String normalizedCurrentNumber = normalize(currentNumber);
         if (normalizedCurrentNumber == null) {
             return false;
         }
-        return !Objects.equals(currentType, nextType) || !Objects.equals(normalizedCurrentNumber, normalize(nextNumber));
+        return !Objects.equals(currentType, nextType)
+                || !Objects.equals(normalizedCurrentNumber, normalize(nextNumber));
     }
 
     private String normalize(String value) {
@@ -403,7 +392,8 @@ public class ProfileService {
             user.setPhoneEncrypted(sensitiveDataService.encrypt(user.getPhone(), SensitiveFieldType.PHONE));
         }
         if (user.getAddressLine() != null) {
-            user.setAddressLineEncrypted(sensitiveDataService.encrypt(user.getAddressLine(), SensitiveFieldType.ADDRESS));
+            user.setAddressLineEncrypted(
+                    sensitiveDataService.encrypt(user.getAddressLine(), SensitiveFieldType.ADDRESS));
         }
         if (user.getPrimaryDocumentNumber() != null) {
             user.setPrimaryDocumentNumberEncrypted(
@@ -415,11 +405,13 @@ public class ProfileService {
         }
         if (user.getEmergencyContactName() != null) {
             user.setEmergencyContactNameEncrypted(
-                    sensitiveDataService.encrypt(user.getEmergencyContactName(), SensitiveFieldType.EMERGENCY_CONTACT_NAME));
+                    sensitiveDataService.encrypt(user.getEmergencyContactName(),
+                            SensitiveFieldType.EMERGENCY_CONTACT_NAME));
         }
         if (user.getEmergencyContactPhone() != null) {
             user.setEmergencyContactPhoneEncrypted(
-                    sensitiveDataService.encrypt(user.getEmergencyContactPhone(), SensitiveFieldType.EMERGENCY_CONTACT_PHONE));
+                    sensitiveDataService.encrypt(user.getEmergencyContactPhone(),
+                            SensitiveFieldType.EMERGENCY_CONTACT_PHONE));
         }
     }
 
@@ -462,8 +454,8 @@ public class ProfileService {
                 user.remainingDocumentChanges(),
                 roles,
                 user.getWarehouseAssignments().stream().map(warehouse -> warehouse.getId()).sorted().toList(),
-                user.getWarehouseAssignments().stream().map(warehouse -> warehouse.getName()).sorted(String::compareToIgnoreCase).toList()
-        );
+                user.getWarehouseAssignments().stream().map(warehouse -> warehouse.getName())
+                        .sorted(String::compareToIgnoreCase).toList());
     }
 
     private String maskSensitive(String value, SensitiveFieldType type) {
@@ -491,8 +483,7 @@ public class ProfileService {
             DocumentType secondaryDocumentType,
             String secondaryDocumentNumber,
             String emergencyContactName,
-            String emergencyContactPhone
-    ) {
+            String emergencyContactPhone) {
         private static ProfileSnapshot from(User user) {
             return new ProfileSnapshot(
                     normalizeText(user.getFirstName()),
@@ -512,8 +503,7 @@ public class ProfileService {
                     user.getSecondaryDocumentType(),
                     normalizeText(user.getSecondaryDocumentNumber()),
                     normalizeText(user.getEmergencyContactName()),
-                    normalizeText(user.getEmergencyContactPhone())
-            );
+                    normalizeText(user.getEmergencyContactPhone()));
         }
 
         private List<String> changedFields(User user) {
@@ -542,8 +532,10 @@ public class ProfileService {
                     || !Objects.equals(secondaryDocumentNumber, normalizeText(user.getSecondaryDocumentNumber()))) {
                 changed.add("documento secundario");
             }
-            addIfChanged(changed, "contacto de emergencia", emergencyContactName, normalizeText(user.getEmergencyContactName()));
-            addIfChanged(changed, "telefono de emergencia", emergencyContactPhone, normalizeText(user.getEmergencyContactPhone()));
+            addIfChanged(changed, "contacto de emergencia", emergencyContactName,
+                    normalizeText(user.getEmergencyContactName()));
+            addIfChanged(changed, "telefono de emergencia", emergencyContactPhone,
+                    normalizeText(user.getEmergencyContactPhone()));
             return changed;
         }
 

@@ -59,8 +59,7 @@ public class EmailDispatchService {
             @Value("${app.email.from-name:InkaVoy Peru}") String fromName,
             @Value("${app.email.graph-tenant-id:}") String graphTenantId,
             @Value("${app.email.graph-client-id:}") String graphClientId,
-            @Value("${app.email.graph-client-secret:}") String graphClientSecret
-    ) {
+            @Value("${app.email.graph-client-secret:}") String graphClientSecret) {
         this.mailSenderProvider = mailSenderProvider;
         this.provider = normalize(provider) == null ? "graph" : normalize(provider).toLowerCase(Locale.ROOT);
         this.smtpHost = normalize(smtpHost) == null ? "" : normalize(smtpHost).toLowerCase(Locale.ROOT);
@@ -124,8 +123,7 @@ public class EmailDispatchService {
             helper.setSubject(safeSubject);
             helper.setText(
                     textBody == null ? "" : textBody,
-                    htmlBody == null ? "" : htmlBody
-            );
+                    htmlBody == null ? "" : htmlBody);
             mailSender.send(message);
             return DispatchResult.sent("smtp");
         } catch (MessagingException | RuntimeException | java.io.UnsupportedEncodingException ex) {
@@ -146,8 +144,7 @@ public class EmailDispatchService {
         String requestBody = String.format(
                 "grant_type=client_credentials&client_id=%s&client_secret=%s&scope=https://graph.microsoft.com/.default",
                 URLEncoder.encode(graphClientId, StandardCharsets.UTF_8),
-                URLEncoder.encode(graphClientSecret, StandardCharsets.UTF_8)
-        );
+                URLEncoder.encode(graphClientSecret, StandardCharsets.UTF_8));
 
         HttpRequest request = HttpRequest.newBuilder(URI.create(tokenUrl))
                 .timeout(Duration.ofSeconds(20))
@@ -158,8 +155,7 @@ public class EmailDispatchService {
         try {
             HttpResponse<String> response = HTTP_CLIENT.send(
                     request,
-                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)
-            );
+                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
             if (response.statusCode() >= 200 && response.statusCode() < 300) {
                 var node = objectMapper.readTree(response.body());
                 JsonNode tokenNode = node.path("access_token");
@@ -192,9 +188,21 @@ public class EmailDispatchService {
         }
 
         String senderEmail = fromAddress;
-        String sendMailUrl = String.format(GRAPH_SEND_MAIL_URI_TEMPLATE, URLEncoder.encode(senderEmail, StandardCharsets.UTF_8));
+        String sendMailUrl = String.format(GRAPH_SEND_MAIL_URI_TEMPLATE,
+                URLEncoder.encode(senderEmail, StandardCharsets.UTF_8));
 
         Map<String, Object> message = new LinkedHashMap<>();
+
+        Map<String, Object> fromField = new LinkedHashMap<>();
+        Map<String, Object> fromEmail = new LinkedHashMap<>();
+        fromEmail.put("address", fromAddress);
+        if (fromName != null) {
+            fromEmail.put("name", fromName);
+        }
+        fromField.put("emailAddress", fromEmail);
+        message.put("from", fromField);
+        message.put("replyTo", List.of(fromField));
+
         message.put("toRecipients", List.of(Map.of("emailAddress", Map.of("address", recipient))));
         message.put("subject", subject);
 
@@ -205,7 +213,7 @@ public class EmailDispatchService {
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("message", message);
-        payload.put("saveToSentItems", false);
+        payload.put("saveToSentItems", true);
 
         String requestBody;
         try {
@@ -224,15 +232,13 @@ public class EmailDispatchService {
         try {
             HttpResponse<String> response = HTTP_CLIENT.send(
                     request,
-                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)
-            );
+                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
             if (response.statusCode() >= 200 && response.statusCode() < 300) {
                 return DispatchResult.sent("graph");
             }
             return DispatchResult.failed(
                     "graph",
-                    "GRAPH_API_" + response.statusCode() + ": " + truncate(response.body())
-            );
+                    "GRAPH_API_" + response.statusCode() + ": " + truncate(response.body()));
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
             return DispatchResult.failed("graph", "GRAPH_API_INTERRUPTED");
@@ -279,15 +285,13 @@ public class EmailDispatchService {
         try {
             HttpResponse<String> response = HTTP_CLIENT.send(
                     request,
-                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)
-            );
+                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
             if (response.statusCode() >= 200 && response.statusCode() < 300) {
                 return DispatchResult.sent("brevo");
             }
             return DispatchResult.failed(
                     "brevo",
-                    "BREVO_API_" + response.statusCode() + ": " + truncate(response.body())
-            );
+                    "BREVO_API_" + response.statusCode() + ": " + truncate(response.body()));
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
             return DispatchResult.failed("brevo", "BREVO_API_INTERRUPTED");
@@ -318,8 +322,7 @@ public class EmailDispatchService {
     public record DispatchResult(
             boolean sent,
             String provider,
-            String errorMessage
-    ) {
+            String errorMessage) {
         public static DispatchResult sent(String provider) {
             return new DispatchResult(true, provider, null);
         }
