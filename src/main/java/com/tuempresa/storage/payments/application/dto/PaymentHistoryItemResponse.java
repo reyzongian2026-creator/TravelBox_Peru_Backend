@@ -20,6 +20,18 @@ public record PaymentHistoryItemResponse(
         String providerReference,
         String gatewayStatus,
         String gatewayMessage,
-        Instant createdAt
+        Instant createdAt,
+        ReconciliationInfo reconciliation
 ) {
+    public record ReconciliationInfo(
+            String outcome,
+            String matchReason,
+            String matchedFields,
+            String senderName,
+            String senderEmail,
+            String txDateTimeRaw,
+            Instant receivedAt,
+            String messageId
+    ) {
+    }
 }

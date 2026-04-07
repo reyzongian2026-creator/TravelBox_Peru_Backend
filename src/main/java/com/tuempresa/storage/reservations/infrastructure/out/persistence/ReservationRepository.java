@@ -4,6 +4,7 @@ import com.tuempresa.storage.reservations.domain.Reservation;
 import com.tuempresa.storage.reservations.domain.ReservationStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -35,8 +36,10 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
 
     List<Reservation> findByUserIdOrderByCreatedAtDesc(Long userId);
 
+    @EntityGraph(attributePaths = {"warehouse", "warehouse.city", "user"})
     List<Reservation> findAllByOrderByCreatedAtDesc();
 
+    @EntityGraph(attributePaths = {"warehouse", "warehouse.city", "user"})
     List<Reservation> findByWarehouseIdInOrderByCreatedAtDesc(Collection<Long> warehouseIds);
 
     Page<Reservation> findByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);

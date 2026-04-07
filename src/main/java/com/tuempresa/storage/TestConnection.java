@@ -25,7 +25,7 @@ public class TestConnection {
 
         System.out.println("Testing JDBC connection...");
         System.out.println("URL: " + url);
-        System.out.println("User: " + user);
+        System.out.println("User: " + user.substring(0, Math.min(3, user.length())) + "***");
 
         try {
             Class.forName("org.postgresql.Driver");

@@ -42,7 +42,8 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
             "/api/v1/payments/intents",
             "/api/v1/payments/intent",
             "/api/v1/payments/one-click",
-            "/api/v1/payments/cancellation-confirm");
+            "/api/v1/payments/cancellation-confirm",
+            "/api/v1/payments/refund");
 
     private static final long CLEANUP_EVERY_N_REQUESTS = 250;
 

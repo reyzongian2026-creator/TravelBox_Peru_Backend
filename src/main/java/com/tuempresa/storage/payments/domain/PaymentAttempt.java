@@ -84,6 +84,18 @@ public class PaymentAttempt extends AuditableEntity {
     @Column(name = "discount_amount", precision = 12, scale = 2)
     private BigDecimal discountAmount = BigDecimal.ZERO;
 
+    @Column(name = "expected_customer_email", length = 255)
+    private String expectedCustomerEmail;
+
+    @Column(name = "expected_customer_name", length = 255)
+    private String expectedCustomerName;
+
+    @Column(name = "expected_method", length = 50)
+    private String expectedMethod;
+
+    @Column(name = "manual_transfer_requested_at")
+    private Instant manualTransferRequestedAt;
+
     public static PaymentAttempt pending(Reservation reservation, BigDecimal amount) {
         PaymentAttempt paymentAttempt = new PaymentAttempt();
         paymentAttempt.reservation = reservation;
@@ -303,5 +315,37 @@ public class PaymentAttempt extends AuditableEntity {
 
     public void setDiscountAmount(BigDecimal discountAmount) {
         this.discountAmount = discountAmount;
+    }
+
+    public String getExpectedCustomerEmail() {
+        return expectedCustomerEmail;
+    }
+
+    public void setExpectedCustomerEmail(String expectedCustomerEmail) {
+        this.expectedCustomerEmail = expectedCustomerEmail;
+    }
+
+    public String getExpectedCustomerName() {
+        return expectedCustomerName;
+    }
+
+    public void setExpectedCustomerName(String expectedCustomerName) {
+        this.expectedCustomerName = expectedCustomerName;
+    }
+
+    public String getExpectedMethod() {
+        return expectedMethod;
+    }
+
+    public void setExpectedMethod(String expectedMethod) {
+        this.expectedMethod = expectedMethod;
+    }
+
+    public Instant getManualTransferRequestedAt() {
+        return manualTransferRequestedAt;
+    }
+
+    public void setManualTransferRequestedAt(Instant manualTransferRequestedAt) {
+        this.manualTransferRequestedAt = manualTransferRequestedAt;
     }
 }

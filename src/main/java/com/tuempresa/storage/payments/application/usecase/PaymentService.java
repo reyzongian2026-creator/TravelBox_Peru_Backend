@@ -60,8 +60,10 @@ import com.tuempresa.storage.payments.application.dto.SavedCardResponse;
 import com.tuempresa.storage.payments.application.dto.PromoCodeResponse;
 import com.tuempresa.storage.payments.domain.PromoCode;
 import com.tuempresa.storage.payments.domain.SavedCard;
+import com.tuempresa.storage.payments.domain.YapeReconciliationAudit;
 import com.tuempresa.storage.payments.infrastructure.out.persistence.PromoCodeRepository;
 import com.tuempresa.storage.payments.infrastructure.out.persistence.SavedCardRepository;
+import com.tuempresa.storage.payments.infrastructure.out.persistence.YapeReconciliationAuditRepository;
 
 @Service
 public class PaymentService {
@@ -81,6 +83,7 @@ public class PaymentService {
     private final WebhookEventInserter webhookEventInserter;
     private final RefundPolicyEngine refundPolicyEngine;
     private final PromoCodeRepository promoCodeRepository;
+    private final YapeReconciliationAuditRepository reconciliationAuditRepository;
     private final PlatformSettingService platformSettingService;
     private final String paymentProvider;
     private final boolean forceCashOnly;
@@ -113,6 +116,7 @@ public class PaymentService {
             WebhookEventInserter webhookEventInserter,
             RefundPolicyEngine refundPolicyEngine,
             PromoCodeRepository promoCodeRepository,
+            YapeReconciliationAuditRepository reconciliationAuditRepository,
             PlatformSettingService platformSettingService,
             @Value("${app.payments.provider:izipay}") String paymentProvider,
             @Value("${app.payments.force-cash-only:false}") boolean forceCashOnly,
@@ -143,6 +147,7 @@ public class PaymentService {
         this.webhookEventInserter = webhookEventInserter;
         this.refundPolicyEngine = refundPolicyEngine;
         this.promoCodeRepository = promoCodeRepository;
+        this.reconciliationAuditRepository = reconciliationAuditRepository;
         this.platformSettingService = platformSettingService;
         this.paymentProvider = paymentProvider == null ? "izipay" : paymentProvider.trim().toLowerCase(Locale.ROOT);
         this.forceCashOnly = forceCashOnly;
@@ -1456,6 +1461,15 @@ public class PaymentService {
             }
         }
 
+        // Snapshot identity of the payer for reconciliation matching
+        var payer = attempt.getReservation().getUser();
+        attempt.setExpectedCustomerEmail(payer.getEmail());
+        attempt.setExpectedCustomerName(
+                ((payer.getFirstName() != null ? payer.getFirstName() : "") + " "
+                        + (payer.getLastName() != null ? payer.getLastName() : "")).strip());
+        attempt.setExpectedMethod(method.label());
+        attempt.setManualTransferRequestedAt(Instant.now());
+
         String reference = "TRANSFER-" + method.label().toUpperCase(Locale.ROOT) + "-" + attempt.getId();
         attempt.registerProviderReference(reference);
         attempt.registerGatewayOutcome("WAITING_MANUAL_TRANSFER",
@@ -1703,6 +1717,18 @@ public class PaymentService {
 
     private PaymentHistoryItemResponse toHistory(PaymentAttempt attempt) {
         PaymentMethod method = resolveMethod(attempt, null);
+        PaymentHistoryItemResponse.ReconciliationInfo reconciliation =
+                reconciliationAuditRepository.findTopByPaymentAttemptIdOrderByCreatedAtDesc(attempt.getId())
+                        .map(a -> new PaymentHistoryItemResponse.ReconciliationInfo(
+                                a.getOutcome(),
+                                a.getMatchReason(),
+                                a.getMatchedFields(),
+                                a.getSenderName(),
+                                a.getSenderEmail(),
+                                a.getTxDateTimeRaw(),
+                                a.getReceivedAt(),
+                                a.getMessageId()))
+                        .orElse(null);
         return new PaymentHistoryItemResponse(
                 attempt.getId(),
                 attempt.getReservation().getId(),
@@ -1717,7 +1743,8 @@ public class PaymentService {
                 attempt.getProviderReference(),
                 attempt.getGatewayStatus(),
                 attempt.getGatewayMessage(),
-                attempt.getCreatedAt());
+                attempt.getCreatedAt(),
+                reconciliation);
     }
 
     private CashPendingPaymentResponse toCashPending(PaymentAttempt attempt) {
