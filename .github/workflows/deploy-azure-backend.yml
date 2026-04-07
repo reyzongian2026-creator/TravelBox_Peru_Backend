@@ -10,6 +10,10 @@ on:
       - ".github/workflows/deploy-azure-backend.yml"
   workflow_dispatch:
 
+concurrency:
+  group: deploy-backend
+  cancel-in-progress: false
+
 env:
   AZURE_SUBSCRIPTION: "33815caa-4cfb-4a9e-b60a-8fee5caa2b08"
   RESOURCE_GROUP: "travelbox-peru-rg"
