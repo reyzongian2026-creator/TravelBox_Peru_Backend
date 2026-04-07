@@ -1,4 +1,4 @@
-name: Deploy to Azure (Backend)
+name: Deploy Backend to Azure
 
 on:
   push:
@@ -9,32 +9,23 @@ on:
       - "pom.xml"
       - ".github/workflows/deploy-azure-backend.yml"
   workflow_dispatch:
-    inputs:
-      app_env:
-        description: "Environment (dev/staging/prod)"
-        required: true
-        default: prod
-        type: choice
-        options:
-          - dev
-          - staging
-          - prod
 
 env:
-  APP_ENV: ${{ inputs.app_env || 'prod' }}
   AZURE_SUBSCRIPTION: "33815caa-4cfb-4a9e-b60a-8fee5caa2b08"
   RESOURCE_GROUP: "travelbox-peru-rg"
   WEBAPP_NAME: "travelbox-backend-prod"
+  KEY_VAULT_NAME: "kvtravelboxpe"
   JAVA_VERSION: "21"
+  APP_ENV: "prod"
 
 permissions:
   contents: read
   id-token: write
 
 jobs:
-  build-and-deploy:
+  deploy-backend:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
 
     steps:
       - name: Checkout
@@ -44,7 +35,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "21"
+          java-version: ${{ env.JAVA_VERSION }}
           cache: maven
 
       - name: Login Azure
@@ -52,32 +43,49 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS_JSON }}
 
-      - name: Get secrets from Key Vault
+      - name: Load production secrets from Key Vault
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
           az account set --subscription "${{ env.AZURE_SUBSCRIPTION }}"
-          $secrets = @{
-            "DB_HOST" = (az keyvault secret show --vault-name "kvtravelboxpe" --name "tbx-new-db-host" --query value -o tsv)
-            "DB_NAME" = (az keyvault secret show --vault-name "kvtravelboxpe" --name "tbx-new-db-name" --query value -o tsv)
-            "DB_USERNAME" = (az keyvault secret show --vault-name "kvtravelboxpe" --name "tbx-new-db-username" --query value -o tsv)
-            "DB_PASSWORD" = (az keyvault secret show --vault-name "kvtravelboxpe" --name "tbx-new-db-password" --query value -o tsv)
-            "JWT_SECRET" = (az keyvault secret show --vault-name "kvtravelboxpe" --name "tbx-back-jwt-secret" --query value -o tsv)
-            "IZIPAY_MERCHANT_CODE" = (az keyvault secret show --vault-name "kvtravelboxpe" --name "tbx-back-payments-izipay-merchant-code" --query value -o tsv)
-            "IZIPAY_PUBLIC_KEY" = (az keyvault secret show --vault-name "kvtravelboxpe" --name "tbx-back-payments-izipay-public-key" --query value -o tsv)
-            "IZIPAY_HASH_KEY" = (az keyvault secret show --vault-name "kvtravelboxpe" --name "tbx-back-payments-izipay-hash-key" --query value -o tsv)
-            "IZIPAY_API_USER" = (az keyvault secret show --vault-name "kvtravelboxpe" --name "tbx-back-payments-izipay-api-user" --query value -o tsv)
-            "IZIPAY_API_PASSWORD" = (az keyvault secret show --vault-name "kvtravelboxpe" --name "tbx-back-payments-izipay-api-password" --query value -o tsv)
-          }
-          foreach ($kv in $secrets.GetEnumerator()) {
-            Write-Output "$($kv.Key)=$($kv.Value)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          $vault = "${{ env.KEY_VAULT_NAME }}"
+          $map = @(
+            @{ secret = "tbx-back-db-url"; env = "TBX_BACK_DB_URL"; required = $true },
+            @{ secret = "tbx-back-db-username"; env = "TBX_BACK_DB_USERNAME"; required = $true },
+            @{ secret = "tbx-back-db-password"; env = "TBX_BACK_DB_PASSWORD"; required = $true },
+            @{ secret = "tbx-back-jwt-secret"; env = "TBX_BACK_JWT_SECRET"; required = $true },
+            @{ secret = "tbx-back-email-graph-tenant-id"; env = "TBX_BACK_EMAIL_GRAPH_TENANT_ID"; required = $false },
+            @{ secret = "tbx-back-email-graph-client-id"; env = "TBX_BACK_EMAIL_GRAPH_CLIENT_ID"; required = $false },
+            @{ secret = "tbx-back-email-graph-client-secret"; env = "TBX_BACK_EMAIL_GRAPH_CLIENT_SECRET"; required = $false },
+            @{ secret = "tbx-back-routing-azure-maps-key"; env = "TBX_BACK_ROUTING_AZURE_MAPS_KEY"; required = $false },
+            @{ secret = "tbx-back-translation-azure-api-key"; env = "TBX_BACK_TRANSLATION_AZURE_API_KEY"; required = $false },
+            @{ secret = "tbx-back-payments-izipay-merchant-code"; env = "TBX_BACK_PAYMENTS_IZIPAY_MERCHANT_CODE"; required = $false },
+            @{ secret = "tbx-back-payments-izipay-public-key"; env = "TBX_BACK_PAYMENTS_IZIPAY_PUBLIC_KEY"; required = $false },
+            @{ secret = "tbx-back-payments-izipay-hash-key"; env = "TBX_BACK_PAYMENTS_IZIPAY_HASH_KEY"; required = $false },
+            @{ secret = "tbx-back-payments-izipay-api-user"; env = "TBX_BACK_PAYMENTS_IZIPAY_API_USER"; required = $false },
+            @{ secret = "tbx-back-payments-izipay-api-password"; env = "TBX_BACK_PAYMENTS_IZIPAY_API_PASSWORD"; required = $false },
+            @{ secret = "tbx-back-payments-izipay-api-base-url"; env = "TBX_BACK_PAYMENTS_IZIPAY_API_BASE_URL"; required = $false },
+            @{ secret = "tbx-back-payments-izipay-checkout-script-url"; env = "TBX_BACK_PAYMENTS_IZIPAY_CHECKOUT_SCRIPT_URL"; required = $false }
+          )
+
+          foreach ($item in $map) {
+            $value = az keyvault secret show --vault-name $vault --name $item.secret --query value -o tsv 2>$null
+            if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($value)) {
+              if ($item.required) {
+                throw "Falta secret requerido en Key Vault: $($item.secret)"
+              }
+              continue
+            }
+            "$($item.env)=$value" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           }
 
-      - name: Ensure Maven wrapper executable
-        run: chmod +x mvnw
+      - name: Run tests
+        run: |
+          chmod +x mvnw
+          ./mvnw -B -ntp test
 
-      - name: Build with Maven
-        run: ./mvnw -B package -DskipTests
+      - name: Build JAR
+        run: ./mvnw -B -ntp clean package -DskipTests
         env:
           SPRING_PROFILES_ACTIVE: ${{ env.APP_ENV }}
 
@@ -91,7 +99,7 @@ jobs:
           fi
           echo "jar_path=$JAR_PATH" >> "$GITHUB_OUTPUT"
 
-      - name: Deploy to Azure App Service
+      - name: Deploy JAR to Azure App Service
         run: |
           az webapp deploy \
             --resource-group ${{ env.RESOURCE_GROUP }} \
@@ -102,24 +110,39 @@ jobs:
       - name: Configure App Settings
         shell: pwsh
         run: |
-          $dbUrl = "jdbc:postgresql://" + $env:DB_HOST + ":5432/" + $env:DB_NAME + "?sslmode=require"
           az webapp config appsettings set `
             --resource-group ${{ env.RESOURCE_GROUP }} `
             --name ${{ env.WEBAPP_NAME }} `
             --settings `
-              SPRING_PROFILES_ACTIVE=${{ env.APP_ENV }} `
-              APP_PUBLIC_BASE_URL="https://travelbox-backend-prod.azurewebsites.net" `
-              tbx-back-db-url="$dbUrl" `
-              tbx-back-db-username="$env:DB_USERNAME" `
-              tbx-back-db-password="$env:DB_PASSWORD" `
-              tbx-back-jwt-secret="$env:JWT_SECRET" `
-              tbx-back-payments-izipay-merchant-code="$env:IZIPAY_MERCHANT_CODE" `
-              tbx-back-payments-izipay-public-key="$env:IZIPAY_PUBLIC_KEY" `
-              tbx-back-payments-izipay-hash-key="$env:IZIPAY_HASH_KEY" `
-              tbx-back-payments-izipay-api-user="$env:IZIPAY_API_USER" `
-              tbx-back-payments-izipay-api-password="$env:IZIPAY_API_PASSWORD" `
-              WEBSITES_PORT=80
+              SPRING_PROFILES_ACTIVE=prod `
+              SERVER_PORT=8080 `
+              WEBSITES_PORT=8080 `
+              APP_PUBLIC_BASE_URL="https://api.inkavoy.pe" `
+              APP_FRONTEND_BASE_URL="https://www.inkavoy.pe" `
+              APP_TRANSLATION_PROVIDER=azure `
+              APP_ROUTING_PROVIDER=azure `
+              APP_EMAIL_PROVIDER=graph `
+              APP_AUTH_EMAIL_PROVIDER=graph `
+              APP_PAYMENTS_ALLOW_MOCK_CONFIRMATION=false `
+              APP_AUTH_EXPOSE_CODE_PREVIEW=false `
+              AZURE_KEYVAULT_ENABLED=true `
+              AZURE_KEYVAULT_ENDPOINT="https://kvtravelboxpe.vault.azure.net/" `
+              tbx-back-db-url="$env:TBX_BACK_DB_URL" `
+              tbx-back-db-username="$env:TBX_BACK_DB_USERNAME" `
+              tbx-back-db-password="$env:TBX_BACK_DB_PASSWORD" `
+              tbx-back-jwt-secret="$env:TBX_BACK_JWT_SECRET" `
+              tbx-back-email-graph-tenant-id="$env:TBX_BACK_EMAIL_GRAPH_TENANT_ID" `
+              tbx-back-email-graph-client-id="$env:TBX_BACK_EMAIL_GRAPH_CLIENT_ID" `
+              tbx-back-email-graph-client-secret="$env:TBX_BACK_EMAIL_GRAPH_CLIENT_SECRET" `
+              tbx-back-routing-azure-maps-key="$env:TBX_BACK_ROUTING_AZURE_MAPS_KEY" `
+              tbx-back-translation-azure-api-key="$env:TBX_BACK_TRANSLATION_AZURE_API_KEY" `
+              tbx-back-payments-izipay-merchant-code="$env:TBX_BACK_PAYMENTS_IZIPAY_MERCHANT_CODE" `
+              tbx-back-payments-izipay-public-key="$env:TBX_BACK_PAYMENTS_IZIPAY_PUBLIC_KEY" `
+              tbx-back-payments-izipay-hash-key="$env:TBX_BACK_PAYMENTS_IZIPAY_HASH_KEY" `
+              tbx-back-payments-izipay-api-user="$env:TBX_BACK_PAYMENTS_IZIPAY_API_USER" `
+              tbx-back-payments-izipay-api-password="$env:TBX_BACK_PAYMENTS_IZIPAY_API_PASSWORD" `
+              tbx-back-payments-izipay-api-base-url="$env:TBX_BACK_PAYMENTS_IZIPAY_API_BASE_URL" `
+              tbx-back-payments-izipay-checkout-script-url="$env:TBX_BACK_PAYMENTS_IZIPAY_CHECKOUT_SCRIPT_URL"
 
-      - name: Restart App Service
-        run: |
-          az webapp restart --resource-group ${{ env.RESOURCE_GROUP }} --name ${{ env.WEBAPP_NAME }}
+      - name: Restart backend app
+        run: az webapp restart --resource-group ${{ env.RESOURCE_GROUP }} --name ${{ env.WEBAPP_NAME }}
