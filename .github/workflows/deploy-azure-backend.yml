@@ -70,18 +70,24 @@ jobs:
           fi
           echo "jar_path=$JAR_PATH" >> "$GITHUB_OUTPUT"
 
-      - name: Stop app before deploy
-        run: az webapp stop --resource-group ${{ env.RESOURCE_GROUP }} --name ${{ env.WEBAPP_NAME }}
-
-      - name: Deploy JAR to Azure App Service
+      - name: Deploy JAR via Kudu publish API
         run: |
-          az webapp deploy \
-            --resource-group ${{ env.RESOURCE_GROUP }} \
-            --name ${{ env.WEBAPP_NAME }} \
-            --type jar \
-            --src-path "${{ steps.jar.outputs.jar_path }}" \
-            --async true \
-            --restart false
+          TOKEN=$(az account get-access-token --query accessToken -o tsv)
+          SCM_URL="https://${{ env.WEBAPP_NAME }}.scm.azurewebsites.net"
+          JAR="${{ steps.jar.outputs.jar_path }}"
+          echo "Uploading JAR ($(du -h "$JAR" | cut -f1)) to Kudu..."
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST "${SCM_URL}/api/publish?type=jar&restart=true" \
+            -H "Authorization: Bearer ${TOKEN}" \
+            -H "Content-Type: application/octet-stream" \
+            --data-binary @"${JAR}" \
+            --max-time 300)
+          echo "Kudu response: ${HTTP_CODE}"
+          if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
+            echo "Deploy failed with HTTP ${HTTP_CODE}"
+            exit 1
+          fi
+          echo "JAR deployed successfully, app is restarting..."
 
       - name: Configure App Settings
         shell: pwsh
@@ -114,21 +120,18 @@ jobs:
           az rest --method PUT --url $url --body "@$bodyFile"
           Write-Host "App settings configured ($($props.Count) settings applied)."
 
-      - name: Start backend app
-        run: az webapp start --resource-group ${{ env.RESOURCE_GROUP }} --name ${{ env.WEBAPP_NAME }}
-
       - name: Wait for app to start
         run: |
           echo "Waiting for backend to become healthy (app takes ~5 min to start)..."
-          sleep 60
-          for i in $(seq 1 60); do
+          sleep 90
+          for i in $(seq 1 50); do
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://${{ env.WEBAPP_NAME }}.azurewebsites.net/actuator/health" --max-time 10 || true)
             if [ "$STATUS" = "200" ]; then
               echo "Backend is healthy (attempt $i)"
               exit 0
             fi
-            echo "Attempt $i/60 - status: $STATUS, retrying in 15s..."
+            echo "Attempt $i/50 - status: $STATUS, retrying in 15s..."
             sleep 15
           done
-          echo "Backend did not become healthy within 16 minutes"
+          echo "Backend did not become healthy within 14 minutes"
           exit 1
