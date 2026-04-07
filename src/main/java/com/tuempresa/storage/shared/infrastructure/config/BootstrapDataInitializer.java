@@ -1011,6 +1011,9 @@ public class BootstrapDataInitializer {
                         case REFUND_PENDING -> "Reembolso en proceso en seed local";
                         case PARTIALLY_REFUNDED -> "Reembolso parcial en seed local";
                         case REFUND_FAILED -> "Reembolso fallido en seed local";
+                        case AUTO_CONFIRMED_YAPE_EMAIL -> "Pago auto-confirmado por Yape email en seed local";
+                        case MANUAL_REVIEW -> "Pago en revision manual en seed local";
+                        case BANK_VERIFIED -> "Pago verificado por banco en seed local";
                 };
         }
 
