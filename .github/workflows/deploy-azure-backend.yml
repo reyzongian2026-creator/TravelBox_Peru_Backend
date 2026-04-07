@@ -72,7 +72,9 @@ jobs:
             --resource-group ${{ env.RESOURCE_GROUP }} \
             --name ${{ env.WEBAPP_NAME }} \
             --type jar \
-            --src-path "${{ steps.jar.outputs.jar_path }}"
+            --src-path "${{ steps.jar.outputs.jar_path }}" \
+            --async true \
+            --restart false
 
       - name: Configure App Settings
         shell: pwsh
@@ -107,3 +109,18 @@ jobs:
 
       - name: Restart backend app
         run: az webapp restart --resource-group ${{ env.RESOURCE_GROUP }} --name ${{ env.WEBAPP_NAME }}
+
+      - name: Wait for app to start
+        run: |
+          echo "Waiting for backend to become healthy..."
+          for i in $(seq 1 80); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://${{ env.WEBAPP_NAME }}.azurewebsites.net/actuator/health" --max-time 10 || true)
+            if [ "$STATUS" = "200" ]; then
+              echo "Backend is healthy (attempt $i)"
+              exit 0
+            fi
+            echo "Attempt $i/80 - status: $STATUS, retrying in 15s..."
+            sleep 15
+          done
+          echo "Backend did not become healthy within 20 minutes"
+          exit 1
