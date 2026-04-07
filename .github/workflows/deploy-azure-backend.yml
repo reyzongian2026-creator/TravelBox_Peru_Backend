@@ -110,39 +110,55 @@ jobs:
       - name: Configure App Settings
         shell: pwsh
         run: |
-          az webapp config appsettings set `
-            --resource-group ${{ env.RESOURCE_GROUP }} `
-            --name ${{ env.WEBAPP_NAME }} `
-            --settings `
-              SPRING_PROFILES_ACTIVE=prod `
-              SERVER_PORT=8080 `
-              WEBSITES_PORT=8080 `
-              APP_PUBLIC_BASE_URL="https://api.inkavoy.pe" `
-              APP_FRONTEND_BASE_URL="https://www.inkavoy.pe" `
-              APP_TRANSLATION_PROVIDER=azure `
-              APP_ROUTING_PROVIDER=azure `
-              APP_EMAIL_PROVIDER=graph `
-              APP_AUTH_EMAIL_PROVIDER=graph `
-              APP_PAYMENTS_ALLOW_MOCK_CONFIRMATION=false `
-              APP_AUTH_EXPOSE_CODE_PREVIEW=false `
-              AZURE_KEYVAULT_ENABLED=true `
-              AZURE_KEYVAULT_ENDPOINT="https://kvtravelboxpe.vault.azure.net/" `
-              tbx-back-db-url="$env:TBX_BACK_DB_URL" `
-              tbx-back-db-username="$env:TBX_BACK_DB_USERNAME" `
-              tbx-back-db-password="$env:TBX_BACK_DB_PASSWORD" `
-              tbx-back-jwt-secret="$env:TBX_BACK_JWT_SECRET" `
-              tbx-back-email-graph-tenant-id="$env:TBX_BACK_EMAIL_GRAPH_TENANT_ID" `
-              tbx-back-email-graph-client-id="$env:TBX_BACK_EMAIL_GRAPH_CLIENT_ID" `
-              tbx-back-email-graph-client-secret="$env:TBX_BACK_EMAIL_GRAPH_CLIENT_SECRET" `
-              tbx-back-routing-azure-maps-key="$env:TBX_BACK_ROUTING_AZURE_MAPS_KEY" `
-              tbx-back-translation-azure-api-key="$env:TBX_BACK_TRANSLATION_AZURE_API_KEY" `
-              tbx-back-payments-izipay-merchant-code="$env:TBX_BACK_PAYMENTS_IZIPAY_MERCHANT_CODE" `
-              tbx-back-payments-izipay-public-key="$env:TBX_BACK_PAYMENTS_IZIPAY_PUBLIC_KEY" `
-              tbx-back-payments-izipay-hash-key="$env:TBX_BACK_PAYMENTS_IZIPAY_HASH_KEY" `
-              tbx-back-payments-izipay-api-user="$env:TBX_BACK_PAYMENTS_IZIPAY_API_USER" `
-              tbx-back-payments-izipay-api-password="$env:TBX_BACK_PAYMENTS_IZIPAY_API_PASSWORD" `
-              tbx-back-payments-izipay-api-base-url="$env:TBX_BACK_PAYMENTS_IZIPAY_API_BASE_URL" `
-              tbx-back-payments-izipay-checkout-script-url="$env:TBX_BACK_PAYMENTS_IZIPAY_CHECKOUT_SCRIPT_URL"
+          $ErrorActionPreference = "Stop"
+          $props = [ordered]@{
+            "SPRING_PROFILES_ACTIVE"                         = "prod"
+            "SERVER_PORT"                                    = "8080"
+            "WEBSITES_PORT"                                  = "8080"
+            "APP_PUBLIC_BASE_URL"                            = "https://api.inkavoy.pe"
+            "APP_FRONTEND_BASE_URL"                          = "https://www.inkavoy.pe"
+            "APP_TRANSLATION_PROVIDER"                       = "azure"
+            "APP_ROUTING_PROVIDER"                           = "azure"
+            "APP_EMAIL_PROVIDER"                             = "graph"
+            "APP_AUTH_EMAIL_PROVIDER"                        = "graph"
+            "APP_PAYMENTS_ALLOW_MOCK_CONFIRMATION"           = "false"
+            "APP_AUTH_EXPOSE_CODE_PREVIEW"                   = "false"
+            "AZURE_KEYVAULT_ENABLED"                         = "true"
+            "AZURE_KEYVAULT_ENDPOINT"                        = "https://kvtravelboxpe.vault.azure.net/"
+            "tbx-back-db-url"                                = $env:TBX_BACK_DB_URL
+            "tbx-back-db-username"                           = $env:TBX_BACK_DB_USERNAME
+            "tbx-back-db-password"                           = $env:TBX_BACK_DB_PASSWORD
+            "tbx-back-jwt-secret"                            = $env:TBX_BACK_JWT_SECRET
+            "tbx-back-email-graph-tenant-id"                 = $env:TBX_BACK_EMAIL_GRAPH_TENANT_ID
+            "tbx-back-email-graph-client-id"                 = $env:TBX_BACK_EMAIL_GRAPH_CLIENT_ID
+            "tbx-back-email-graph-client-secret"             = $env:TBX_BACK_EMAIL_GRAPH_CLIENT_SECRET
+            "tbx-back-routing-azure-maps-key"                = $env:TBX_BACK_ROUTING_AZURE_MAPS_KEY
+            "tbx-back-translation-azure-api-key"             = $env:TBX_BACK_TRANSLATION_AZURE_API_KEY
+            "tbx-back-payments-izipay-merchant-code"         = $env:TBX_BACK_PAYMENTS_IZIPAY_MERCHANT_CODE
+            "tbx-back-payments-izipay-public-key"            = $env:TBX_BACK_PAYMENTS_IZIPAY_PUBLIC_KEY
+            "tbx-back-payments-izipay-hash-key"              = $env:TBX_BACK_PAYMENTS_IZIPAY_HASH_KEY
+            "tbx-back-payments-izipay-api-user"              = $env:TBX_BACK_PAYMENTS_IZIPAY_API_USER
+            "tbx-back-payments-izipay-api-password"          = $env:TBX_BACK_PAYMENTS_IZIPAY_API_PASSWORD
+            "tbx-back-payments-izipay-api-base-url"          = $env:TBX_BACK_PAYMENTS_IZIPAY_API_BASE_URL
+            "tbx-back-payments-izipay-checkout-script-url"   = $env:TBX_BACK_PAYMENTS_IZIPAY_CHECKOUT_SCRIPT_URL
+          }
+
+          # Remove entries with null/empty values (optional secrets not in Key Vault)
+          $clean = [ordered]@{}
+          foreach ($kv in $props.GetEnumerator()) {
+            if (-not [string]::IsNullOrWhiteSpace($kv.Value)) {
+              $clean[$kv.Key] = $kv.Value
+            }
+          }
+
+          # Write JSON body and call REST API (avoids CLI key=value parsing issues)
+          $body = @{ properties = $clean } | ConvertTo-Json -Depth 3
+          $bodyFile = Join-Path $env:RUNNER_TEMP "appsettings.json"
+          $body | Out-File -FilePath $bodyFile -Encoding utf8
+
+          $url = "/subscriptions/${{ env.AZURE_SUBSCRIPTION }}/resourceGroups/${{ env.RESOURCE_GROUP }}/providers/Microsoft.Web/sites/${{ env.WEBAPP_NAME }}/config/appsettings?api-version=2022-03-01"
+          az rest --method PUT --url $url --body "@$bodyFile"
+          Write-Host "App settings configured ($($clean.Count) settings applied)."
 
       - name: Restart backend app
         run: az webapp restart --resource-group ${{ env.RESOURCE_GROUP }} --name ${{ env.WEBAPP_NAME }}
