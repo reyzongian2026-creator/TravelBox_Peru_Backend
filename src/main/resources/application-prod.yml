@@ -87,13 +87,13 @@ app:
     allow-mock-confirmation: ${APP_PAYMENTS_ALLOW_MOCK_CONFIRMATION:false}
     manual-transfer:
       yape-phone: ${APP_PAYMENTS_YAPE_PHONE:}
-      yape-name: ${APP_PAYMENTS_YAPE_NAME}
+      yape-name: ${APP_PAYMENTS_YAPE_NAME:InkaVoy Peru}
       yape-qr-url: ${APP_PAYMENTS_YAPE_QR_URL:}
       plin-phone: ${APP_PAYMENTS_PLIN_PHONE:}
-      plin-name: ${APP_PAYMENTS_PLIN_NAME}
+      plin-name: ${APP_PAYMENTS_PLIN_NAME:InkaVoy Peru}
       plin-qr-url: ${APP_PAYMENTS_PLIN_QR_URL:}
       qr-phone: ${APP_PAYMENTS_QR_PHONE:}
-      qr-name: ${APP_PAYMENTS_QR_NAME}
+      qr-name: ${APP_PAYMENTS_QR_NAME:InkaVoy Peru}
       qr-qr-url: ${APP_PAYMENTS_QR_QR_URL:}
     yape-reconciliation:
       enabled: ${APP_PAYMENTS_YAPE_RECONCILIATION_ENABLED:true}
