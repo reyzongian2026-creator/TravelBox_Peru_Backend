@@ -95,7 +95,13 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,loggers,caches
+        include: health,info,metrics,loggers,caches,prometheus
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    tags:
+      application: ${spring.application.name}
   health:
     mail:
       enabled: false
@@ -106,6 +112,8 @@ management:
     loggers:
       enabled: true
     caches:
+      enabled: true
+    prometheus:
       enabled: true
 
 resilience4j:
@@ -274,13 +282,13 @@ app:
       process-type: ${APP_IZIPAY_PROCESS_TYPE:AT}
       checkout-script-url: ${APP_IZIPAY_CHECKOUT_SCRIPT_URL:https://static.micuentaweb.pe/static/js/krypton-client/V4.0/stable/kr-payment-form.min.js}
       test:
-        public-key: ${APP_IZIPAY_TEST_PUBLIC_KEY:23662223:testpublickey_nTyOlLk8CiPG0VogpAQlmAuoIgcgmRVoLaJv6iieRnnqC}
-        api-password: ${APP_IZIPAY_TEST_API_PASSWORD:testpassword_gAPEWQOa0x7IWqOOqYYxfHZ83kziKmvkldSRb9CGuxomH}
-        hash-key: ${APP_IZIPAY_TEST_HASH_KEY:HNxdvb4EINrOLnqXr3l2ZDuPRgpYHBovAGcla6mSN2i6Z}
+        public-key: ${APP_IZIPAY_TEST_PUBLIC_KEY:}
+        api-password: ${APP_IZIPAY_TEST_API_PASSWORD:}
+        hash-key: ${APP_IZIPAY_TEST_HASH_KEY:}
       production:
-        public-key: ${APP_IZIPAY_PROD_PUBLIC_KEY:23662223:publickey_RRsLg9ifm31FcMjPPhCarPfdvUmHUH3d24CMgIFAzKGF2}
-        api-password: ${APP_IZIPAY_PROD_API_PASSWORD:prodpassword_J0dH8EwVjmuoK9I7hptvrAjhpicMOA04VE3JG1facMxff}
-        hash-key: ${APP_IZIPAY_PROD_HASH_KEY:tjvDDTkdWNh6tSATvNA4WdsMnKejcv4roreFKTAJCctiG}
+        public-key: ${APP_IZIPAY_PROD_PUBLIC_KEY:}
+        api-password: ${APP_IZIPAY_PROD_API_PASSWORD:}
+        hash-key: ${APP_IZIPAY_PROD_HASH_KEY:}
   reservations:
     expiration-check-ms: ${APP_RESERVATION_EXPIRATION_CHECK_MS:300000}
     duplicate-window-seconds: ${APP_RESERVATION_DUPLICATE_WINDOW_SECONDS:60}

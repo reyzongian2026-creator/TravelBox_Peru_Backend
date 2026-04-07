@@ -6,6 +6,8 @@ import com.tuempresa.storage.shared.domain.exception.ApiException;
 import com.tuempresa.storage.warehouses.application.dto.WarehouseAvailabilityResponse;
 import com.tuempresa.storage.warehouses.domain.Warehouse;
 import com.tuempresa.storage.warehouses.infrastructure.out.persistence.WarehouseRepository;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,7 +50,8 @@ public class WarehouseAvailabilityService {
             Instant endAt
     ) {
         validateRange(startAt, endAt);
-        return warehouseRepository.search(cityId, normalize(query))
+        return warehouseRepository.search(cityId, normalize(query), PageRequest.of(0, 50, Sort.by(Sort.Direction.ASC, "name")))
+                .getContent()
                 .stream()
                 .map(warehouse -> buildResponse(warehouse, startAt, endAt))
                 .toList();

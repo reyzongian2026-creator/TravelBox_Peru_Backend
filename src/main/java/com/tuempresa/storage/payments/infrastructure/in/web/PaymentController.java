@@ -23,6 +23,8 @@ import java.util.Map;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import com.tuempresa.storage.payments.domain.PaymentStatus;
 import com.tuempresa.storage.shared.infrastructure.reactive.ReactiveBlockingExecutor;
 import com.tuempresa.storage.shared.infrastructure.security.SecurityUtils;
@@ -48,6 +50,8 @@ import reactor.core.publisher.Mono;
 @RestController
 @RequestMapping("/api/v1/payments")
 public class PaymentController {
+
+        private static final Logger log = LoggerFactory.getLogger(PaymentController.class);
 
         private final PaymentService paymentService;
         private final SecurityUtils securityUtils;
@@ -92,8 +96,9 @@ public class PaymentController {
         public Mono<ResponseEntity<PromoCodeResponse>> validatePromoCode(
                         @RequestParam String code,
                         @RequestParam BigDecimal amount) {
-                return reactiveBlockingExecutor.call(
-                                () -> paymentService.validatePromoCode(code, amount))
+                return securityUtils.currentUserOrThrowReactive()
+                                .flatMap(currentUser -> reactiveBlockingExecutor.call(
+                                                () -> paymentService.validatePromoCode(code, amount)))
                                 .map(ResponseEntity::ok);
         }
 
@@ -355,7 +360,8 @@ public class PaymentController {
                                 yapeReconciliationService.processMessageById(messageId);
                         }
                 } catch (Exception ex) {
-                        // Always return 202 to Graph — errors are handled internally
+                        log.error("Failed to process Graph Mail notification. Payload length={}",
+                                        payload != null ? payload.length() : 0, ex);
                 }
         }
 }

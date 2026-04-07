@@ -1,0 +1,28 @@
+# Build output
+target/
+
+# Git
+.git/
+.github/
+
+# Logs
+*.log
+docker_latest.log
+
+# Documentation
+*.md
+
+# Non-essential JSON files
+api_body_tmp.json
+arm-body.json
+azure-settings-backup.json
+azure-settings-linux.json
+
+# IDE / Eclipse
+.classpath
+.project
+.factorypath
+storage.iml
+
+# Test artifacts
+test_results.txt

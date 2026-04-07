@@ -33,9 +33,8 @@ public interface WarehouseRepository extends JpaRepository<Warehouse, Long> {
               and (:cityId is null or w.city.id = :cityId)
               and (:query = '' or lower(w.name) like concat('%', lower(:query), '%')
                     or lower(w.address) like concat('%', lower(:query), '%'))
-            order by w.name asc
             """)
-    List<Warehouse> search(Long cityId, String query);
+    Page<Warehouse> search(Long cityId, String query, Pageable pageable);
 
     @EntityGraph(attributePaths = {"city", "zone"})
     @Query("""

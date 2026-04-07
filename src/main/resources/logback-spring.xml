@@ -1,15 +1,59 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
-    <property name="LOG_PATTERN"
+
+    <!-- ============================================================
+         Common properties
+         ============================================================ -->
+    <property name="TEXT_PATTERN"
               value="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] [%X{correlationId:-na}] %logger{36} - %msg%n"/>
 
-    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
-        <encoder>
-            <pattern>${LOG_PATTERN}</pattern>
-        </encoder>
-    </appender>
+    <!-- ============================================================
+         LOCAL / DEV / TEST  — human-readable text format
+         ============================================================ -->
+    <springProfile name="local | dev | test">
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+                <pattern>${TEXT_PATTERN}</pattern>
+            </encoder>
+        </appender>
 
-    <root level="INFO">
-        <appender-ref ref="CONSOLE"/>
-    </root>
+        <!-- Per-module log levels -->
+        <logger name="com.tuempresa.storage.payments"   level="INFO"/>
+        <logger name="org.springframework.security"      level="WARN"/>
+        <logger name="org.hibernate.SQL"                 level="WARN"/>
+        <logger name="com.azure"                         level="WARN"/>
+        <logger name="reactor.netty"                     level="WARN"/>
+
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+    </springProfile>
+
+    <!-- ============================================================
+         PROD / QA  — JSON structured format with AsyncAppender
+         ============================================================ -->
+    <springProfile name="prod | qa">
+        <appender name="CONSOLE_JSON" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder class="ch.qos.logback.classic.encoder.JsonEncoder"/>
+        </appender>
+
+        <appender name="ASYNC_CONSOLE" class="ch.qos.logback.classic.AsyncAppender">
+            <queueSize>1024</queueSize>
+            <discardingThreshold>0</discardingThreshold>
+            <neverBlock>true</neverBlock>
+            <appender-ref ref="CONSOLE_JSON"/>
+        </appender>
+
+        <!-- Per-module log levels -->
+        <logger name="com.tuempresa.storage.payments"   level="INFO"/>
+        <logger name="org.springframework.security"      level="WARN"/>
+        <logger name="org.hibernate.SQL"                 level="WARN"/>
+        <logger name="com.azure"                         level="WARN"/>
+        <logger name="reactor.netty"                     level="WARN"/>
+
+        <root level="INFO">
+            <appender-ref ref="ASYNC_CONSOLE"/>
+        </root>
+    </springProfile>
+
 </configuration>

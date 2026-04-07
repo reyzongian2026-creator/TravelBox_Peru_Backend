@@ -106,24 +106,22 @@ public class IncidentService {
         String normalizedQuery = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
         boolean hasQuery = !normalizedQuery.isEmpty();
 
-        if (hasQuery) {
-            List<IncidentSummaryResponse> filtered = listFiltered(principal, status, normalizedQuery, reservationId);
-            long totalElements = filtered.size();
-            int totalPages = totalElements == 0 ? 0 : (int) Math.ceil(totalElements / (double) safeSize);
-            int fromIndex = safePage * safeSize;
-            if (fromIndex >= filtered.size()) {
-                return new PagedResponse<>(List.of(), safePage, safeSize, totalElements, totalPages, false, safePage > 0 && totalPages > 0);
-            }
-            int toIndex = Math.min(fromIndex + safeSize, filtered.size());
-            return new PagedResponse<>(filtered.subList(fromIndex, toIndex), safePage, safeSize, totalElements, totalPages, toIndex < filtered.size(), safePage > 0);
-        }
-
         PageRequest pageable = PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "createdAt"));
-        Page<Incident> pageResult = incidentRepository.findFiltered(
-                status, normalizedReservationId, admin,
-                admin ? Set.of(-1L) : scopedWarehouseIds,
-                principal.getId(), pageable
-        );
+        Page<Incident> pageResult;
+
+        if (hasQuery) {
+            pageResult = incidentRepository.findFilteredWithSearch(
+                    status, normalizedReservationId, admin,
+                    admin ? Set.of(-1L) : scopedWarehouseIds,
+                    principal.getId(), normalizedQuery, pageable
+            );
+        } else {
+            pageResult = incidentRepository.findFiltered(
+                    status, normalizedReservationId, admin,
+                    admin ? Set.of(-1L) : scopedWarehouseIds,
+                    principal.getId(), pageable
+            );
+        }
         List<IncidentSummaryResponse> items = pageResult.getContent().stream()
                 .map(incident -> toSummary(incident, viewer, internalViewer))
                 .toList();

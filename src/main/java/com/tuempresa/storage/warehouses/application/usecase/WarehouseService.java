@@ -66,7 +66,8 @@ public class WarehouseService {
 
     @Transactional(readOnly = true)
     public List<WarehouseResponse> search(Long cityId, String query) {
-        return warehouseRepository.search(cityId, normalize(query))
+        return warehouseRepository.search(cityId, normalize(query), PageRequest.of(0, 50, Sort.by(Sort.Direction.ASC, "name")))
+                .getContent()
                 .stream()
                 .map(warehouse -> toResponse(warehouse, null))
                 .toList();

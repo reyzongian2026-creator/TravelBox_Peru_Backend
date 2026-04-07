@@ -63,7 +63,8 @@ public class RateLimitingWebFilter implements WebFilter, Ordered {
      */
     private static final Map<String, Integer> PROTECTED_ENDPOINTS = Map.of(
             "/api/v1/payments/confirm", 10,
-            "/api/v1/payments/intents", 20
+            "/api/v1/payments/intents", 20,
+            "/api/v1/payments/validate-promo", 15
     );
 
     private final RateLimiter rateLimiter;
