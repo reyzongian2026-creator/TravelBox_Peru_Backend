@@ -70,6 +70,9 @@ jobs:
           fi
           echo "jar_path=$JAR_PATH" >> "$GITHUB_OUTPUT"
 
+      - name: Stop app before deploy
+        run: az webapp stop --resource-group ${{ env.RESOURCE_GROUP }} --name ${{ env.WEBAPP_NAME }}
+
       - name: Deploy JAR to Azure App Service
         run: |
           az webapp deploy \
@@ -111,20 +114,21 @@ jobs:
           az rest --method PUT --url $url --body "@$bodyFile"
           Write-Host "App settings configured ($($props.Count) settings applied)."
 
-      - name: Restart backend app
-        run: az webapp restart --resource-group ${{ env.RESOURCE_GROUP }} --name ${{ env.WEBAPP_NAME }}
+      - name: Start backend app
+        run: az webapp start --resource-group ${{ env.RESOURCE_GROUP }} --name ${{ env.WEBAPP_NAME }}
 
       - name: Wait for app to start
         run: |
-          echo "Waiting for backend to become healthy..."
-          for i in $(seq 1 80); do
+          echo "Waiting for backend to become healthy (app takes ~5 min to start)..."
+          sleep 60
+          for i in $(seq 1 60); do
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://${{ env.WEBAPP_NAME }}.azurewebsites.net/actuator/health" --max-time 10 || true)
             if [ "$STATUS" = "200" ]; then
               echo "Backend is healthy (attempt $i)"
               exit 0
             fi
-            echo "Attempt $i/80 - status: $STATUS, retrying in 15s..."
+            echo "Attempt $i/60 - status: $STATUS, retrying in 15s..."
             sleep 15
           done
-          echo "Backend did not become healthy within 20 minutes"
+          echo "Backend did not become healthy within 16 minutes"
           exit 1
