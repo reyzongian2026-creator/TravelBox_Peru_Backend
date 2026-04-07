@@ -90,11 +90,66 @@ public class PaymentAttempt extends AuditableEntity {
     @Column(name = "expected_customer_name", length = 255)
     private String expectedCustomerName;
 
+    @Column(name = "expected_customer_phone", length = 30)
+    private String expectedCustomerPhone;
+
     @Column(name = "expected_method", length = 50)
     private String expectedMethod;
 
     @Column(name = "manual_transfer_requested_at")
     private Instant manualTransferRequestedAt;
+
+    // =========================================================================
+    // QR Signing fields (V43)
+    // =========================================================================
+
+    /** Base-64-encoded SHA-512 hash of the QR code digital signature. */
+    @Column(name = "qr_signature_hash", length = 88)
+    private String qrSignatureHash;
+
+    /** Unix epoch millis when the QR code signature was generated. */
+    @Column(name = "qr_signature_timestamp")
+    private Long qrSignatureTimestamp;
+
+    /** Whether the QR signature was successfully verified on the server side. */
+    @Column(name = "qr_verification_success")
+    private Boolean qrVerificationSuccess;
+
+    /** Instant at which the QR signature verification was performed. */
+    @Column(name = "qr_verification_timestamp")
+    private Instant qrVerificationTimestamp;
+
+    // =========================================================================
+    // Identity Verification fields (V44)
+    // =========================================================================
+
+    /** Phone number of the payer (E.164 format, max 20 chars). */
+    @Column(name = "payer_phone_number", length = 20)
+    private String payerPhoneNumber;
+
+    /** Base-64-encoded hash of the payer's identity document for verification. */
+    @Column(name = "payer_identity_hash", length = 88)
+    private String payerIdentityHash;
+
+    /** Confidence score returned by the identity verification provider (0.00 - 1.00). */
+    @Column(name = "identity_verification_confidence", precision = 3, scale = 2)
+    private BigDecimal identityVerificationConfidence;
+
+    /** Status of the identity verification (e.g. PENDING, VERIFIED, REJECTED). */
+    @Column(name = "identity_verification_status", length = 30)
+    private String identityVerificationStatus;
+
+    // =========================================================================
+    // Atomicity fields (V45)
+    // =========================================================================
+
+    /**
+     * Client-supplied idempotency key (UUID v4) that guarantees at-most-once
+     * processing of payment confirmation requests. This is separate from the
+     * existing {@link #idempotencyKey} which is system-generated.
+     */
+    @Column(name = "client_idempotency_key", length = 36)
+    private String clientIdempotencyKey;
 
     public static PaymentAttempt pending(Reservation reservation, BigDecimal amount) {
         PaymentAttempt paymentAttempt = new PaymentAttempt();
@@ -333,6 +388,14 @@ public class PaymentAttempt extends AuditableEntity {
         this.expectedCustomerName = expectedCustomerName;
     }
 
+    public String getExpectedCustomerPhone() {
+        return expectedCustomerPhone;
+    }
+
+    public void setExpectedCustomerPhone(String expectedCustomerPhone) {
+        this.expectedCustomerPhone = expectedCustomerPhone;
+    }
+
     public String getExpectedMethod() {
         return expectedMethod;
     }
@@ -347,5 +410,98 @@ public class PaymentAttempt extends AuditableEntity {
 
     public void setManualTransferRequestedAt(Instant manualTransferRequestedAt) {
         this.manualTransferRequestedAt = manualTransferRequestedAt;
+    }
+
+    // =========================================================================
+    // QR Signing accessors (V43)
+    // =========================================================================
+
+    /** Returns the Base-64-encoded SHA-512 hash of the QR code signature. */
+    public String getQrSignatureHash() {
+        return qrSignatureHash;
+    }
+
+    public void setQrSignatureHash(String qrSignatureHash) {
+        this.qrSignatureHash = qrSignatureHash;
+    }
+
+    /** Returns the Unix epoch millis when the QR code signature was generated. */
+    public Long getQrSignatureTimestamp() {
+        return qrSignatureTimestamp;
+    }
+
+    public void setQrSignatureTimestamp(Long qrSignatureTimestamp) {
+        this.qrSignatureTimestamp = qrSignatureTimestamp;
+    }
+
+    /** Returns whether the QR signature verification succeeded. */
+    public Boolean getQrVerificationSuccess() {
+        return qrVerificationSuccess;
+    }
+
+    public void setQrVerificationSuccess(Boolean qrVerificationSuccess) {
+        this.qrVerificationSuccess = qrVerificationSuccess;
+    }
+
+    /** Returns the instant at which QR verification was performed. */
+    public Instant getQrVerificationTimestamp() {
+        return qrVerificationTimestamp;
+    }
+
+    public void setQrVerificationTimestamp(Instant qrVerificationTimestamp) {
+        this.qrVerificationTimestamp = qrVerificationTimestamp;
+    }
+
+    // =========================================================================
+    // Identity Verification accessors (V44)
+    // =========================================================================
+
+    /** Returns the payer's phone number. */
+    public String getPayerPhoneNumber() {
+        return payerPhoneNumber;
+    }
+
+    public void setPayerPhoneNumber(String payerPhoneNumber) {
+        this.payerPhoneNumber = payerPhoneNumber;
+    }
+
+    /** Returns the Base-64-encoded hash of the payer's identity document. */
+    public String getPayerIdentityHash() {
+        return payerIdentityHash;
+    }
+
+    public void setPayerIdentityHash(String payerIdentityHash) {
+        this.payerIdentityHash = payerIdentityHash;
+    }
+
+    /** Returns the identity verification confidence score (0.00 - 1.00). */
+    public BigDecimal getIdentityVerificationConfidence() {
+        return identityVerificationConfidence;
+    }
+
+    public void setIdentityVerificationConfidence(BigDecimal identityVerificationConfidence) {
+        this.identityVerificationConfidence = identityVerificationConfidence;
+    }
+
+    /** Returns the identity verification status (e.g. PENDING, VERIFIED, REJECTED). */
+    public String getIdentityVerificationStatus() {
+        return identityVerificationStatus;
+    }
+
+    public void setIdentityVerificationStatus(String identityVerificationStatus) {
+        this.identityVerificationStatus = identityVerificationStatus;
+    }
+
+    // =========================================================================
+    // Atomicity accessors (V45)
+    // =========================================================================
+
+    /** Returns the client-supplied idempotency key for at-most-once processing. */
+    public String getClientIdempotencyKey() {
+        return clientIdempotencyKey;
+    }
+
+    public void setClientIdempotencyKey(String clientIdempotencyKey) {
+        this.clientIdempotencyKey = clientIdempotencyKey;
     }
 }

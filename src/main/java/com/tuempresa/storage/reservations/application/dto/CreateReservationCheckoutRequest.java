@@ -53,7 +53,9 @@ public record CreateReservationCheckoutRequest(
                 customerFirstName,
                 customerLastName,
                 customerPhone,
-                customerDocument
+                customerDocument,
+                null,
+                null
         );
     }
 }

@@ -41,6 +41,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
@@ -48,12 +49,14 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import com.tuempresa.storage.payments.application.dto.SavedCardResponse;
@@ -64,6 +67,9 @@ import com.tuempresa.storage.payments.domain.YapeReconciliationAudit;
 import com.tuempresa.storage.payments.infrastructure.out.persistence.PromoCodeRepository;
 import com.tuempresa.storage.payments.infrastructure.out.persistence.SavedCardRepository;
 import com.tuempresa.storage.payments.infrastructure.out.persistence.YapeReconciliationAuditRepository;
+import com.tuempresa.storage.payments.infrastructure.security.QrUrlSigner;
+import com.tuempresa.storage.payments.infrastructure.security.PayerIdentityVerifier;
+import com.tuempresa.storage.payments.infrastructure.validation.AmountValidator;
 
 @Service
 public class PaymentService {
@@ -85,6 +91,9 @@ public class PaymentService {
     private final PromoCodeRepository promoCodeRepository;
     private final YapeReconciliationAuditRepository reconciliationAuditRepository;
     private final PlatformSettingService platformSettingService;
+    private final QrUrlSigner qrUrlSigner;
+    private final PayerIdentityVerifier payerIdentityVerifier;
+    private final AmountValidator amountValidator;
     private final String paymentProvider;
     private final boolean forceCashOnly;
     private final boolean allowMockConfirmation;
@@ -118,6 +127,9 @@ public class PaymentService {
             PromoCodeRepository promoCodeRepository,
             YapeReconciliationAuditRepository reconciliationAuditRepository,
             PlatformSettingService platformSettingService,
+            QrUrlSigner qrUrlSigner,
+            PayerIdentityVerifier payerIdentityVerifier,
+            AmountValidator amountValidator,
             @Value("${app.payments.provider:izipay}") String paymentProvider,
             @Value("${app.payments.force-cash-only:false}") boolean forceCashOnly,
             @Value("${app.payments.allow-mock-confirmation:true}") boolean allowMockConfirmation,
@@ -149,6 +161,9 @@ public class PaymentService {
         this.promoCodeRepository = promoCodeRepository;
         this.reconciliationAuditRepository = reconciliationAuditRepository;
         this.platformSettingService = platformSettingService;
+        this.qrUrlSigner = qrUrlSigner;
+        this.payerIdentityVerifier = payerIdentityVerifier;
+        this.amountValidator = amountValidator;
         this.paymentProvider = paymentProvider == null ? "izipay" : paymentProvider.trim().toLowerCase(Locale.ROOT);
         this.forceCashOnly = forceCashOnly;
         this.allowMockConfirmation = allowMockConfirmation;
@@ -271,11 +286,46 @@ public class PaymentService {
                 .orElse(PromoCodeResponse.invalid("El codigo promocional no existe."));
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.SERIALIZABLE)
     public PaymentIntentResponse confirm(ConfirmPaymentRequest request, AuthUserPrincipal principal) {
+        // Idempotency key handling — return cached result if already confirmed
+        if (request.idempotencyKey() != null && !request.idempotencyKey().isBlank()) {
+            Optional<PaymentAttempt> existing = paymentAttemptRepository
+                    .findByIdempotencyKey(request.idempotencyKey());
+            if (existing.isPresent() && existing.get().getStatus() == PaymentStatus.CONFIRMED) {
+                PaymentAttempt cached = existing.get();
+                return toIntentResponse(cached, providerLabel(cached),
+                        cached.getExpectedMethod() != null ? cached.getExpectedMethod() : "unknown",
+                        "ALREADY_CONFIRMED", "Pago ya confirmado (idempotente).", null);
+            }
+        }
+
         PaymentAttempt attempt = resolveAttempt(request, principal);
         if (!attempt.isPending()) {
             throw new ApiException(HttpStatus.CONFLICT, "PAYMENT_ALREADY_PROCESSED", "El pago ya fue procesado.");
+        }
+
+        // RE-VALIDATE AMOUNT
+        if (request.amount() != null && !amountValidator.isExact(attempt.getAmount(), request.amount())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "AMOUNT_MISMATCH",
+                    "Amount does not match original payment intent");
+        }
+
+        // CHECK DAILY LIMIT
+        BigDecimal dailyTotal = paymentAttemptRepository.sumConfirmedAmountForUserSince(
+                attempt.getReservation().getUser().getId(),
+                Instant.now().minus(1, ChronoUnit.DAYS));
+        if (dailyTotal != null
+                && dailyTotal.add(attempt.getAmount()).compareTo(new BigDecimal("100000.00")) > 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "DAILY_LIMIT_EXCEEDED",
+                    "You have exceeded your daily payment limit");
+        }
+
+        // CHECK AMOUNT BOUNDS
+        if (!amountValidator.isWithinBounds(attempt.getAmount(),
+                new BigDecimal("5.00"), new BigDecimal("50000.00"))) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "AMOUNT_OUT_OF_BOUNDS",
+                    "Transaction amount is outside acceptable range");
         }
 
         PaymentMethod method = resolveMethod(attempt, request.paymentMethod());
@@ -1467,6 +1517,7 @@ public class PaymentService {
         attempt.setExpectedCustomerName(
                 ((payer.getFirstName() != null ? payer.getFirstName() : "") + " "
                         + (payer.getLastName() != null ? payer.getLastName() : "")).strip());
+        attempt.setExpectedCustomerPhone(payer.getPhone());
         attempt.setExpectedMethod(method.label());
         attempt.setManualTransferRequestedAt(Instant.now());
 
@@ -1494,6 +1545,31 @@ public class PaymentService {
         nextAction.put("instructions", "Transfiere S/ " + attempt.getAmount().toPlainString()
                 + " a " + recipientName + " (" + phone + ") por " + method.label().toUpperCase(Locale.ROOT)
                 + ". Un operador verificara tu pago.");
+
+        // Sign the QR URL for tamper-proof verification
+        if (nextAction.containsKey("qrUrl") && nextAction.get("qrUrl") != null) {
+            String originalQrUrl = nextAction.get("qrUrl").toString();
+            if (!originalQrUrl.isBlank()) {
+                Map<String, String> signedQr = qrUrlSigner.signQrUrl(
+                        attempt.getReservation().getId(),
+                        attempt.getAmount(),
+                        originalQrUrl);
+                nextAction.put("qrUrl", signedQr.get("qrUrl"));
+                nextAction.put("qrSignature", signedQr.get("qrSignature"));
+                nextAction.put("qrSignatureTimestamp", signedQr.get("qrSignatureTimestamp"));
+
+                // Store in attempt for audit
+                attempt.setQrSignatureHash(signedQr.get("qrSignature"));
+                String tsStr = signedQr.get("qrSignatureTimestamp");
+                if (tsStr != null) {
+                    try {
+                        attempt.setQrSignatureTimestamp(Instant.parse(tsStr).toEpochMilli());
+                    } catch (Exception ignored) {
+                        // timestamp is ISO-8601, store epoch millis
+                    }
+                }
+            }
+        }
 
         return toIntentResponse(
                 attempt,
@@ -1701,6 +1777,11 @@ public class PaymentService {
             String paymentFlow,
             String message,
             Map<String, Object> nextAction) {
+
+        java.time.LocalDateTime verificationDate = attempt.getManualTransferRequestedAt() != null
+                ? java.time.LocalDateTime.ofInstant(attempt.getManualTransferRequestedAt(), java.time.ZoneId.systemDefault())
+                : null;
+
         return new PaymentIntentResponse(
                 attempt.getId(),
                 attempt.getReservation().getId(),
@@ -1712,7 +1793,13 @@ public class PaymentService {
                 paymentMethod,
                 paymentFlow,
                 firstNonBlank(message, attempt.getGatewayMessage()),
-                nextAction);
+                nextAction,
+                attempt.getQrSignatureHash(),
+                attempt.getQrSignatureTimestamp(),
+                attempt.getExpectedCustomerName(),
+                maskPhone(attempt.getExpectedCustomerPhone()),
+                verificationDate,
+                resolveVerificationStatus(attempt));
     }
 
     private PaymentHistoryItemResponse toHistory(PaymentAttempt attempt) {
@@ -2198,6 +2285,23 @@ public class PaymentService {
             return "DNI";
         }
         return "CE";
+    }
+
+    private String maskPhone(String phone) {
+        if (phone == null || phone.length() < 8) return "";
+        return phone.substring(0, Math.min(3, phone.length()))
+                + " **** *** "
+                + phone.substring(Math.max(0, phone.length() - 2));
+    }
+
+    private String resolveVerificationStatus(PaymentAttempt attempt) {
+        if (attempt.getStatus() == PaymentStatus.CONFIRMED) {
+            return "BANK_VERIFIED";
+        }
+        if ("MANUAL_REVIEW".equals(attempt.getGatewayStatus())) {
+            return "PENDING_MANUAL_REVIEW";
+        }
+        return "PENDING";
     }
 
     private String firstNonBlank(String... values) {

@@ -8,6 +8,8 @@ import com.tuempresa.storage.payments.domain.PaymentStatus;
 import com.tuempresa.storage.payments.domain.YapeReconciliationAudit;
 import com.tuempresa.storage.payments.infrastructure.out.persistence.PaymentAttemptRepository;
 import com.tuempresa.storage.payments.infrastructure.out.persistence.YapeReconciliationAuditRepository;
+import com.tuempresa.storage.payments.infrastructure.security.PayerIdentityVerifier;
+import com.tuempresa.storage.payments.infrastructure.security.PayerIdentityVerifier.IdentityVerificationResult;
 import com.tuempresa.storage.reservations.application.usecase.ReservationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,6 +34,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -70,6 +73,7 @@ public class YapeEmailReconciliationService {
     private final NotificationService notificationService;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate txTemplate;
+    private final PayerIdentityVerifier payerIdentityVerifier;
     private final String graphTenantId;
     private final String graphClientId;
     private final String graphClientSecret;
@@ -90,6 +94,7 @@ public class YapeEmailReconciliationService {
             NotificationService notificationService,
             ObjectMapper objectMapper,
             PlatformTransactionManager txManager,
+            PayerIdentityVerifier payerIdentityVerifier,
             @Value("${app.email.graph-tenant-id:}") String graphTenantId,
             @Value("${app.email.graph-client-id:}") String graphClientId,
             @Value("${app.email.graph-client-secret:}") String graphClientSecret,
@@ -102,6 +107,7 @@ public class YapeEmailReconciliationService {
         this.notificationService = notificationService;
         this.objectMapper = objectMapper;
         this.txTemplate = new TransactionTemplate(txManager);
+        this.payerIdentityVerifier = payerIdentityVerifier;
         this.graphTenantId = norm(graphTenantId);
         this.graphClientId = norm(graphClientId);
         this.graphClientSecret = norm(graphClientSecret);
@@ -332,8 +338,8 @@ public class YapeEmailReconciliationService {
     private void reconcileOneEmail(String emailId, String subject,
             String bodyHtml, String receivedAt) {
         // 1. Extract amount
-        BigDecimal amount = parseAmount(bodyHtml);
-        if (amount == null) {
+        BigDecimal emailAmount = parseAmount(bodyHtml);
+        if (emailAmount == null) {
             log.info("Yape reconciliation: no amount in email '{}'", trunc(subject));
             return;
         }
@@ -344,116 +350,134 @@ public class YapeEmailReconciliationService {
         Instant receivedInstant = Instant.now();
 
         log.info("Yape reconciliation: parsed — S/{} | from '{}' | at '{}'",
-                amount.toPlainString(), senderName, txDateTime);
+                emailAmount.toPlainString(), senderName, txDateTime);
 
         // 3. Match against pending transfers (last 48 h) by amount
         Instant since = Instant.now().minus(48, ChronoUnit.HOURS);
 
         txTemplate.executeWithoutResult(status -> {
             List<PaymentAttempt> candidates = paymentAttemptRepository
-                    .findPendingTransfersByAmountSince(PaymentStatus.PENDING, amount, since);
+                    .findPendingTransfersByAmountSince(PaymentStatus.PENDING, emailAmount, since);
 
             if (candidates.isEmpty()) {
-                log.info("Yape reconciliation: no pending transfer for S/{}", amount.toPlainString());
+                // No match — log as SKIPPED
+                log.info("Yape reconciliation: no pending transfer for S/{}", emailAmount.toPlainString());
                 reconciliationAuditRepository.save(YapeReconciliationAudit.of(
-                        null, amount, senderName, null, txDateTime,
+                        null, emailAmount, senderName, null, txDateTime,
                         receivedInstant, emailId, subject,
-                        "SKIPPED", "No pending transfer found for this amount", null));
+                        "SKIPPED", "No payment attempt with matching amount found", null));
                 return;
             }
 
-            // 4. Filter candidates by identity (name + optional date)
-            List<PaymentAttempt> identityMatches = candidates.stream()
-                    .filter(c -> identityMatches(c, senderName))
-                    .toList();
+            // Step 2: Filter by identity using PayerIdentityVerifier
+            List<PaymentAttempt> identityMatches = new ArrayList<>();
+            for (PaymentAttempt candidate : candidates) {
+                IdentityVerificationResult verification = payerIdentityVerifier.verifyIdentity(
+                        candidate.getExpectedCustomerName(),
+                        candidate.getExpectedCustomerPhone(),
+                        senderName,
+                        null,  // senderEmail not reliably available from Yape notification
+                        null   // senderPhone not reliably in email
+                );
 
-            if (candidates.size() > 1 && identityMatches.isEmpty()) {
-                // Multiple by amount, none pass identity — manual review
-                log.warn("Yape reconciliation: {} transfers match S/{}, none pass identity — manual review",
-                        candidates.size(), amount.toPlainString());
-                for (PaymentAttempt c : candidates) {
-                    c.registerGatewayOutcome("YAPE_EMAIL_MULTIPLE_MATCH",
-                            "Email Yape: multiples pagos coinciden y la identidad no resuelve. Revision manual.");
-                    reconciliationAuditRepository.save(YapeReconciliationAudit.of(
-                            c.getId(), amount, senderName, null, txDateTime,
-                            receivedInstant, emailId, subject,
-                            "MANUAL_REVIEW", "Multiple amount matches, identity unresolved", "amount"));
+                if (verification.confidence() >= 0.95) {  // EXACT_MATCH threshold
+                    identityMatches.add(candidate);
                 }
-                return;
             }
 
-            if (identityMatches.size() > 1) {
-                // Multiple identity matches — manual review
-                log.warn("Yape reconciliation: {} identity matches for S/{} — manual review",
-                        identityMatches.size(), amount.toPlainString());
-                for (PaymentAttempt c : identityMatches) {
-                    c.registerGatewayOutcome("YAPE_EMAIL_MULTIPLE_MATCH",
-                            "Email Yape: multiples pagos coinciden por monto e identidad. Revision manual.");
-                    reconciliationAuditRepository.save(YapeReconciliationAudit.of(
-                            c.getId(), amount, senderName, null, txDateTime,
-                            receivedInstant, emailId, subject,
-                            "MANUAL_REVIEW", "Multiple identity matches", "amount,name"));
-                }
-                return;
-            }
-
-            PaymentAttempt pa = identityMatches.isEmpty() ? candidates.get(0) : identityMatches.get(0);
-            String matchedFields;
-            String outcome;
-            String matchReason;
+            // Step 3: Decision logic
+            PaymentAttempt toConfirm = null;
+            String outcome = null;
+            String reason = null;
 
             if (identityMatches.isEmpty()) {
-                // Single amount match but identity insufficient — manual review
-                log.warn("Yape reconciliation: single amount match but identity insufficient for S/{} — manual review",
-                        amount.toPlainString());
-                pa.registerGatewayOutcome("YAPE_EMAIL_IDENTITY_MISMATCH",
-                        "Email Yape recibido pero no se pudo verificar identidad del pagador. Revision manual.");
-                matchedFields = "amount";
+                // Identity check failed for all candidates
+                if (candidates.size() == 1) {
+                    // Single amount match but identity failed
+                    toConfirm = candidates.get(0);
+                    outcome = "MANUAL_REVIEW";
+                    reason = "Amount matched but sender identity does not match expected customer";
+                } else {
+                    // Multiple amount matches, none pass identity
+                    outcome = "MANUAL_REVIEW";
+                    reason = String.format(
+                            "Found %d pending payments matching amount; none with matching identity",
+                            candidates.size());
+                    log.warn("Yape reconciliation: {} transfers match S/{}, none pass identity — manual review",
+                            candidates.size(), emailAmount.toPlainString());
+                    for (PaymentAttempt c : candidates) {
+                        reconciliationAuditRepository.save(YapeReconciliationAudit.of(
+                                c.getId(), emailAmount, senderName, null, txDateTime,
+                                receivedInstant, emailId, subject,
+                                "MANUAL_REVIEW", reason, "amount"));
+                    }
+                    return;
+                }
+            } else if (identityMatches.size() == 1) {
+                // Perfect match!
+                toConfirm = identityMatches.get(0);
+                outcome = "MATCHED";
+                reason = "Payment matched by amount, sender name, and/or phone";
+            } else {
+                // Multiple identity matches (same person has multiple pending)
                 outcome = "MANUAL_REVIEW";
-                matchReason = "Single amount match but sender identity insufficient or mismatched";
-                reconciliationAuditRepository.save(YapeReconciliationAudit.of(
-                        pa.getId(), amount, senderName, null, txDateTime,
-                        receivedInstant, emailId, subject, outcome, matchReason, matchedFields));
+                reason = String.format(
+                        "Found %d payments matching customer identity; requires manual selection",
+                        identityMatches.size());
+                log.warn("Yape reconciliation: {} identity matches for S/{} — manual review",
+                        identityMatches.size(), emailAmount.toPlainString());
+                for (PaymentAttempt c : identityMatches) {
+                    reconciliationAuditRepository.save(YapeReconciliationAudit.of(
+                            c.getId(), emailAmount, senderName, null, txDateTime,
+                            receivedInstant, emailId, subject,
+                            "MANUAL_REVIEW", reason, "amount,name"));
+                }
                 return;
             }
 
-            // Single identity-verified match — auto-confirm
-            matchedFields = "amount,name";
-            outcome = "MATCHED";
-            matchReason = "Single match verified by amount and sender name";
+            // Step 4: Execute decision
+            if ("MATCHED".equals(outcome)) {
+                try {
+                    toConfirm.confirm(toConfirm.getProviderReference());
+                    paymentAttemptRepository.save(toConfirm);
+                    reservationService.markPaymentConfirmed(toConfirm.getReservation().getId(), "yape");
 
-            pa.confirm(pa.getProviderReference());
-            pa.registerGatewayOutcome("AUTO_CONFIRMED_YAPE_EMAIL",
-                    String.format("Pago confirmado automaticamente por email Yape. "
-                            + "Remitente: %s | Fecha op.: %s | Email recibido: %s",
-                            senderName != null ? senderName : "N/A",
-                            txDateTime != null ? txDateTime : "N/A",
-                            receivedAt));
+                    // Notify user via real-time event so the UI refreshes
+                    notificationService.emitSilentRealtimeEvent(
+                            toConfirm.getReservation().getUser().getId(),
+                            "PAYMENT_SYNC",
+                            Map.of("reservationId", toConfirm.getReservation().getId()));
 
-            reconciliationAuditRepository.save(YapeReconciliationAudit.of(
-                    pa.getId(), amount, senderName, null, txDateTime,
-                    receivedInstant, emailId, subject, outcome, matchReason, matchedFields));
+                    reconciliationAuditRepository.save(YapeReconciliationAudit.of(
+                            toConfirm.getId(), emailAmount, senderName, null, txDateTime,
+                            receivedInstant, emailId, subject,
+                            "MATCHED", reason, "amount,name"));
 
-            reservationService.markPaymentConfirmed(pa.getReservation().getId(), "yape");
+                    log.info("Yape reconciliation: AUTO-CONFIRMED payment #{} — reservation #{} — S/{}",
+                            toConfirm.getId(), toConfirm.getReservation().getId(),
+                            emailAmount.toPlainString());
+                } catch (Exception e) {
+                    log.error("Failed to auto-confirm payment: {}", toConfirm.getId(), e);
+                }
+            } else if ("MANUAL_REVIEW".equals(outcome) && toConfirm != null) {
+                toConfirm.registerGatewayOutcome("MANUAL_REVIEW", reason);
+                paymentAttemptRepository.save(toConfirm);
 
-            // Notify user via real-time event so the UI refreshes
-            notificationService.emitSilentRealtimeEvent(
-                    pa.getReservation().getUser().getId(),
-                    "PAYMENT_SYNC",
-                    Map.of("reservationId", pa.getReservation().getId()));
+                reconciliationAuditRepository.save(YapeReconciliationAudit.of(
+                        toConfirm.getId(), emailAmount, senderName, null, txDateTime,
+                        receivedInstant, emailId, subject,
+                        "MANUAL_REVIEW", reason, "amount"));
 
-            log.info("Yape reconciliation: AUTO-CONFIRMED payment #{} — reservation #{} — S/{}",
-                    pa.getId(), pa.getReservation().getId(), amount.toPlainString());
+                log.warn("Yape reconciliation: single amount match but identity insufficient for S/{} — manual review",
+                        emailAmount.toPlainString());
+            }
         });
     }
 
-    private boolean identityMatches(PaymentAttempt candidate, String senderName) {
-        String expected = candidate.getExpectedCustomerName();
-        if (expected == null || expected.isBlank() || senderName == null || senderName.isBlank()) {
-            return false;
-        }
+    private boolean nameMatches(String senderName, String expectedName) {
+        if (senderName == null || expectedName == null) return false;
         String s = senderName.strip().toLowerCase();
-        String e = expected.strip().toLowerCase();
+        String e = expectedName.strip().toLowerCase();
         return s.contains(e) || e.contains(s);
     }
 

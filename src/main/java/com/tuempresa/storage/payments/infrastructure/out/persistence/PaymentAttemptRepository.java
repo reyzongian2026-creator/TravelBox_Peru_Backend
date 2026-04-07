@@ -110,4 +110,17 @@ public interface PaymentAttemptRepository extends JpaRepository<PaymentAttempt, 
                         @Param("status") PaymentStatus status,
                         @Param("amount") java.math.BigDecimal amount,
                         @Param("since") java.time.Instant since);
+
+        Optional<PaymentAttempt> findByIdempotencyKey(String idempotencyKey);
+
+        @Query("""
+                        select coalesce(sum(p.amount), 0)
+                        from PaymentAttempt p
+                        where p.reservation.user.id = :userId
+                          and p.status = com.tuempresa.storage.payments.domain.PaymentStatus.CONFIRMED
+                          and p.confirmedAt >= :since
+                        """)
+        java.math.BigDecimal sumConfirmedAmountForUserSince(
+                        @Param("userId") Long userId,
+                        @Param("since") java.time.Instant since);
 }

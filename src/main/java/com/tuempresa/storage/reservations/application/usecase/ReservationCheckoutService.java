@@ -47,7 +47,9 @@ public class ReservationCheckoutService {
                     basePaymentRequest.customerFirstName(),
                     basePaymentRequest.customerLastName(),
                     basePaymentRequest.customerPhone(),
-                    basePaymentRequest.customerDocument());
+                    basePaymentRequest.customerDocument(),
+                    basePaymentRequest.amount(),
+                    basePaymentRequest.idempotencyKey());
             reservationCheckoutAsyncProcessor.confirmAsync(asyncPaymentRequest, principal);
         } catch (Exception ex) {
             log.warn(

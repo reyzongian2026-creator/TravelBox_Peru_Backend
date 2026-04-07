@@ -168,11 +168,23 @@ server:
 
 app:
   security:
+    # QR URL Signing — secret rotated via Azure Key Vault
+    qr-signing-key: ${APP_QR_SIGNING_KEY:replace-me-in-vault}  # Will be overridden by env var from Azure Key Vault
+    qr-signature-validity-minutes: 30
     jwt:
       # Prioridad: Key Vault (tbx-*) -> env local heredada (APP_JWT_SECRET).
       secret: ${tbx-back-jwt-secret:${APP_JWT_SECRET:}}
       access-token-minutes: ${APP_JWT_ACCESS_MINUTES:30}
       refresh-token-days: ${APP_JWT_REFRESH_DAYS:7}
+    # Rate Limiting — per-endpoint sliding-window throttles
+    rate-limiting:
+      enabled: true
+      payments-confirm:
+        max-attempts: 10        # Max payment confirmations per window
+        window-minutes: 1
+      payments-intent:
+        max-attempts: 20        # Max payment intent creations per window
+        window-minutes: 1
     rate-limit:
       auth:
         enabled: ${APP_AUTH_RATE_LIMIT_ENABLED:true}
@@ -224,6 +236,17 @@ app:
     force-cash-only: ${APP_PAYMENTS_FORCE_CASH_ONLY:false}
     allow-mock-confirmation: ${APP_PAYMENTS_ALLOW_MOCK_CONFIRMATION:true}
     currency: ${APP_PAYMENT_CURRENCY:PEN}
+    # Payer Identity Verification — fraud-prevention checks before processing payment
+    identity-verification:
+      name-match-confidence-threshold: 0.95          # Minimum fuzzy-match score (0-1) between payer name and booking name
+      require-phone-verification: true               # Require phone OTP before high-value payments
+      phone-mismatch-requires-manual-review: true    # Flag for manual review when phone does not match booking
+    # Amount Validation — guardrails to prevent anomalous transactions
+    amount-validation:
+      min-transaction-amount: 5.00                   # Reject payments below this amount (PEN)
+      max-transaction-amount: 50000.00               # Reject single payments above this amount (PEN)
+      max-daily-amount-per-user: 100000.00           # Aggregate daily spend cap per user (PEN)
+      max-transactions-per-day: 50                   # Max number of payment attempts per user per day
     refunds:
       commission-grace-minutes: ${APP_PAYMENT_REFUND_COMMISSION_GRACE_MINUTES:60}
       commission-percent-after-grace: ${APP_PAYMENT_REFUND_COMMISSION_PERCENT_AFTER_GRACE:4.50}
