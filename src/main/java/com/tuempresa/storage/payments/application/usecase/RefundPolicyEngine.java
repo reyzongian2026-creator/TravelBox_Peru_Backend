@@ -168,7 +168,7 @@ public class RefundPolicyEngine {
         BigDecimal refundToCustomer = amount.subtract(cancellationPenalty).max(BigDecimal.ZERO)
                 .setScale(2, RoundingMode.HALF_UP);
 
-        log.info(\"Refund calculated: bookingType={}, policy={}, window={}, amount={}, penalty={}, refund={}\",
+        log.info("Refund calculated: bookingType={}, policy={}, window={}, amount={}, penalty={}, refund={}",
                 bookingType, policyType, policyWindow, amount, cancellationPenalty, refundToCustomer);
 
         // Provider fee tracking (always tracked internally, even if not passed to

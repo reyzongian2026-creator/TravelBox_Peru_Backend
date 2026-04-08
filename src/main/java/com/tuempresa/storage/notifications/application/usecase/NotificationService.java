@@ -190,7 +190,7 @@ public class NotificationService {
         if (userId == null) {
             return;
         }
-        log.debug(\"Sending notification: userId={}, type={}, title={}\", userId, type, title);
+        log.debug("Sending notification: userId={}, type={}, title={}", userId, type, title);
         NotificationStatus status = "mock".equals(provider) ? NotificationStatus.SENT : NotificationStatus.SENT;
         Map<String, Object> normalizedPayload = enrichPayload(payload);
         NotificationRecord record = NotificationRecord.of(

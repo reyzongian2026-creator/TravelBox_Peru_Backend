@@ -109,8 +109,10 @@ public class RateLimitingWebFilter implements WebFilter, Ordered {
                 .map(SecurityContext::getAuthentication)
                 .filter(Authentication::isAuthenticated)
                 .map(Authentication::getName)
-                .flatMap(userId -> applyRateLimit(exchange, chain, userId, path, maxAttempts))
-                .switchIfEmpty(chain.filter(exchange));
+                .flatMap(userId -> applyRateLimit(exchange, chain, userId, path, maxAttempts)
+                        .thenReturn(Boolean.TRUE))
+                .switchIfEmpty(Mono.defer(() -> chain.filter(exchange).thenReturn(Boolean.TRUE)))
+                .then();
     }
 
     // =========================================================================
