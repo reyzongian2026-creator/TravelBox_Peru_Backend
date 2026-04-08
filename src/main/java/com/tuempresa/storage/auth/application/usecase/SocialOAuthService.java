@@ -28,6 +28,9 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import java.util.LinkedHashMap;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -35,6 +38,7 @@ import java.util.Set;
 @Service
 public class SocialOAuthService {
 
+    private static final Logger log = LoggerFactory.getLogger(SocialOAuthService.class);
     private static final String GOOGLE_PROVIDER = "GOOGLE";
     private static final String FACEBOOK_PROVIDER = "FACEBOOK";
     private static final URI GOOGLE_TOKEN_URI = URI.create("https://oauth2.googleapis.com/token");
@@ -85,6 +89,7 @@ public class SocialOAuthService {
     }
 
     public URI buildAuthorizationRedirect(String provider, @Nullable String redirectUri) {
+        log.info("OAuth authorization redirect: provider={}", provider);
         String normalizedProvider = normalizeProvider(provider);
         String frontendRedirectUri = resolveFrontendRedirect(redirectUri);
         String callbackUri = publicUrlService.absolute("/api/v1/auth/oauth/" + normalizedProvider.toLowerCase(Locale.ROOT) + "/callback");
@@ -104,6 +109,7 @@ public class SocialOAuthService {
             @Nullable String error,
             @Nullable String errorDescription
     ) {
+        log.info("OAuth callback: provider={}, hasCode={}, hasError={}", provider, code != null, error != null);
         OAuthState callbackState = verifyState(provider, state);
         if (error != null && !error.isBlank()) {
             return buildErrorRedirect(

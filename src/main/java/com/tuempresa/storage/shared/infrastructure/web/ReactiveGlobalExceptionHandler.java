@@ -32,6 +32,7 @@ public class ReactiveGlobalExceptionHandler {
 
     @ExceptionHandler(ApiException.class)
     public Mono<ResponseEntity<ApiErrorResponse>> handleApiException(ApiException ex, ServerWebExchange exchange) {
+        log.warn("API error [{}] at {}: {}", ex.getCode(), exchange.getRequest().getPath(), ex.getMessage());
         return Mono.just(ResponseEntity.status(ex.getStatus())
                 .body(buildError(ex.getStatus(), ex.getCode(), ex.getMessage(), exchange, List.of())));
     }
@@ -41,6 +42,7 @@ public class ReactiveGlobalExceptionHandler {
             MethodArgumentNotValidException ex,
             ServerWebExchange exchange
     ) {
+        log.warn("Validation error at {}: {}", exchange.getRequest().getPath(), ex.getMessage());
         List<String> details = ex.getBindingResult().getFieldErrors()
                 .stream()
                 .map(this::formatFieldError)
@@ -60,6 +62,7 @@ public class ReactiveGlobalExceptionHandler {
             WebExchangeBindException ex,
             ServerWebExchange exchange
     ) {
+        log.warn("Bind error at {}: {}", exchange.getRequest().getPath(), ex.getMessage());
         List<String> details = ex.getBindingResult().getFieldErrors()
                 .stream()
                 .map(this::formatFieldError)
@@ -79,6 +82,7 @@ public class ReactiveGlobalExceptionHandler {
             ConstraintViolationException ex,
             ServerWebExchange exchange
     ) {
+        log.warn("Constraint violation at {}: {}", exchange.getRequest().getPath(), ex.getMessage());
         List<String> details = ex.getConstraintViolations()
                 .stream()
                 .map(v -> v.getPropertyPath() + ": " + v.getMessage())
@@ -98,6 +102,7 @@ public class ReactiveGlobalExceptionHandler {
             AccessDeniedException ex,
             ServerWebExchange exchange
     ) {
+        log.warn("Access denied at {}: {}", exchange.getRequest().getPath(), ex.getMessage());
         return Mono.just(ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(buildError(
                         HttpStatus.FORBIDDEN,
@@ -129,6 +134,7 @@ public class ReactiveGlobalExceptionHandler {
             MethodArgumentTypeMismatchException ex,
             ServerWebExchange exchange
     ) {
+        log.warn("Type mismatch at {}: {}", exchange.getRequest().getPath(), ex.getMessage());
         String parameter = ex.getName() != null ? ex.getName() : "parametro";
         return Mono.just(ResponseEntity.badRequest()
                 .body(buildError(
@@ -145,6 +151,7 @@ public class ReactiveGlobalExceptionHandler {
             NoResourceFoundException ex,
             ServerWebExchange exchange
     ) {
+        log.warn("Resource not found at {}: {}", exchange.getRequest().getPath(), ex.getMessage());
         return Mono.just(ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(buildError(
                         HttpStatus.NOT_FOUND,

@@ -35,6 +35,8 @@ import com.tuempresa.storage.shared.infrastructure.web.PagedResponse;
 import com.tuempresa.storage.users.domain.Role;
 import com.tuempresa.storage.users.domain.User;
 import com.tuempresa.storage.users.infrastructure.out.persistence.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -74,6 +76,7 @@ import com.tuempresa.storage.payments.infrastructure.validation.AmountValidator;
 @Service
 public class PaymentService {
 
+    private static final Logger log = LoggerFactory.getLogger(PaymentService.class);
     private static final int MAX_PAGE_SIZE = 100;
 
     private final PaymentAttemptRepository paymentAttemptRepository;
@@ -184,6 +187,8 @@ public class PaymentService {
 
     @Transactional
     public PaymentIntentResponse createIntent(CreatePaymentIntentRequest request, AuthUserPrincipal principal) {
+        log.info("Creating payment intent: reservationId={}, userId={}, promoCode={}",
+                request.reservationId(), principal.getId(), request.promoCode());
         Reservation reservation = reservationService.requireReservation(request.reservationId());
         assertPaymentPermission(reservation, principal);
         if (reservation.getStatus() != ReservationStatus.PENDING_PAYMENT
@@ -257,6 +262,8 @@ public class PaymentService {
                     return paymentAttemptRepository.save(a);
                 });
         attempt.registerGatewayOutcome("INTENT_CREATED", "Intento de pago creado.");
+        log.info("Payment intent created: id={}, reservationId={}, amount={}",
+                attempt.getId(), attempt.getReservation().getId(), attempt.getAmount());
         return toIntentResponse(attempt, providerLabel(attempt), "unknown", "INTENT_CREATED", "Intento de pago creado.",
                 null);
     }
@@ -288,6 +295,8 @@ public class PaymentService {
 
     @Transactional(isolation = Isolation.SERIALIZABLE)
     public PaymentIntentResponse confirm(ConfirmPaymentRequest request, AuthUserPrincipal principal) {
+        log.info("Confirming payment: intentId={}, reservationId={}, method={}, userId={}",
+                request.paymentIntentId(), request.reservationId(), request.paymentMethod(), principal.getId());
         // Idempotency key handling — return cached result if already confirmed
         if (request.idempotencyKey() != null && !request.idempotencyKey().isBlank()) {
             Optional<PaymentAttempt> existing = paymentAttemptRepository
@@ -368,6 +377,8 @@ public class PaymentService {
             attempt.confirm(ref);
             attempt.registerGatewayOutcome("MOCK_CONFIRMED", "Pago confirmado en modo mock.");
             reservationService.markPaymentConfirmed(attempt.getReservation().getId(), method.label());
+            log.info("Payment MOCK confirmed: intentId={}, reservationId={}",
+                    attempt.getId(), attempt.getReservation().getId());
             return toIntentResponse(attempt, "MOCK", method.label(), "DIRECT_CONFIRMATION",
                     "Pago confirmado en modo mock.", null);
         }
@@ -439,6 +450,8 @@ public class PaymentService {
                 attempt.confirm(transactionId);
                 attempt.registerGatewayOutcome("APPROVED_ONE_CLICK", "Pago One-Click procesado exitosamente.");
                 reservationService.markPaymentConfirmed(reservation.getId(), PaymentMethod.SAVED_CARD.label());
+                log.info("One-Click payment APPROVED: intentId={}, reservationId={}, txId={}",
+                        attempt.getId(), reservation.getId(), transactionId);
                 card.setLastUsedAt(Instant.now());
                 savedCardRepository.save(card);
                 return toIntentResponse(attempt, "IZIPAY", PaymentMethod.SAVED_CARD.label(), "ONE_CLICK",
@@ -447,12 +460,16 @@ public class PaymentService {
                 attempt.fail(transactionId);
                 attempt.registerGatewayOutcome("REJECTED_ONE_CLICK",
                         firstNonBlank(message, "Pago One-Click rechazado."));
+                log.warn("One-Click payment REJECTED: intentId={}, reservationId={}, code={}, msg={}",
+                        attempt.getId(), reservation.getId(), code, message);
                 return toIntentResponse(attempt, "IZIPAY", PaymentMethod.SAVED_CARD.label(), "ONE_CLICK_REJECTED",
                         message, null);
             }
         } catch (Exception ex) {
             attempt.fail(transactionId);
             attempt.registerGatewayOutcome("ERROR_ONE_CLICK", ex.getMessage());
+            log.error("One-Click payment ERROR: intentId={}, reservationId={}, txId={}",
+                    attempt.getId(), reservation.getId(), transactionId, ex);
             throw new ApiException(HttpStatus.BAD_GATEWAY, "PAYMENT_ONE_CLICK_FAILED",
                     "Error en pago One-Click: " + ex.getMessage());
         }
@@ -493,6 +510,7 @@ public class PaymentService {
 
     @Transactional
     public PaymentIntentResponse syncStatus(Long paymentIntentId, AuthUserPrincipal principal) {
+        log.info("Sync payment status: intentId={}, userId={}", paymentIntentId, principal.getId());
         PaymentAttempt attempt = paymentAttemptRepository.findById(paymentIntentId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "PAYMENT_NOT_FOUND", "Pago no encontrado."));
 
@@ -525,6 +543,7 @@ public class PaymentService {
                             firstNonBlank(stateMessage, "Pago rechazado verificado manualmente."));
                 }
             } catch (Exception ex) {
+                log.error("Izipay sync FAILED: intentId={}, ref={}", paymentIntentId, providerRef, ex);
                 throw new ApiException(HttpStatus.BAD_GATEWAY, "SYNC_FAILED",
                         "No se pudo sincronizar con Izipay: " + ex.getMessage());
             }
@@ -595,6 +614,7 @@ public class PaymentService {
     @Transactional
     public PaymentIntentResponse approveCashPayment(Long paymentIntentId, String providerReference, String reason,
             AuthUserPrincipal principal) {
+        log.info("Cash payment APPROVE: intentId={}, operatorId={}", paymentIntentId, principal.getId());
         requirePrivileged(principal);
         PaymentAttempt attempt = requirePending(paymentIntentId);
         assertPaymentPermission(attempt.getReservation(), principal);
@@ -625,6 +645,7 @@ public class PaymentService {
     @Transactional
     public PaymentIntentResponse rejectCashPayment(Long paymentIntentId, String providerReference, String reason,
             AuthUserPrincipal principal) {
+        log.info("Cash payment REJECT: intentId={}, operatorId={}", paymentIntentId, principal.getId());
         requirePrivileged(principal);
         PaymentAttempt attempt = requirePending(paymentIntentId);
         assertPaymentPermission(attempt.getReservation(), principal);
@@ -652,6 +673,7 @@ public class PaymentService {
 
     @Transactional
     public PaymentIntentResponse refund(Long paymentIntentId, String reason, AuthUserPrincipal principal) {
+        log.info("Refund requested: intentId={}, userId={}, reason={}", paymentIntentId, principal.getId(), reason);
         PaymentAttempt attempt = paymentAttemptRepository.findById(paymentIntentId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "PAYMENT_NOT_FOUND", "Pago no encontrado."));
         assertPaymentPermission(attempt.getReservation(), principal);
@@ -707,9 +729,12 @@ public class PaymentService {
                         textAt(refundResponse, "response.message"),
                         "Reembolso procesado exitosamente por Izipay.");
                 flow = "REFUND_EXECUTED_IZIPAY";
+                log.info("Izipay refund SUCCESS: intentId={}, refundAmount={}", paymentIntentId, refundAmount);
             } catch (ApiException ex) {
+                log.error("Izipay refund FAILED (ApiException): intentId={}, error={}", paymentIntentId, ex.getMessage());
                 throw ex;
             } catch (Exception ex) {
+                log.error("Izipay refund FAILED (unexpected): intentId={}", paymentIntentId, ex);
                 // Si falla el reembolso real, lanzamos error para no marcarlo como reembolsado
                 // en BD
                 throw new ApiException(
@@ -831,6 +856,7 @@ public class PaymentService {
 
     @Transactional
     public PaymentIntentResponse cancellationConfirm(Long reservationId, String reason, AuthUserPrincipal principal) {
+        log.info("Cancellation confirm requested: reservationId={}, userId={}", reservationId, principal.getId());
         Reservation reservation = reservationService.requireReservation(reservationId);
         assertPaymentPermission(reservation, principal);
 
@@ -963,10 +989,14 @@ public class PaymentService {
                         textAt(refundResponse, "response.message"),
                         "Reembolso procesado exitosamente por Izipay.");
                 flow = "CANCELLATION_REFUND_IZIPAY";
+                log.info("Cancellation refund via Izipay SUCCESS: reservationId={}, intentId={}, refundAmount={}",
+                        reservationId, attempt.getId(), refundAmount);
                 record.markRefundExecuted(providerReference, providerMessage);
             } else {
                 providerMessage = "Reembolso aplicado internamente.";
                 flow = "CANCELLATION_REFUND_INTERNAL";
+                log.info("Cancellation refund INTERNAL: reservationId={}, intentId={}, refundAmount={}",
+                        reservationId, attempt.getId(), refundAmount);
                 record.markRefundExecuted(providerReference, providerMessage);
             }
 
@@ -995,6 +1025,8 @@ public class PaymentService {
                     flow, summaryMessage, null);
 
         } catch (ApiException ex) {
+            log.error("Cancellation refund FAILED (ApiException): reservationId={}, intentId={}, error={}",
+                    reservationId, attempt.getId(), ex.getMessage());
             record.markFailed(ex.getMessage());
             cancellationRecordRepository.save(record);
             attempt.markRefundFailed(ex.getMessage());
@@ -1002,6 +1034,8 @@ public class PaymentService {
             throw ex;
         } catch (Exception ex) {
             String errorMsg = "Error inesperado al procesar reembolso: " + ex.getMessage();
+            log.error("Cancellation refund FAILED (unexpected): reservationId={}, intentId={}",
+                    reservationId, attempt.getId(), ex);
             record.markFailed(errorMsg);
             cancellationRecordRepository.save(record);
             attempt.markRefundFailed(errorMsg);
@@ -1022,6 +1056,8 @@ public class PaymentService {
 
     @Transactional
     public PaymentWebhookResponse processIzipayWebhook(String rawPayload, String signature) {
+        log.info("Processing Izipay webhook: payloadLength={}, hasSignature={}",
+                rawPayload != null ? rawPayload.length() : 0, signature != null);
         String safePayload = rawPayload == null ? "" : rawPayload;
         JsonNode payload;
         try {
@@ -1169,6 +1205,10 @@ public class PaymentService {
                     attempt.confirm(effectiveReference);
                     attempt.registerGatewayOutcome(firstNonBlank(providerStatus, eventType), providerMessage);
                     reservationService.markPaymentConfirmed(reservationId, resolvedMethod);
+                    log.info("Webhook APPROVED payment: intentId={}, reservationId={}, ref={}",
+                            paymentIntentId, reservationId, effectiveReference);
+                    log.info("Webhook APPROVED payment: intentId={}, reservationId={}, ref={}",
+                            paymentIntentId, reservationId, effectiveReference);
 
                     // Extraer y guardar token de tarjeta para One-Click
                     String cardToken = textAt(payload, "response.token");
@@ -1192,6 +1232,10 @@ public class PaymentService {
                 if (webhookRejected(eventType, providerStatus, payload)) {
                     attempt.fail(effectiveReference);
                     attempt.registerGatewayOutcome(firstNonBlank(providerStatus, eventType), providerMessage);
+                    log.warn("Webhook REJECTED payment: intentId={}, reservationId={}, ref={}, msg={}",
+                            paymentIntentId, reservationId, effectiveReference, providerMessage);
+                    log.warn("Webhook REJECTED payment: intentId={}, reservationId={}, ref={}, msg={}",
+                            paymentIntentId, reservationId, effectiveReference, providerMessage);
                     notificationService.notifyPaymentRejected(
                             attempt.getReservation().getUser().getId(),
                             reservationId,
@@ -1223,6 +1267,7 @@ public class PaymentService {
                         reservationId);
             } catch (Exception ex) {
                 event.markFailed(ex.getMessage(), null, null);
+                log.error("Webhook processing FAILED: eventId={}, eventType={}", eventId, eventType, ex);
                 return new PaymentWebhookResponse(
                         false,
                         false,
@@ -1237,6 +1282,7 @@ public class PaymentService {
         } catch (Exception outerEx) {
             // Catch-all: prevent 500 errors from escaping to the HTTP layer.
             // Possible causes: DB connectivity, event insertion race, hash computation.
+            log.error("Webhook outer CATCH-ALL error", outerEx);
             return new PaymentWebhookResponse(
                     false,
                     false,
@@ -1253,6 +1299,8 @@ public class PaymentService {
     @Transactional
     public PaymentIntentResponse validateCheckoutResult(ValidateCheckoutResultRequest request,
             AuthUserPrincipal principal) {
+        log.info("Validating checkout result: intentId={}, reservationId={}, userId={}",
+                request.paymentIntentId(), request.reservationId(), principal.getId());
         // 1. Validate the hash (HMAC-SHA256 of kr-answer with hash key)
         if (!izipayGatewayClient.hasHashKey()) {
             throw new ApiException(HttpStatus.PRECONDITION_REQUIRED, "PAYMENT_HASH_KEY_MISSING",
@@ -1324,6 +1372,10 @@ public class PaymentService {
                     "Pago confirmado por validacion del cliente.");
             String resolvedMethod = resolveMethod(attempt, null).label();
             reservationService.markPaymentConfirmed(attempt.getReservation().getId(), resolvedMethod);
+            log.info("Checkout validated PAID: intentId={}, reservationId={}, ref={}",
+                    attempt.getId(), attempt.getReservation().getId(), effectiveReference);
+            log.info("Checkout validated PAID: intentId={}, reservationId={}, ref={}",
+                    attempt.getId(), attempt.getReservation().getId(), effectiveReference);
 
             // Save card token if present
             String cardToken = textAt(clientAnswer, "transactions.0.paymentMethodToken");
@@ -1347,6 +1399,8 @@ public class PaymentService {
                     textAt(clientAnswer, "transactions.0.detailedErrorMessage"),
                     "Pago rechazado: " + orderStatus);
             attempt.registerGatewayOutcome("REJECTED_CLIENT_VALIDATION", errorMsg);
+            log.warn("Checkout validated REJECTED: intentId={}, reservationId={}, orderStatus={}, error={}",
+                    attempt.getId(), attempt.getReservation().getId(), orderStatus, errorMsg);
             notificationService.notifyPaymentRejected(
                     attempt.getReservation().getUser().getId(),
                     attempt.getReservation().getId(),

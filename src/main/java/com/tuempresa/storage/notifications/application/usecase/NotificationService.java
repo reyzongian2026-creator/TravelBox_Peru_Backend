@@ -26,9 +26,13 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 @Service
 public class NotificationService {
 
+    private static final Logger log = LoggerFactory.getLogger(NotificationService.class);
     private static final int MAX_PAGE_SIZE = 100;
     private static final int MAX_STREAM_SIZE = 200;
 
@@ -186,6 +190,7 @@ public class NotificationService {
         if (userId == null) {
             return;
         }
+        log.debug(\"Sending notification: userId={}, type={}, title={}\", userId, type, title);
         NotificationStatus status = "mock".equals(provider) ? NotificationStatus.SENT : NotificationStatus.SENT;
         Map<String, Object> normalizedPayload = enrichPayload(payload);
         NotificationRecord record = NotificationRecord.of(

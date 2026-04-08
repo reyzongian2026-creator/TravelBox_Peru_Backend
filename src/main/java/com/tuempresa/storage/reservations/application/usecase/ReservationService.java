@@ -38,6 +38,8 @@ import com.tuempresa.storage.users.domain.User;
 import com.tuempresa.storage.users.infrastructure.out.persistence.UserRepository;
 import com.tuempresa.storage.warehouses.application.usecase.WarehouseService;
 import com.tuempresa.storage.warehouses.domain.Warehouse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -65,6 +67,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class ReservationService {
+
+    private static final Logger log = LoggerFactory.getLogger(ReservationService.class);
 
     private final ReservationRepository reservationRepository;
     private final WarehouseService warehouseService;
@@ -260,6 +264,8 @@ public class ReservationService {
                 pricing.insuranceFee(),
                 Instant.now().plus(Duration.ofMinutes(5)));
         Reservation saved = reservationRepository.save(reservation);
+        log.info("Reservation created: id={}, userId={}, warehouseId={}, price={}, qr={}",
+                saved.getId(), user.getId(), warehouseId, saved.getTotalPrice(), saved.getQrCode());
         notificationService.notifyReservationCreated(
                 saved.getUser().getId(),
                 saved.getId(),
@@ -335,6 +341,7 @@ public class ReservationService {
 
     @Transactional
     public ReservationResponse cancel(Long id, CancelReservationRequest request, AuthUserPrincipal principal) {
+        log.info("Cancelling reservation: id={}, userId={}, reason={}", id, principal.getId(), request.reason());
         Reservation reservation = loadReservation(id);
         if (!hasReservationAccess(reservation, principal)) {
             throw new ApiException(HttpStatus.FORBIDDEN, "RESERVATION_FORBIDDEN", "No puedes cancelar esta reserva.");
@@ -473,6 +480,7 @@ public class ReservationService {
 
     @Transactional
     public ReservationResponse markPaymentConfirmed(Long reservationId, String paymentMethod) {
+        log.info("Marking payment confirmed: reservationId={}, method={}", reservationId, paymentMethod);
         Reservation reservation = loadReservation(reservationId);
         // Si la reserva ya fue confirmada (ej: webhook tard­io), no lanzar error
         if (reservation.getStatus() == ReservationStatus.CONFIRMED
@@ -500,6 +508,7 @@ public class ReservationService {
 
     @Transactional
     public ReservationResponse moveStatus(Long reservationId, ReservationStatus target) {
+        log.info("Moving reservation status: id={}, target={}", reservationId, target);
         Reservation reservation = loadReservation(reservationId);
         reservation.transitionTo(target);
         notifyOperationalUsersForReservationEvent(

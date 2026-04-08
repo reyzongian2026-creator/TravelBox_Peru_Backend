@@ -29,6 +29,7 @@ public class GlobalExceptionHandler {
 
         @ExceptionHandler(ApiException.class)
         public ResponseEntity<ApiErrorResponse> handleApiException(ApiException ex, HttpServletRequest request) {
+                log.warn("API error [{}] at {}: {}", ex.getCode(), request.getRequestURI(), ex.getMessage());
                 return ResponseEntity.status(ex.getStatus())
                                 .body(new ApiErrorResponse(
                                                 Instant.now(),
@@ -44,6 +45,7 @@ public class GlobalExceptionHandler {
         public ResponseEntity<ApiErrorResponse> handleValidationException(
                         MethodArgumentNotValidException ex,
                         HttpServletRequest request) {
+                log.warn("Validation error at {}: {}", request.getRequestURI(), ex.getMessage());
                 List<String> details = ex.getBindingResult().getFieldErrors()
                                 .stream()
                                 .map(this::formatFieldError)
@@ -63,6 +65,7 @@ public class GlobalExceptionHandler {
         public ResponseEntity<ApiErrorResponse> handleConstraintViolation(
                         ConstraintViolationException ex,
                         HttpServletRequest request) {
+                log.warn("Constraint violation at {}: {}", request.getRequestURI(), ex.getMessage());
                 List<String> details = ex.getConstraintViolations()
                                 .stream()
                                 .map(v -> v.getMessage())
@@ -82,6 +85,7 @@ public class GlobalExceptionHandler {
         public ResponseEntity<ApiErrorResponse> handleNoResourceFound(
                         NoResourceFoundException ex,
                         HttpServletRequest request) {
+                log.warn("Resource not found at {}: {}", request.getRequestURI(), ex.getMessage());
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
                                 .body(new ApiErrorResponse(
                                                 Instant.now(),
@@ -97,6 +101,7 @@ public class GlobalExceptionHandler {
         public ResponseEntity<ApiErrorResponse> handleMethodNotAllowed(
                         HttpRequestMethodNotSupportedException ex,
                         HttpServletRequest request) {
+                log.warn("Method not allowed at {}: {}", request.getRequestURI(), ex.getMessage());
                 return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
                                 .body(new ApiErrorResponse(
                                                 Instant.now(),
@@ -112,6 +117,7 @@ public class GlobalExceptionHandler {
         public ResponseEntity<ApiErrorResponse> handleAccessDenied(
                         AccessDeniedException ex,
                         HttpServletRequest request) {
+                log.warn("Access denied at {}: {}", request.getRequestURI(), ex.getMessage());
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
                                 .body(new ApiErrorResponse(
                                                 Instant.now(),
@@ -143,6 +149,7 @@ public class GlobalExceptionHandler {
         public ResponseEntity<ApiErrorResponse> handleMethodArgumentTypeMismatch(
                         MethodArgumentTypeMismatchException ex,
                         HttpServletRequest request) {
+                log.warn("Type mismatch at {}: {}", request.getRequestURI(), ex.getMessage());
                 String parameter = ex.getName() != null ? ex.getName() : "parametro";
                 return ResponseEntity.badRequest()
                                 .body(new ApiErrorResponse(

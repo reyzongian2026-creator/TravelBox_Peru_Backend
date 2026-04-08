@@ -10,6 +10,9 @@ import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 /**
  * Calculates refund amounts and policy type based on booking type (IMMEDIATE vs
  * ADVANCE),
@@ -21,6 +24,8 @@ import java.time.Instant;
  */
 @Component
 public class RefundPolicyEngine {
+
+    private static final Logger log = LoggerFactory.getLogger(RefundPolicyEngine.class);
 
     // ── Booking type threshold ──
     private final long immediateBookingThresholdHours;
@@ -163,6 +168,9 @@ public class RefundPolicyEngine {
         BigDecimal refundToCustomer = amount.subtract(cancellationPenalty).max(BigDecimal.ZERO)
                 .setScale(2, RoundingMode.HALF_UP);
 
+        log.info(\"Refund calculated: bookingType={}, policy={}, window={}, amount={}, penalty={}, refund={}\",
+                bookingType, policyType, policyWindow, amount, cancellationPenalty, refundToCustomer);
+
         // Provider fee tracking (always tracked internally, even if not passed to
         // customer)
         BigDecimal effectiveProviderFee = enableProviderFeeModeling ? providerFee : BigDecimal.ZERO;
@@ -193,6 +201,7 @@ public class RefundPolicyEngine {
                 effectiveProviderFee.setScale(2, RoundingMode.HALF_UP),
                 feeRefundable,
                 BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP), // surcharge (disabled by default)
+
                 false, // surchargeAllowed
                 netBusinessLoss.setScale(2, RoundingMode.HALF_UP));
     }

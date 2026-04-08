@@ -45,9 +45,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 @Service
 public class InventoryService {
 
+    private static final Logger log = LoggerFactory.getLogger(InventoryService.class);
     public static final String LUGGAGE_PHOTO_EVIDENCE_TYPE = "CHECKIN_BAG_PHOTO";
     public static final String CLIENT_HANDOFF_PHOTO_EVIDENCE_TYPE = "CLIENT_HANDOFF_PHOTO";
     private static final String LATE_PICKUP_REFERENCE_PREFIX = "OFFLINE-COUNTER-LATE-";
@@ -98,6 +102,7 @@ public class InventoryService {
 
     @Transactional
     public InventoryActionResponse checkin(CheckinRequest request, AuthUserPrincipal principal) throws Exception {
+        log.info("Checkin: reservationId={}, operatorId={}", request.reservationId(), principal.getId());
         return checkinInternal(request, principal, List.of());
     }
 
@@ -157,6 +162,7 @@ public class InventoryService {
 
     @Transactional
     public InventoryActionResponse checkout(CheckoutRequest request, AuthUserPrincipal principal) {
+        log.info("Checkout: reservationId={}, operatorId={}", request.reservationId(), principal.getId());
         Reservation reservation = reservationService.requireReservation(request.reservationId());
         assertOperationalWarehouseAccess(principal, reservation);
         User operator = loadUser(principal.getId());

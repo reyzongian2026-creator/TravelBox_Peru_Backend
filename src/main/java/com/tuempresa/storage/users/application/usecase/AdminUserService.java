@@ -45,9 +45,13 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 @Service
 public class AdminUserService {
 
+    private static final Logger log = LoggerFactory.getLogger(AdminUserService.class);
     private static final Set<DeliveryStatus> ACTIVE_DELIVERY_STATUSES = Set.of(
             DeliveryStatus.REQUESTED,
             DeliveryStatus.ASSIGNED,

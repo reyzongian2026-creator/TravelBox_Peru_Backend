@@ -8,9 +8,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 @Service
 public class EmailOutboxWorker {
 
+    private static final Logger log = LoggerFactory.getLogger(EmailOutboxWorker.class);
     private final EmailOutboxRepository emailOutboxRepository;
     private final EmailDispatchService emailDispatchService;
     private final int maxAttempts;
@@ -52,10 +56,13 @@ public class EmailOutboxWorker {
         );
         if (dispatchResult.sent()) {
             record.markSent(dispatchResult.provider(), now);
+            log.info("Email sent: id={}, recipient={}, provider={}", emailOutboxId, record.getRecipient(), dispatchResult.provider());
             return;
         }
         if (record.getAttemptCount() >= maxAttempts) {
             record.markFailed(dispatchResult.provider(), dispatchResult.errorMessage());
+            log.error("Email FAILED after max attempts: id={}, recipient={}, error={}",
+                    emailOutboxId, record.getRecipient(), dispatchResult.errorMessage());
             return;
         }
         long delay = retryBackoffSeconds * Math.max(1L, record.getAttemptCount());

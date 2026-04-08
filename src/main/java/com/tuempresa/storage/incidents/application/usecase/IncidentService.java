@@ -36,9 +36,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 @Service
 public class IncidentService {
 
+    private static final Logger log = LoggerFactory.getLogger(IncidentService.class);
     private static final int MAX_PAGE_SIZE = 100;
 
     private final IncidentRepository incidentRepository;
@@ -251,6 +255,7 @@ public class IncidentService {
 
     @Transactional
     public IncidentResponse resolve(Long incidentId, ResolveIncidentRequest request, AuthUserPrincipal principal) {
+        log.info("Resolving incident: incidentId={}, userId={}", incidentId, principal.getId());
         Incident incident = requireAccessibleIncident(incidentId, principal);
         if (incident.getStatus() == IncidentStatus.RESOLVED) {
             throw new ApiException(HttpStatus.CONFLICT, "INCIDENT_ALREADY_RESOLVED", "La incidencia ya fue resuelta.");

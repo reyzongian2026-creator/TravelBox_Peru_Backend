@@ -40,9 +40,13 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 @Service
 public class DeliveryService {
 
+    private static final Logger log = LoggerFactory.getLogger(DeliveryService.class);
     private static final Collection<DeliveryStatus> ACTIVE_ORDER_STATUSES = List.of(
             DeliveryStatus.REQUESTED,
             DeliveryStatus.ASSIGNED,
@@ -80,6 +84,8 @@ public class DeliveryService {
 
     @Transactional
     public DeliveryOrderResponse create(CreateDeliveryOrderRequest request, AuthUserPrincipal principal) {
+        log.info("Delivery order create: reservationId={}, type={}, userId={}",
+                request.reservationId(), request.type(), principal.getId());
         Reservation reservation = reservationService.requireReservation(request.reservationId());
         assertReservationAccess(reservation, principal);
         if ((request.latitude() == null) != (request.longitude() == null)) {

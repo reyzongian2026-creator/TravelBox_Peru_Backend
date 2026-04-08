@@ -40,9 +40,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 @Service
 public class OpsQrHandoffService {
 
+    private static final Logger log = LoggerFactory.getLogger(OpsQrHandoffService.class);
     private static final Set<Role> PRIVILEGED_ROLES = Set.of(Role.ADMIN, Role.OPERATOR, Role.CITY_SUPERVISOR);
 
     private final ReservationRepository reservationRepository;

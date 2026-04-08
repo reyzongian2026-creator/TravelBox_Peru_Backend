@@ -2,6 +2,8 @@ package com.tuempresa.storage.payments.application.usecase;
 
 import com.tuempresa.storage.payments.domain.PaymentWebhookEvent;
 import com.tuempresa.storage.payments.infrastructure.out.persistence.PaymentWebhookEventRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
@@ -14,6 +16,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Component
 class WebhookEventInserter {
+
+    private static final Logger log = LoggerFactory.getLogger(WebhookEventInserter.class);
 
     private final PaymentWebhookEventRepository repository;
 
@@ -40,8 +44,10 @@ class WebhookEventInserter {
             PaymentWebhookEvent event = repository.save(PaymentWebhookEvent.received(
                     provider, eventId, eventType, providerReference, payloadJson));
             repository.flush();
+            log.info("Webhook event inserted: provider={}, eventId={}, type={}", provider, eventId, eventType);
             return event;
         } catch (DataIntegrityViolationException raceLost) {
+            log.warn("Webhook event duplicate (race): provider={}, eventId={}", provider, eventId);
             // This inner transaction is cleanly rolled back by REQUIRES_NEW.
             // The caller's outer transaction is unaffected.
             return repository.findByProviderAndEventId(provider, eventId)
