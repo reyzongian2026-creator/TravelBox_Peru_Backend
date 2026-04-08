@@ -2,6 +2,7 @@ package com.tuempresa.storage.shared.infrastructure.config;
 
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
@@ -11,6 +12,7 @@ import java.util.Locale;
 
 @Component
 @Profile("prod")
+@Lazy(false)
 public class ProductionMockSafetyGuard {
 
     private final String notificationsProvider;

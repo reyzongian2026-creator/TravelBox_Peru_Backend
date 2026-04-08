@@ -4,6 +4,7 @@ import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.Cipher;
@@ -17,6 +18,7 @@ import java.util.EnumSet;
 import java.util.Set;
 
 @Service
+@Lazy(false)
 public class SensitiveDataService {
 
     private static final Logger LOG = LoggerFactory.getLogger(SensitiveDataService.class);
