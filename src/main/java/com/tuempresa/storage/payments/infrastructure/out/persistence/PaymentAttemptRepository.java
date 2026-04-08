@@ -5,6 +5,7 @@ import com.tuempresa.storage.payments.domain.PaymentStatus;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -16,22 +17,34 @@ import java.util.List;
 import java.util.Optional;
 
 public interface PaymentAttemptRepository extends JpaRepository<PaymentAttempt, Long> {
+
+        // ── Override default findById to eagerly load relationships ───────────
+        @Override
+        @EntityGraph(attributePaths = {"reservation", "reservation.user", "reservation.warehouse"})
+        Optional<PaymentAttempt> findById(Long id);
+
+        // ── Single-record lookups ────────────────────────────────────────────
+        @EntityGraph(attributePaths = {"reservation", "reservation.user", "reservation.warehouse"})
         Optional<PaymentAttempt> findFirstByReservationIdAndStatusOrderByCreatedAtDesc(Long reservationId,
                         PaymentStatus status);
 
         @Lock(LockModeType.PESSIMISTIC_WRITE)
+        @EntityGraph(attributePaths = {"reservation", "reservation.user", "reservation.warehouse"})
         @Query("SELECT p FROM PaymentAttempt p WHERE p.id = :id")
         Optional<PaymentAttempt> findByIdForUpdate(@Param("id") Long id);
 
         @Lock(LockModeType.PESSIMISTIC_WRITE)
+        @EntityGraph(attributePaths = {"reservation", "reservation.user", "reservation.warehouse"})
         @Query("SELECT p FROM PaymentAttempt p WHERE p.reservation.id = :reservationId AND p.status = :status ORDER BY p.createdAt DESC LIMIT 1")
         Optional<PaymentAttempt> findFirstByReservationIdAndStatusForUpdate(@Param("reservationId") Long reservationId,
                         @Param("status") PaymentStatus status);
 
+        @EntityGraph(attributePaths = {"reservation", "reservation.user", "reservation.warehouse"})
         Optional<PaymentAttempt> findFirstByReservationIdOrderByCreatedAtDesc(Long reservationId);
 
         List<PaymentAttempt> findByReservationIdOrderByCreatedAtDesc(Long reservationId);
 
+        @EntityGraph(attributePaths = {"reservation", "reservation.user", "reservation.warehouse"})
         Optional<PaymentAttempt> findByProviderReference(String providerReference);
 
         boolean existsByProviderReference(String providerReference);
@@ -47,17 +60,22 @@ public interface PaymentAttemptRepository extends JpaRepository<PaymentAttempt, 
                         """)
         BigDecimal sumAmountByStatus(@Param("status") PaymentStatus status);
 
+        @EntityGraph(attributePaths = {"reservation", "reservation.user", "reservation.warehouse"})
         Page<PaymentAttempt> findAllByOrderByCreatedAtDesc(Pageable pageable);
 
+        @EntityGraph(attributePaths = {"reservation", "reservation.user", "reservation.warehouse"})
         Page<PaymentAttempt> findByReservationUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
 
+        @EntityGraph(attributePaths = {"reservation", "reservation.user", "reservation.warehouse"})
         Page<PaymentAttempt> findByStatusOrderByCreatedAtDesc(PaymentStatus status, Pageable pageable);
 
+        @EntityGraph(attributePaths = {"reservation", "reservation.user", "reservation.warehouse"})
         Page<PaymentAttempt> findByReservationUserIdAndStatusOrderByCreatedAtDesc(
                         Long userId,
                         PaymentStatus status,
                         Pageable pageable);
 
+        @EntityGraph(attributePaths = {"reservation", "reservation.user", "reservation.warehouse"})
         @Query("""
                         select p from PaymentAttempt p
                         where p.status = :status
@@ -72,6 +90,7 @@ public interface PaymentAttemptRepository extends JpaRepository<PaymentAttempt, 
                         """)
         Page<PaymentAttempt> findOfflineCashPending(PaymentStatus status, Pageable pageable);
 
+        @EntityGraph(attributePaths = {"reservation", "reservation.user", "reservation.warehouse"})
         @Query("""
                         select p from PaymentAttempt p
                         where p.status = :status
@@ -111,6 +130,7 @@ public interface PaymentAttemptRepository extends JpaRepository<PaymentAttempt, 
                         @Param("amount") java.math.BigDecimal amount,
                         @Param("since") java.time.Instant since);
 
+        @EntityGraph(attributePaths = {"reservation", "reservation.user", "reservation.warehouse"})
         Optional<PaymentAttempt> findByIdempotencyKey(String idempotencyKey);
 
         @Query("""

@@ -1,8 +1,23 @@
 # Production profile (Azure App Service)
+# Azure App Service handles HTTP/2 at the edge; backend must use HTTP/1.1 to
+# avoid double-h2 framing errors (ERR_HTTP2_PROTOCOL_ERROR 200).
+server:
+  http2:
+    enabled: false
+
+# Disable Swagger UI in production (saves ~10-15s startup)
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
 spring:
   config:
     activate:
       on-profile: prod
+  main:
+    lazy-initialization: true
   cloud:
     azure:
       credential:
@@ -13,6 +28,7 @@ spring:
       keyvault:
         secret:
           property-source-enabled: ${AZURE_KEYVAULT_ENABLED:true}
+          refresh-interval: 12h
           property-sources:
             - endpoint: ${AZURE_KEYVAULT_ENDPOINT:https://kvtravelboxpe.vault.azure.net/}
   datasource:

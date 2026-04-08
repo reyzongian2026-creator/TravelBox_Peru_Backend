@@ -11,7 +11,7 @@ import java.util.concurrent.ConcurrentMap;
 @Component
 public class SseTokenStore {
 
-    private static final long TOKEN_TTL_SECONDS = 120;
+    private static final long TOKEN_TTL_SECONDS = 600;
     private static final long CLEANUP_INTERVAL_SECONDS = 300;
     private static final SecureRandom RANDOM = new SecureRandom();
 

@@ -36,9 +36,15 @@ public class QrUrlSigner {
     private final Duration signatureValidity;
 
     public QrUrlSigner(
-            @Value("${app.security.qr-signing-key}") String signingKey,
+            @Value("${app.security.qr-signing-key:default-qr-signing-key-change-me}") String signingKey,
             @Value("${app.security.qr-signature-validity-minutes:30}") long validityMinutes) {
-        this.signingKey = signingKey;
+        if (signingKey == null || signingKey.isBlank() || "replace-me-in-vault".equals(signingKey)) {
+            log.warn("QrUrlSigner: signing key is not properly configured — "
+                    + "using fallback key. Set app.security.qr-signing-key in Azure Key Vault.");
+            this.signingKey = "tbx-qr-fallback-" + System.currentTimeMillis();
+        } else {
+            this.signingKey = signingKey;
+        }
         this.signatureValidity = Duration.ofMinutes(validityMinutes);
         log.info("QrUrlSigner initialized with signature validity of {} minutes", validityMinutes);
     }

@@ -81,7 +81,9 @@ public class PaymentController {
                 return securityUtils.currentUserOrThrowReactive()
                                 .flatMap(currentUser -> reactiveBlockingExecutor.call(
                                                 () -> paymentService.createIntent(request, currentUser)))
-                                .map(ResponseEntity::ok);
+                                .map(ResponseEntity::ok)
+                                .doOnError(ex -> log.error("createIntent failed for reservationId={}: {}",
+                                                request.reservationId(), ex.getMessage(), ex));
         }
 
         @PostMapping({ "/confirm", "/checkout", "/process" })
@@ -89,7 +91,8 @@ public class PaymentController {
                 return securityUtils.currentUserOrThrowReactive()
                                 .flatMap(currentUser -> reactiveBlockingExecutor.call(
                                                 () -> paymentService.confirm(request, currentUser)))
-                                .map(ResponseEntity::ok);
+                                .map(ResponseEntity::ok)
+                                .doOnError(ex -> log.error("confirm failed: {}", ex.getMessage(), ex));
         }
 
         @GetMapping("/validate-promo")
@@ -127,7 +130,9 @@ public class PaymentController {
                                 .flatMap(currentUser -> reactiveBlockingExecutor.call(
                                                 () -> paymentService.status(paymentIntentId, reservationId,
                                                                 currentUser)))
-                                .map(ResponseEntity::ok);
+                                .map(ResponseEntity::ok)
+                                .doOnError(ex -> log.error("status failed for intentId={} reservationId={}: {}",
+                                                paymentIntentId, reservationId, ex.getMessage(), ex));
         }
 
         @PostMapping("/{paymentIntentId}/sync")
@@ -165,7 +170,9 @@ public class PaymentController {
                 return securityUtils.currentUserOrThrowReactive()
                                 .flatMap(currentUser -> reactiveBlockingExecutor.call(
                                                 () -> paymentService.history(currentUser, page, size, status)))
-                                .map(ResponseEntity::ok);
+                                .map(ResponseEntity::ok)
+                                .doOnError(ex -> log.error("history failed page={} size={}: {}",
+                                                page, size, ex.getMessage(), ex));
         }
 
         @GetMapping("/cash/pending")

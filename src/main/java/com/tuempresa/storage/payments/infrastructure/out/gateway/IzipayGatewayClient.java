@@ -67,7 +67,7 @@ public class IzipayGatewayClient {
             @Value("${app.payments.izipay.process-type:AT}") String processType,
             @Value("${app.payments.izipay.checkout-script-url:https://static.micuentaweb.pe/static/js/krypton-client/V4.0/stable/kr-payment-form.min.js}") String checkoutScriptUrl) {
         var httpFactory = new JdkClientHttpRequestFactory();
-        httpFactory.setReadTimeout(java.time.Duration.ofSeconds(10));
+        httpFactory.setReadTimeout(java.time.Duration.ofSeconds(30));
         this.restClient = restClientBuilder.clone().baseUrl(safe(apiBaseUrl)).requestFactory(httpFactory).build();
         this.objectMapper = objectMapper;
         this.productionMode = productionMode;
@@ -78,13 +78,30 @@ public class IzipayGatewayClient {
         this.processType = firstNonBlank(safe(processType).toUpperCase(Locale.ROOT), "AT");
         this.checkoutScriptUrl = safe(checkoutScriptUrl);
 
-        this.publicKey = safe(productionMode ? prodPublicKey : testPublicKey);
-        this.apiPassword = safe(productionMode ? prodApiPassword : testApiPassword);
-        this.hashKey = safe(productionMode ? prodHashKey : testHashKey);
+        // Select keys by mode, but fall back to test keys when production keys are empty.
+        // This ensures IziPay is always reachable even if Key Vault resolution fails.
+        String selectedPublicKey = safe(productionMode ? prodPublicKey : testPublicKey);
+        String selectedApiPassword = safe(productionMode ? prodApiPassword : testApiPassword);
+        String selectedHashKey = safe(productionMode ? prodHashKey : testHashKey);
 
-        log.info("Izipay production-mode={} merchant={} publicKey={}...",
+        if (productionMode && selectedPublicKey.isEmpty() && !safe(testPublicKey).isEmpty()) {
+            log.warn("Izipay production keys are EMPTY — falling back to TEST keys. "
+                    + "Ensure Azure Key Vault secrets (tbx-back-payments-izipay-public-key, "
+                    + "tbx-back-payments-izipay-api-password, tbx-back-payments-izipay-hash-key) "
+                    + "are properly configured.");
+            selectedPublicKey = safe(testPublicKey);
+            selectedApiPassword = safe(testApiPassword);
+            selectedHashKey = safe(testHashKey);
+        }
+
+        this.publicKey = selectedPublicKey;
+        this.apiPassword = selectedApiPassword;
+        this.hashKey = selectedHashKey;
+
+        log.info("Izipay production-mode={} merchant={} publicKey={}... configured={}",
                 productionMode, this.merchantCode,
-                this.publicKey.length() > 15 ? this.publicKey.substring(0, 15) : this.publicKey);
+                this.publicKey.length() > 15 ? this.publicKey.substring(0, 15) : this.publicKey,
+                isConfigured());
     }
 
     public boolean isConfigured() {
@@ -267,8 +284,10 @@ public class IzipayGatewayClient {
                     .toEntity(JsonNode.class);
             return entity.getBody();
         } catch (RestClientResponseException ex) {
+            log.error("Izipay API HTTP error: status={} body={}", ex.getStatusCode(), ex.getResponseBodyAsString());
             throw mapProviderError(ex);
         } catch (RestClientException ex) {
+            log.error("Izipay API connection error for txId={}: {}", transactionId, ex.getMessage());
             throw new ApiException(
                     HttpStatus.BAD_GATEWAY,
                     "PAYMENT_PROVIDER_UNAVAILABLE",

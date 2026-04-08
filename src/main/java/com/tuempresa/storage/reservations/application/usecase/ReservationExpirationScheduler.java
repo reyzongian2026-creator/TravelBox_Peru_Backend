@@ -2,10 +2,12 @@ package com.tuempresa.storage.reservations.application.usecase;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 @Component
+@Lazy(false)
 public class ReservationExpirationScheduler {
 
     private static final Logger log = LoggerFactory.getLogger(ReservationExpirationScheduler.class);

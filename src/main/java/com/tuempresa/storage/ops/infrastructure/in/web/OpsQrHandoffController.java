@@ -63,6 +63,16 @@ public class OpsQrHandoffController {
                 .map(ResponseEntity::ok);
     }
 
+    @GetMapping("/reservations/batch")
+    @PreAuthorize("hasAnyRole('OPERATOR','ADMIN','CITY_SUPERVISOR','COURIER')")
+    public Mono<ResponseEntity<List<OpsQrCaseResponse>>> batchDetail(@RequestParam List<Long> ids) {
+        return securityUtils.currentUserOrThrowReactive()
+                .flatMap(currentUser -> reactiveBlockingExecutor.call(
+                        () -> opsQrHandoffService.batchDetail(ids, currentUser)
+                ))
+                .map(ResponseEntity::ok);
+    }
+
     @GetMapping("/reservations/{reservationId}")
     @PreAuthorize("hasAnyRole('OPERATOR','ADMIN','CITY_SUPERVISOR','COURIER')")
     public Mono<ResponseEntity<OpsQrCaseResponse>> detail(@PathVariable Long reservationId) {

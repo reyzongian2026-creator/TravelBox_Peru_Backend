@@ -57,6 +57,7 @@ public class ReactiveBearerTokenServerAuthenticationConverter implements ServerA
         if (username != null) {
             return SSE_TOKEN_PREFIX + username;
         }
-        return null;
+        // Fallback: return raw token so JWT auth manager can validate it
+        return accessToken;
     }
 }

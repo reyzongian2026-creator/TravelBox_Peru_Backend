@@ -62,9 +62,9 @@ public class RateLimitingWebFilter implements WebFilter, Ordered {
      * per user within the {@link #WINDOW}.
      */
     private static final Map<String, Integer> PROTECTED_ENDPOINTS = Map.of(
-            "/api/v1/payments/confirm", 10,
-            "/api/v1/payments/intents", 20,
-            "/api/v1/payments/validate-promo", 15
+            "/api/v1/payments/confirm", 30,
+            "/api/v1/payments/intents", 40,
+            "/api/v1/payments/validate-promo", 30
     );
 
     private final RateLimiter rateLimiter;
@@ -159,6 +159,7 @@ public class RateLimitingWebFilter implements WebFilter, Ordered {
         ServerHttpResponse response = exchange.getResponse();
         response.setStatusCode(HttpStatus.TOO_MANY_REQUESTS);
         response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
+        response.getHeaders().set("Retry-After", String.valueOf(WINDOW.toSeconds()));
 
         byte[] bytes = RATE_LIMIT_RESPONSE_BODY.getBytes(StandardCharsets.UTF_8);
         DataBuffer buffer = response.bufferFactory().wrap(bytes);

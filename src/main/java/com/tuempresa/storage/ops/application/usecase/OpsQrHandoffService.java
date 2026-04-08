@@ -119,6 +119,18 @@ public class OpsQrHandoffService {
         return toCaseResponse(handoff, principal, null);
     }
 
+    @Transactional(readOnly = true)
+    public List<OpsQrCaseResponse> batchDetail(List<Long> reservationIds, AuthUserPrincipal principal) {
+        if (reservationIds == null || reservationIds.isEmpty()) {
+            return List.of();
+        }
+        List<Long> ids = reservationIds.stream().distinct().limit(200).toList();
+        List<QrHandoffCase> cases = qrCaseRepository.findByReservationIdIn(ids);
+        return cases.stream()
+                .map(c -> toCaseResponse(c, principal, null))
+                .toList();
+    }
+
     @Transactional
     public OpsQrCaseResponse tagLuggage(Long reservationId, Integer bagUnits, AuthUserPrincipal principal) {
         assertPrivileged(principal);

@@ -29,6 +29,6 @@ public class RealtimeTokenController {
     public Mono<Map<String, String>> issueWsToken() {
         return securityUtils.currentUserOrThrowReactive()
                 .map(currentUser -> Map.of("token",
-                        sseTokenStore.issueToken(currentUser.getId().toString())));
+                        sseTokenStore.issueToken(currentUser.getUsername())));
     }
 }
