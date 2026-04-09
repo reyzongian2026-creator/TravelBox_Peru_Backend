@@ -14,6 +14,7 @@ import org.springframework.web.server.WebFilterChain;
 import reactor.core.publisher.Mono;
 
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
@@ -42,6 +43,7 @@ public class ReactiveAuthRateLimitWebFilter implements WebFilter {
     private final int maxRequestsPerWindow;
     private final int windowSeconds;
     private final int blockSeconds;
+    private final List<String> allowedOrigins;
     private final ConcurrentMap<String, AttemptWindow> attemptsByClient = new ConcurrentHashMap<>();
     private final AtomicLong totalRequests = new AtomicLong();
 
@@ -50,13 +52,18 @@ public class ReactiveAuthRateLimitWebFilter implements WebFilter {
             @Value("${app.security.rate-limit.auth.enabled:true}") boolean enabled,
             @Value("${app.security.rate-limit.auth.max-requests-per-window:12}") int maxRequestsPerWindow,
             @Value("${app.security.rate-limit.auth.window-seconds:60}") int windowSeconds,
-            @Value("${app.security.rate-limit.auth.block-seconds:300}") int blockSeconds
+            @Value("${app.security.rate-limit.auth.block-seconds:300}") int blockSeconds,
+            @Value("${app.cors.allowed-origins}") String allowedOrigins
     ) {
         this.objectMapper = objectMapper;
         this.enabled = enabled;
         this.maxRequestsPerWindow = Math.max(3, maxRequestsPerWindow);
         this.windowSeconds = Math.max(10, windowSeconds);
         this.blockSeconds = Math.max(30, blockSeconds);
+        this.allowedOrigins = Arrays.stream(allowedOrigins.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isBlank())
+                .toList();
     }
 
     @Override
@@ -122,6 +129,7 @@ public class ReactiveAuthRateLimitWebFilter implements WebFilter {
     private Mono<Void> writeRateLimitResponse(ServerWebExchange exchange, String path, long retryAfterSeconds) {
         ServerHttpResponse response = exchange.getResponse();
         response.setStatusCode(HttpStatus.TOO_MANY_REQUESTS);
+        applyCorsHeaders(exchange, response);
         response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
         response.getHeaders().set("Retry-After", Long.toString(Math.max(1L, retryAfterSeconds)));
         ApiErrorResponse body = new ApiErrorResponse(
@@ -139,6 +147,21 @@ public class ReactiveAuthRateLimitWebFilter implements WebFilter {
         } catch (Exception ex) {
             return response.setComplete();
         }
+    }
+
+    private void applyCorsHeaders(ServerWebExchange exchange, ServerHttpResponse response) {
+        String origin = exchange.getRequest().getHeaders().getOrigin();
+        if (origin == null || origin.isBlank()) {
+            return;
+        }
+        boolean allowed = allowedOrigins.stream().anyMatch(origin::equalsIgnoreCase);
+        if (!allowed) {
+            return;
+        }
+        response.getHeaders().setAccessControlAllowOrigin(origin);
+        response.getHeaders().setAccessControlAllowCredentials(true);
+        response.getHeaders().setAccessControlExposeHeaders(List.of("Authorization", "X-Correlation-Id", "Retry-After"));
+        response.getHeaders().setVary(List.of("Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers"));
     }
 
     private static final class AttemptWindow {

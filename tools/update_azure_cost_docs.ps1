@@ -2,6 +2,7 @@ param(
     [string]$SubscriptionId,
     [string]$DocsDirectory = (Join-Path $PSScriptRoot "..\docs"),
     [string]$SnapshotPath = (Join-Path $PSScriptRoot "..\docs\AZURE_COST_SNAPSHOT.json"),
+    [string]$RuntimeSnapshotPath = (Join-Path $PSScriptRoot "..\src\main\resources\admin\azure-cost-snapshot.json"),
     [switch]$SkipExchangeRateLookup
 )
 
@@ -383,6 +384,10 @@ $keyVaultMonthlyUsd = 0.0
 if ($keyVaultMtdUsd -gt 0) { $keyVaultMonthlyUsd = ($keyVaultMtdUsd / $dayOfMonth) * 30 }
 
 $baseMonthlyUsd = $appMonthlyUsd + $pgComputeMonthlyUsd + $pgStorageMonthlyUsd + $blobStorageMonthlyUsd + $keyVaultMonthlyUsd
+$postgresMonthlyUsd = $pgComputeMonthlyUsd + $pgStorageMonthlyUsd
+$translatorMonthlyUsd = 0.0
+$mapsMonthlyUsd = 0.0
+$frontendMonthlyUsd = 0.0
 
 $snapshot = [ordered]@{
     generatedAt = $now.ToString("o")
@@ -400,6 +405,54 @@ $snapshot = [ordered]@{
     totals = [ordered]@{
         monthToDateUsd = [math]::Round($mtdTotalUsd, 6)
         baseMonthlyUsd = [math]::Round($baseMonthlyUsd, 4)
+    }
+    dashboard = [ordered]@{
+        currency = "USD"
+        totalMonthlyUsd = [math]::Round($baseMonthlyUsd, 4)
+        items = @(
+            [ordered]@{
+                service = "App Service Backend"
+                sku = "$($backendPlan.sku.name) Linux"
+                amount = [math]::Round($appMonthlyUsd, 2)
+                period = "monthly"
+            },
+            [ordered]@{
+                service = "Static Web App Frontend"
+                sku = "$($frontend.sku.name)"
+                amount = [math]::Round($frontendMonthlyUsd, 2)
+                period = "monthly"
+            },
+            [ordered]@{
+                service = "PostgreSQL Flexible"
+                sku = "$($postgres.sku.name) + $($postgres.storage.storageSizeGb)GB"
+                amount = [math]::Round($postgresMonthlyUsd, 2)
+                period = "monthly"
+            },
+            [ordered]@{
+                service = "Azure AI Translator"
+                sku = "$($translator.sku.name)"
+                amount = [math]::Round($translatorMonthlyUsd, 2)
+                period = "usage-based"
+            },
+            [ordered]@{
+                service = "Azure Maps"
+                sku = "$($maps.sku.name)"
+                amount = [math]::Round($mapsMonthlyUsd, 2)
+                period = "usage-based"
+            },
+            [ordered]@{
+                service = "Key Vault"
+                sku = "$($keyVault.properties.sku.name)"
+                amount = [math]::Round($keyVaultMonthlyUsd, 2)
+                period = "monthly"
+            },
+            [ordered]@{
+                service = "Blob Storage"
+                sku = "$([math]::Round($storageUsedGb, 6))GB current footprint"
+                amount = [math]::Round($blobStorageMonthlyUsd, 2)
+                period = "monthly"
+            }
+        )
     }
     activeResourceIds = @($resources | ForEach-Object { $_.id } | Sort-Object)
 }
@@ -713,7 +766,14 @@ Set-Content -Path $azureResourcesPath -Value ($azureResourcesContent -join "`r`n
 Set-Content -Path $costEstimatePath -Value ($costContent -join "`r`n") -Encoding utf8
 ($snapshot | ConvertTo-Json -Depth 20) | Set-Content -Path $SnapshotPath -Encoding utf8
 
+$runtimeSnapshotDirectory = Split-Path -Path $RuntimeSnapshotPath -Parent
+if (-not (Test-Path $runtimeSnapshotDirectory)) {
+    New-Item -ItemType Directory -Path $runtimeSnapshotDirectory -Force | Out-Null
+}
+($snapshot | ConvertTo-Json -Depth 20) | Set-Content -Path $RuntimeSnapshotPath -Encoding utf8
+
 Write-Output "Updated:"
 Write-Output " - $azureResourcesPath"
 Write-Output " - $costEstimatePath"
 Write-Output " - $SnapshotPath"
+Write-Output " - $RuntimeSnapshotPath"

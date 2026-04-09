@@ -1,6 +1,6 @@
 ﻿# Cost Estimation - TravelBox Peru
 
-**Last Updated:** April 8, 2026 21:04 -05:00  
+**Last Updated:** April 8, 2026 22:24 -05:00  
 **Primary Billing Currency:** USD  
 **Reference Exchange Rate Used:** `1 USD = S/ 3.4092`
 
@@ -27,19 +27,20 @@ Snapshot from Azure Cost Management on April 8, 2026.
 | Resource Group | MTD Cost (USD) | MTD Cost (PEN) | Status |
 |---|---|---|---|
 | `ai_travelbox-appinsights_03adb0a9-0b44-4149-996d-48021da72f36_managed` | `0.000000` | `S/ 0.00` | Tracked |
-| `travelbox_kv` | `0.109455` | `S/ 0.37` | Legacy deleted RG |
-| `travelbox_kv_bs` | `0.000471` | `S/ 0.00` | Active |
-| `travelbox_st` | `0.003575` | `S/ 0.01` | Legacy deleted RG |
+| `travelbox_kv` | `0.109764` | `S/ 0.37` | Legacy deleted RG |
+| `travelbox_kv_bs` | `0.001761` | `S/ 0.01` | Active |
+| `travelbox_st` | `0.004081` | `S/ 0.01` | Legacy deleted RG |
+| `travelbox_st_bs` | `0.000000` | `S/ 0.00` | Active, billing lag |
 | `travelbox-peru-bs-rg` | `0.000000` | `S/ 0.00` | New active backend RG, billing lag |
-| `travelbox-peru-rg` | `2.004811` | `S/ 6.83` | Legacy April charges from deleted West US 3 resources plus free frontend RG |
+| `travelbox-peru-rg` | `2.018001` | `S/ 6.88` | Legacy April charges from deleted West US 3 resources plus free frontend RG |
 | `travelbox-rg` | `0.000000` | `S/ 0.00` | Active shared services, no billed usage yet |
 
 ### Subscription Total
 
 | Metric | Value |
 |---|---|
-| Total month-to-date billed cost | `USD 2.118311` |
-| Total month-to-date billed cost in soles | `S/ 7.22` |
+| Total month-to-date billed cost | `USD 2.133606` |
+| Total month-to-date billed cost in soles | `S/ 7.27` |
 
 ---
 
@@ -54,8 +55,8 @@ These values reflect the **current live stack** if it stays provisioned for a fu
 | App Service Plan `travelbox-peru-plan-linux-bs` | `B2 App at USD 0.183/hour * 730 hours` | `133.59` | `S/ 455.44` |
 | PostgreSQL compute `travelbox-peru-db-bs` | `B1MS at USD 0.035/hour * 730 hours` | `25.55` | `S/ 87.11` |
 | PostgreSQL allocated storage | `32 GB * USD 0.2185/GB-month` | `6.99` | `S/ 23.84` |
-| Blob Storage current data footprint | `0 GB * USD 0.0832/GB-month` | `0.00` | `S/ 0.00` |
-| Key Vault projected from current usage trend | `Current MTD extrapolated linearly` | `0.00` | `S/ 0.01` |
+| Blob Storage current data footprint | `0.028647 GB * USD 0.0832/GB-month` | `0.00` | `S/ 0.01` |
+| Key Vault projected from current usage trend | `Current MTD extrapolated linearly` | `0.01` | `S/ 0.02` |
 | Static Web App `travelbox-frontend` | `Free tier` | `0.00` | `S/ 0.00` |
 | Managed certificate `api-inkavoy-pe-bs` | Managed App Service certificate | `0.00` | `S/ 0.00` |
 
@@ -63,8 +64,8 @@ These values reflect the **current live stack** if it stays provisioned for a fu
 
 | Metric | Value |
 |---|---|
-| Base monthly cost (USD) | `166.13` |
-| Base monthly cost (PEN) | `S/ 566.39` |
+| Base monthly cost (USD) | `166.14` |
+| Base monthly cost (PEN) | `S/ 566.41` |
 
 ---
 
@@ -83,7 +84,7 @@ These values reflect the **current live stack** if it stays provisioned for a fu
 
 ## Change Detection
 
-- No se detectaron cambios en recursos ni en la proyeccion base mensual.
+- Cambio en proyeccion base mensual: USD 0.0072
 
 ---
 

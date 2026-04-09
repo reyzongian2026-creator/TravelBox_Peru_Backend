@@ -6,6 +6,7 @@ import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -33,5 +34,9 @@ public interface EmailOutboxRepository extends JpaRepository<EmailOutboxRecord, 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select e from EmailOutboxRecord e where e.id = :id")
     Optional<EmailOutboxRecord> findByIdForUpdate(@Param("id") Long id);
+
+    @Modifying
+    @Query("DELETE FROM EmailOutboxRecord e WHERE e.status = :status AND e.createdAt < :cutoff")
+    int deleteSentBefore(@Param("status") EmailOutboxStatus status, @Param("cutoff") Instant cutoff);
 }
 

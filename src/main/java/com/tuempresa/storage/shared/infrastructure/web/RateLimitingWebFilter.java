@@ -5,6 +5,7 @@ import com.tuempresa.storage.shared.infrastructure.security.RateLimiter.RateLimi
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.core.io.buffer.DataBuffer;
@@ -21,7 +22,9 @@ import org.springframework.web.server.WebFilterChain;
 import reactor.core.publisher.Mono;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -68,14 +71,22 @@ public class RateLimitingWebFilter implements WebFilter, Ordered {
     );
 
     private final RateLimiter rateLimiter;
+    private final List<String> allowedOrigins;
 
     /**
      * Creates a new {@code RateLimitingWebFilter}.
      *
      * @param rateLimiter the rate limiter used to track and enforce request quotas
      */
-    public RateLimitingWebFilter(RateLimiter rateLimiter) {
+    public RateLimitingWebFilter(
+            RateLimiter rateLimiter,
+            @Value("${app.cors.allowed-origins}") String allowedOrigins
+    ) {
         this.rateLimiter = rateLimiter;
+        this.allowedOrigins = Arrays.stream(allowedOrigins.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isBlank())
+                .toList();
         log.info("RateLimitingWebFilter initialized with {} protected endpoint(s)",
                 PROTECTED_ENDPOINTS.size());
     }
@@ -160,11 +171,27 @@ public class RateLimitingWebFilter implements WebFilter, Ordered {
     private Mono<Void> writeTooManyRequestsResponse(ServerWebExchange exchange) {
         ServerHttpResponse response = exchange.getResponse();
         response.setStatusCode(HttpStatus.TOO_MANY_REQUESTS);
+        applyCorsHeaders(exchange, response);
         response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
         response.getHeaders().set("Retry-After", String.valueOf(WINDOW.toSeconds()));
 
         byte[] bytes = RATE_LIMIT_RESPONSE_BODY.getBytes(StandardCharsets.UTF_8);
         DataBuffer buffer = response.bufferFactory().wrap(bytes);
         return response.writeWith(Mono.just(buffer));
+    }
+
+    private void applyCorsHeaders(ServerWebExchange exchange, ServerHttpResponse response) {
+        String origin = exchange.getRequest().getHeaders().getOrigin();
+        if (origin == null || origin.isBlank()) {
+            return;
+        }
+        boolean allowed = allowedOrigins.stream().anyMatch(origin::equalsIgnoreCase);
+        if (!allowed) {
+            return;
+        }
+        response.getHeaders().setAccessControlAllowOrigin(origin);
+        response.getHeaders().setAccessControlAllowCredentials(true);
+        response.getHeaders().setAccessControlExposeHeaders(List.of("Authorization", "X-Correlation-Id", "Retry-After"));
+        response.getHeaders().setVary(List.of("Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers"));
     }
 }
