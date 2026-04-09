@@ -14,6 +14,7 @@ import com.tuempresa.storage.ops.infrastructure.out.persistence.QrHandoffCaseRep
 import com.tuempresa.storage.payments.domain.PaymentAttempt;
 import com.tuempresa.storage.payments.domain.PaymentMethod;
 import com.tuempresa.storage.payments.domain.PaymentStatus;
+import com.tuempresa.storage.payments.infrastructure.out.persistence.CancellationRecordRepository;
 import com.tuempresa.storage.payments.infrastructure.out.persistence.PaymentAttemptRepository;
 import com.tuempresa.storage.reservations.application.dto.CancelReservationRequest;
 import com.tuempresa.storage.reservations.application.dto.CreateAssistedReservationRequest;
@@ -69,6 +70,10 @@ import java.util.stream.Collectors;
 public class ReservationService {
 
     private static final Logger log = LoggerFactory.getLogger(ReservationService.class);
+    private static final Set<ReservationStatus> DUPLICATE_RESERVATION_EXCLUDED_STATUSES = Set.of(
+            ReservationStatus.CANCELLED,
+            ReservationStatus.EXPIRED
+    );
 
     private final ReservationRepository reservationRepository;
     private final WarehouseService warehouseService;
@@ -84,6 +89,7 @@ public class ReservationService {
     private final StoredItemEvidenceRepository storedItemEvidenceRepository;
     private final QrHandoffCaseRepository qrHandoffCaseRepository;
     private final PaymentAttemptRepository paymentAttemptRepository;
+    private final CancellationRecordRepository cancellationRecordRepository;
     private final long duplicateReservationWindowSeconds;
 
     public ReservationService(
@@ -101,6 +107,7 @@ public class ReservationService {
             StoredItemEvidenceRepository storedItemEvidenceRepository,
             QrHandoffCaseRepository qrHandoffCaseRepository,
             PaymentAttemptRepository paymentAttemptRepository,
+            CancellationRecordRepository cancellationRecordRepository,
             @Value("${app.reservations.duplicate-window-seconds:60}") long duplicateReservationWindowSeconds) {
         this.reservationRepository = reservationRepository;
         this.warehouseService = warehouseService;
@@ -116,6 +123,7 @@ public class ReservationService {
         this.storedItemEvidenceRepository = storedItemEvidenceRepository;
         this.qrHandoffCaseRepository = qrHandoffCaseRepository;
         this.paymentAttemptRepository = paymentAttemptRepository;
+        this.cancellationRecordRepository = cancellationRecordRepository;
         this.duplicateReservationWindowSeconds = Math.max(0, duplicateReservationWindowSeconds);
     }
 
@@ -206,10 +214,11 @@ public class ReservationService {
         // Idempotency guard to block rapid duplicate reservations.
         if (duplicateReservationWindowSeconds > 0) {
             Instant duplicateThreshold = Instant.now().minusSeconds(duplicateReservationWindowSeconds);
-            if (reservationRepository.existsByUserIdAndWarehouseIdAndCreatedAtAfter(
+            if (reservationRepository.existsByUserIdAndWarehouseIdAndCreatedAtAfterAndStatusNotIn(
                     user.getId(),
                     warehouseId,
-                    duplicateThreshold)) {
+                    duplicateThreshold,
+                    DUPLICATE_RESERVATION_EXCLUDED_STATUSES)) {
                 throw new ApiException(
                         HttpStatus.CONFLICT,
                         "DUPLICATE_RESERVATION_DETECTED",
@@ -348,6 +357,7 @@ public class ReservationService {
         }
         ensureRefundNotRequiredBeforeCancel(reservation);
         reservation.cancel(request.reason());
+        releasePendingPaymentAttempts(reservation, request.reason());
         notificationService.notifyUser(
                 reservation.getUser().getId(),
                 "RESERVATION_CANCELLED",
@@ -363,6 +373,59 @@ public class ReservationService {
                 "La reserva " + reservation.getQrCode() + " fue cancelada en " + reservation.getWarehouse().getName()
                         + ".");
         return toResponse(reservation);
+    }
+
+    @Transactional
+    public void discardAbortedCheckout(Long id, AuthUserPrincipal principal) {
+        log.info("Discarding aborted checkout reservation: id={}, userId={}", id, principal.getId());
+        Reservation reservation = loadReservation(id);
+        if (!hasReservationAccess(reservation, principal)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "RESERVATION_FORBIDDEN",
+                    "No puedes descartar esta reserva.");
+        }
+        if (reservation.getStatus() != ReservationStatus.PENDING_PAYMENT) {
+            throw new ApiException(HttpStatus.CONFLICT, "ABORTED_CHECKOUT_DISCARD_NOT_ALLOWED",
+                    "Solo se pueden eliminar reservas temporales pendientes de pago.");
+        }
+
+        List<PaymentAttempt> attempts = paymentAttemptRepository
+                .findByReservationIdOrderByCreatedAtDesc(reservation.getId());
+        boolean hasProtectedAttempt = attempts.stream()
+                .map(PaymentAttempt::getStatus)
+                .anyMatch(status -> status != PaymentStatus.PENDING && status != PaymentStatus.FAILED);
+        if (hasProtectedAttempt) {
+            throw new ApiException(HttpStatus.CONFLICT, "ABORTED_CHECKOUT_DISCARD_NOT_ALLOWED",
+                    "La reserva ya tiene un pago que debe conservarse en el historial.");
+        }
+
+        cancellationRecordRepository.deleteByReservationId(reservation.getId());
+        paymentAttemptRepository.deleteByReservationId(reservation.getId());
+        reservationRepository.delete(reservation);
+    }
+
+    private void releasePendingPaymentAttempts(Reservation reservation, String reason) {
+        List<PaymentAttempt> attempts = paymentAttemptRepository
+                .findByReservationIdOrderByCreatedAtDesc(reservation.getId());
+        if (attempts.isEmpty()) {
+            return;
+        }
+
+        String resolvedReason = reason != null && !reason.isBlank()
+                ? reason
+                : "Reserva cancelada antes de confirmar el pago.";
+
+        List<PaymentAttempt> pendingAttempts = attempts.stream()
+                .filter(PaymentAttempt::isPending)
+                .toList();
+        if (pendingAttempts.isEmpty()) {
+            return;
+        }
+
+        for (PaymentAttempt attempt : pendingAttempts) {
+            attempt.fail(attempt.getProviderReference());
+            attempt.registerGatewayOutcome("CANCELLED_BY_RESERVATION", resolvedReason);
+        }
+        paymentAttemptRepository.saveAll(pendingAttempts);
     }
 
     private void ensureRefundNotRequiredBeforeCancel(Reservation reservation) {

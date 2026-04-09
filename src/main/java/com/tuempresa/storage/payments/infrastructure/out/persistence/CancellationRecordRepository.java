@@ -11,6 +11,8 @@ public interface CancellationRecordRepository extends JpaRepository<Cancellation
 
     List<CancellationRecord> findByReservationIdOrderByCreatedAtDesc(Long reservationId);
 
+    void deleteByReservationId(Long reservationId);
+
     Optional<CancellationRecord> findByIdempotencyKey(String idempotencyKey);
 
     Optional<CancellationRecord> findFirstByReservationIdAndStatusOrderByCreatedAtDesc(

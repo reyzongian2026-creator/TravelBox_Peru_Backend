@@ -44,6 +44,8 @@ public interface PaymentAttemptRepository extends JpaRepository<PaymentAttempt, 
 
         List<PaymentAttempt> findByReservationIdOrderByCreatedAtDesc(Long reservationId);
 
+        void deleteByReservationId(Long reservationId);
+
         @EntityGraph(attributePaths = {"reservation", "reservation.user", "reservation.warehouse"})
         Optional<PaymentAttempt> findByProviderReference(String providerReference);
 
@@ -114,7 +116,14 @@ public interface PaymentAttemptRepository extends JpaRepository<PaymentAttempt, 
         @Query("SELECT COUNT(p) FROM PaymentAttempt p WHERE p.gatewayStatus = 'OFFLINE_CONFIRMED_BY_OPERATOR' AND p.updatedBy = :operatorId AND p.confirmedAt >= :since")
         long countCashApprovalsBy(@Param("operatorId") String operatorId, @Param("since") java.time.Instant since);
 
-        @Query("SELECT COUNT(p) FROM PaymentAttempt p WHERE p.status = 'PENDING' AND p.reservation.user.id = :userId AND p.providerReference LIKE 'TRANSFER-%'")
+        @Query("""
+                        SELECT COUNT(p)
+                        FROM PaymentAttempt p
+                        WHERE p.status = 'PENDING'
+                          AND p.reservation.user.id = :userId
+                          AND p.providerReference LIKE 'TRANSFER-%'
+                          AND p.reservation.status = com.tuempresa.storage.reservations.domain.ReservationStatus.PENDING_PAYMENT
+                        """)
         long countPendingManualTransfersByUserId(@Param("userId") Long userId);
 
         @Query("""

@@ -1,0 +1,38 @@
+﻿{
+    "generatedAt":  "2026-04-08T21:04:07.3936767-05:00",
+    "subscription":  {
+                         "id":  "33815caa-4cfb-4a9e-b60a-8fee5caa2b08",
+                         "name":  "Azure subscription 1",
+                         "tenantId":  "a574d6a3-a5ed-4f76-8e5a-232160f91d34",
+                         "tenantDisplayName":  "Weesystem"
+                     },
+    "exchangeRate":  {
+                         "usdToPen":  3.409211,
+                         "source":  "open.er-api.com",
+                         "timestamp":  "Thu, 09 Apr 2026 00:02:31 +0000"
+                     },
+    "totals":  {
+                   "monthToDateUsd":  2.118311,
+                   "baseMonthlyUsd":  166.1338
+               },
+    "activeResourceIds":  [
+                              "/subscriptions/33815caa-4cfb-4a9e-b60a-8fee5caa2b08/resourceGroups/ai_travelbox-appinsights-bs_a3afbd61-8f6d-4797-a17e-586d95dfacab_managed/providers/microsoft.operationalinsights/workspaces/managed-travelbox-appinsights-bs-ws",
+                              "/subscriptions/33815caa-4cfb-4a9e-b60a-8fee5caa2b08/resourceGroups/azureapp-auto-alerts-22d313-reyzongian_outlook_es/providers/Microsoft.Insights/actiongroups/azureapp-auto",
+                              "/subscriptions/33815caa-4cfb-4a9e-b60a-8fee5caa2b08/resourceGroups/azureapp-auto-alerts-22d313-reyzongian_outlook_es/providers/Microsoft.Insights/activityLogAlerts/Problema de Service Health en \u0027Azure subscription 1\u0027",
+                              "/subscriptions/33815caa-4cfb-4a9e-b60a-8fee5caa2b08/resourceGroups/inkavoy-rg/providers/Microsoft.Communication/EmailServices/inkavoy-email",
+                              "/subscriptions/33815caa-4cfb-4a9e-b60a-8fee5caa2b08/resourceGroups/inkavoy-rg/providers/Microsoft.Communication/EmailServices/inkavoy-email/Domains/inkavoy.pe",
+                              "/subscriptions/33815caa-4cfb-4a9e-b60a-8fee5caa2b08/resourceGroups/rg-getting-started-service-260320072430/providers/Microsoft.CognitiveServices/accounts/getting-started-service-260320072430",
+                              "/subscriptions/33815caa-4cfb-4a9e-b60a-8fee5caa2b08/resourceGroups/travelbox_kv_bs/providers/Microsoft.KeyVault/vaults/kvtravelboxpebs",
+                              "/subscriptions/33815caa-4cfb-4a9e-b60a-8fee5caa2b08/resourceGroups/travelbox_st_bs/providers/Microsoft.Storage/storageAccounts/travelboximgbs01",
+                              "/subscriptions/33815caa-4cfb-4a9e-b60a-8fee5caa2b08/resourceGroups/travelbox_st_bs/providers/Microsoft.Storage/storageAccounts/travelboxrepbs01",
+                              "/subscriptions/33815caa-4cfb-4a9e-b60a-8fee5caa2b08/resourceGroups/travelbox-peru-bs-rg/providers/Microsoft.DBforPostgreSQL/flexibleServers/travelbox-peru-db-bs",
+                              "/subscriptions/33815caa-4cfb-4a9e-b60a-8fee5caa2b08/resourceGroups/travelbox-peru-bs-rg/providers/Microsoft.Insights/components/travelbox-appinsights-bs",
+                              "/subscriptions/33815caa-4cfb-4a9e-b60a-8fee5caa2b08/resourceGroups/travelbox-peru-bs-rg/providers/Microsoft.Web/certificates/api-inkavoy-pe-bs",
+                              "/subscriptions/33815caa-4cfb-4a9e-b60a-8fee5caa2b08/resourceGroups/travelbox-peru-bs-rg/providers/Microsoft.Web/serverFarms/travelbox-peru-plan-linux-bs",
+                              "/subscriptions/33815caa-4cfb-4a9e-b60a-8fee5caa2b08/resourceGroups/travelbox-peru-bs-rg/providers/Microsoft.Web/sites/travelbox-backend-bs",
+                              "/subscriptions/33815caa-4cfb-4a9e-b60a-8fee5caa2b08/resourceGroups/travelbox-peru-rg/providers/Microsoft.Web/staticSites/travelbox-frontend",
+                              "/subscriptions/33815caa-4cfb-4a9e-b60a-8fee5caa2b08/resourceGroups/travelbox-rg/providers/Microsoft.CognitiveServices/accounts/travelbox-translator",
+                              "/subscriptions/33815caa-4cfb-4a9e-b60a-8fee5caa2b08/resourceGroups/travelbox-rg/providers/Microsoft.Communication/CommunicationServices/travelbox-communications",
+                              "/subscriptions/33815caa-4cfb-4a9e-b60a-8fee5caa2b08/resourceGroups/travelbox-rg/providers/Microsoft.Maps/accounts/travelbox-maps"
+                          ]
+}

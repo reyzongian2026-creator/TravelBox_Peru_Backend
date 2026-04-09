@@ -45,11 +45,11 @@ Set-StrictMode -Version Latest
 # ============================================================================
 $AZURE = @{
     SubscriptionId = "33815caa-4cfb-4a9e-b60a-8fee5caa2b08"
-    ResourceGroup  = "travelbox-peru-rg"
-    WebAppName     = "travelbox-backend-prod"
-    KeyVaultName   = "kvtravelboxpe"
-    KeyVaultUrl    = "https://kvtravelboxpe.vault.azure.net/"
-    Region         = "eastus"
+    ResourceGroup  = "travelbox-peru-bs-rg"
+    WebAppName     = "travelbox-backend-bs"
+    KeyVaultName   = "kvtravelboxpebs"
+    KeyVaultUrl    = "https://kvtravelboxpebs.vault.azure.net/"
+    Region         = "brazilsouth"
 }
 
 $BUILD = @{
@@ -64,7 +64,7 @@ $URLS = @{
     BackendPublic  = "https://api.inkavoy.pe"
     FrontendPublic = "https://www.inkavoy.pe"
     CorsOrigins    = "https://inkavoy.pe,https://www.inkavoy.pe,https://api.inkavoy.pe"
-    HealthEndpoint = "https://travelbox-backend-prod.azurewebsites.net/actuator/health"
+    HealthEndpoint = "https://travelbox-backend-bs.azurewebsites.net/actuator/health"
 }
 
 # ============================================================================

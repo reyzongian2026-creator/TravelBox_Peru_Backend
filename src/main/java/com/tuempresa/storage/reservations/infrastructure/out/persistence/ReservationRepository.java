@@ -31,8 +31,12 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
             Collection<ReservationStatus> activeStatuses
     );
 
-    // 👇 MÉTODO AÑADIDO PARA IDEMPOTENCIA / ANTI-SPAM 👇
-    boolean existsByUserIdAndWarehouseIdAndCreatedAtAfter(Long userId, Long warehouseId, Instant time);
+    boolean existsByUserIdAndWarehouseIdAndCreatedAtAfterAndStatusNotIn(
+            Long userId,
+            Long warehouseId,
+            Instant time,
+            Collection<ReservationStatus> excludedStatuses
+    );
 
     List<Reservation> findByUserIdOrderByCreatedAtDesc(Long userId);
 
