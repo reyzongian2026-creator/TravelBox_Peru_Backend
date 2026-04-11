@@ -35,6 +35,10 @@ public class QrUrlSigner {
     private final String signingKey;
     private final Duration signatureValidity;
 
+    public QrUrlSigner(String signingKey, long validityMinutes) {
+        this(signingKey, validityMinutes, "local");
+    }
+
     public QrUrlSigner(
             @Value("${app.security.qr-signing-key:default-qr-signing-key-change-me}") String signingKey,
             @Value("${app.security.qr-signature-validity-minutes:30}") long validityMinutes,
