@@ -11,6 +11,7 @@ public record IncidentMessageResponse(
         String originalLanguage,
         String textOriginal,
         String textTranslated,
+        String imageUrl,
         Instant createdAt
 ) {
 }

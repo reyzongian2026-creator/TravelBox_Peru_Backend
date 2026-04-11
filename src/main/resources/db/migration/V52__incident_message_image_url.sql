@@ -1,0 +1,1 @@
+ALTER TABLE incident_messages ADD COLUMN image_url VARCHAR(512) DEFAULT NULL;

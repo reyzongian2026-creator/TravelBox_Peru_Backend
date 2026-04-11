@@ -29,17 +29,31 @@ public class IncidentMessage extends AuditableEntity {
     @Column(name = "original_language", length = 5)
     private String originalLanguage;
 
+    @Column(name = "image_url", length = 512)
+    private String imageUrl;
+
     public static IncidentMessage create(
             Incident incident,
             User author,
             String message,
             String originalLanguage
     ) {
+        return create(incident, author, message, originalLanguage, null);
+    }
+
+    public static IncidentMessage create(
+            Incident incident,
+            User author,
+            String message,
+            String originalLanguage,
+            String imageUrl
+    ) {
         IncidentMessage item = new IncidentMessage();
         item.incident = incident;
         item.author = author;
         item.message = message == null ? "" : message.trim();
         item.originalLanguage = normalizeLanguage(originalLanguage);
+        item.imageUrl = imageUrl;
         return item;
     }
 
@@ -57,6 +71,10 @@ public class IncidentMessage extends AuditableEntity {
 
     public String getOriginalLanguage() {
         return originalLanguage;
+    }
+
+    public String getImageUrl() {
+        return imageUrl;
     }
 
     private static String normalizeLanguage(String originalLanguage) {

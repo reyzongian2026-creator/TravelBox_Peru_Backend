@@ -223,6 +223,7 @@ public class IncidentService {
     public IncidentMessageResponse addMessage(
             Long incidentId,
             AddIncidentMessageRequest request,
+            String imageUrl,
             AuthUserPrincipal principal
     ) {
         Incident incident = requireAccessibleIncident(incidentId, principal);
@@ -231,7 +232,7 @@ public class IncidentService {
         }
         User author = loadUser(principal.getId());
         IncidentMessage saved = incidentMessageRepository.save(
-                IncidentMessage.create(incident, author, request.message(), request.originalLanguage())
+                IncidentMessage.create(incident, author, request.message(), request.originalLanguage(), imageUrl)
         );
 
         if (hasPrivilegedRole(principal)) {
@@ -360,6 +361,7 @@ public class IncidentService {
                         viewer,
                         internalViewer
                 ),
+                null,
                 incident.getCreatedAt()
         );
     }
@@ -383,6 +385,7 @@ public class IncidentService {
                         viewer,
                         internalViewer
                 ),
+                message.getImageUrl(),
                 message.getCreatedAt()
         );
     }
@@ -490,7 +493,10 @@ public class IncidentService {
         }
         String normalizedSource = normalizeLanguage(sourceLanguage);
         String targetLanguage = internalViewer
-                ? "es"
+                ? preferredLanguageOrDefault(
+                viewer == null ? null : viewer.getPreferredLanguage(),
+                "es"
+        )
                 : preferredLanguageOrDefault(
                 viewer == null ? null : viewer.getPreferredLanguage(),
                 customer == null ? null : customer.getPreferredLanguage()
