@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
@@ -66,12 +67,20 @@ public class SensitiveDataService {
     @Value("${app.security.encryption-key:}")
     private String encryptionKeyBase64;
 
+    @Value("${spring.profiles.active:local}")
+    private String activeProfiles;
+
     private SecretKey encryptionKey;
 
     @PostConstruct
     public void init() {
-        if (encryptionKeyBase64 == null || encryptionKeyBase64.isBlank()) {
-            LOG.warn("No encryption key configured. Using default key for development only!");
+        if (!StringUtils.hasText(encryptionKeyBase64)) {
+            if (activeProfiles.contains("prod")) {
+                throw new IllegalStateException(
+                        "CRITICAL: app.security.encryption-key is not configured. " +
+                        "Set the 'tbx-back-encryption-key' secret in Azure Key Vault before starting in production.");
+            }
+            LOG.warn("No encryption key configured. Using insecure default — DEV/LOCAL only!");
             encryptionKeyBase64 = "ZGV2LWRlZmF1bHQta2V5LWZvci10ZXN0aW5nLW9ubHk=";
         }
         

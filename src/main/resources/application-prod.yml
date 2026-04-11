@@ -67,6 +67,7 @@ app:
     jwt:
       secret: ${tbx-back-jwt-secret:${APP_JWT_SECRET:}}
     encryption-key: ${tbx-back-encryption-key:}
+    qr-signing-key: ${tbx-back-qr-signing-key:${APP_SECURITY_QR_SIGNING_KEY:}}
   notifications:
     provider: in-app
   translation:
@@ -124,9 +125,11 @@ app:
       request-source: ${APP_IZIPAY_REQUEST_SOURCE:EC}
       token-path: ${APP_IZIPAY_TOKEN_PATH:/v1/tokens/session}
       test:
-        public-key: ${tbx-back-payments-izipay-test-public-key:23662223:testpublickey_nTyOlLk8CiPG0VogpAQlmAuoIgcgmRVoLaJv6iieRnnqC}
-        api-password: ${tbx-back-payments-izipay-test-api-password:testpassword_gAPEWQOa0x7IWqOOqYYxfHZ83kziKmvkldSRb9CGuxomH}
-        hash-key: ${tbx-back-payments-izipay-test-hash-key:HNxdvb4EINrOLnqXr3l2ZDuPRgpYHBovAGcla6mSN2i6Z}
+        # IMPORTANT: No fallback values here. In prod, test credentials must come exclusively from Key Vault.
+        # Set secrets: tbx-back-payments-izipay-test-public-key, tbx-back-payments-izipay-test-api-password, tbx-back-payments-izipay-test-hash-key
+        public-key: ${tbx-back-payments-izipay-test-public-key:}
+        api-password: ${tbx-back-payments-izipay-test-api-password:}
+        hash-key: ${tbx-back-payments-izipay-test-hash-key:}
       production:
         public-key: ${tbx-back-payments-izipay-public-key:${APP_IZIPAY_PROD_PUBLIC_KEY:}}
         api-password: ${tbx-back-payments-izipay-api-password:${APP_IZIPAY_PROD_API_PASSWORD:}}

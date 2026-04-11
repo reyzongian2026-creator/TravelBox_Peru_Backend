@@ -80,13 +80,14 @@ $KV_SECRETS = @{
     # --- JWT & Seguridad ---
     "tbx-back-jwt-secret"                              = "APP_JWT_SECRET"
     "tbx-back-encryption-key"                          = "APP_SECURITY_ENCRYPTION_KEY"
+    "tbx-back-qr-signing-key"                          = "APP_SECURITY_QR_SIGNING_KEY"
 
     # --- Izipay Pagos ---
     "tbx-back-payments-izipay-merchant-code"           = "APP_IZIPAY_MERCHANT_CODE"
-    "tbx-back-payments-izipay-public-key"              = "APP_IZIPAY_PUBLIC_KEY"
-    "tbx-back-payments-izipay-hash-key"                = "APP_IZIPAY_HASH_KEY"
+    "tbx-back-payments-izipay-public-key"              = "APP_IZIPAY_PROD_PUBLIC_KEY"
+    "tbx-back-payments-izipay-hash-key"                = "APP_IZIPAY_PROD_HASH_KEY"
     "tbx-back-payments-izipay-api-user"                = "APP_IZIPAY_API_USER"
-    "tbx-back-payments-izipay-api-password"            = "APP_IZIPAY_API_PASSWORD"
+    "tbx-back-payments-izipay-api-password"            = "APP_IZIPAY_PROD_API_PASSWORD"
 
     # --- SMTP Email ---
     "tbx-back-smtp-host"                               = "APP_SMTP_HOST"

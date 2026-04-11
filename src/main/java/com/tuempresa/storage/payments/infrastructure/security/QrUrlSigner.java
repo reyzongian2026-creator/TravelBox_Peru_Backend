@@ -37,10 +37,18 @@ public class QrUrlSigner {
 
     public QrUrlSigner(
             @Value("${app.security.qr-signing-key:default-qr-signing-key-change-me}") String signingKey,
-            @Value("${app.security.qr-signature-validity-minutes:30}") long validityMinutes) {
-        if (signingKey == null || signingKey.isBlank() || "replace-me-in-vault".equals(signingKey)) {
-            log.warn("QrUrlSigner: signing key is not properly configured — "
-                    + "using fallback key. Set app.security.qr-signing-key in Azure Key Vault.");
+            @Value("${app.security.qr-signature-validity-minutes:30}") long validityMinutes,
+            @Value("${spring.profiles.active:local}") String activeProfiles) {
+        boolean isSentinel = signingKey == null || signingKey.isBlank()
+                || "replace-me-in-vault".equals(signingKey)
+                || "default-qr-signing-key-change-me".equals(signingKey);
+        if (isSentinel) {
+            if (activeProfiles.contains("prod")) {
+                throw new IllegalStateException(
+                        "CRITICAL: app.security.qr-signing-key is not configured. " +
+                        "Set the 'tbx-back-qr-signing-key' secret in Azure Key Vault before starting in production.");
+            }
+            log.warn("QrUrlSigner: signing key not configured — using ephemeral fallback. DEV/LOCAL only!");
             this.signingKey = "tbx-qr-fallback-" + System.currentTimeMillis();
         } else {
             this.signingKey = signingKey;

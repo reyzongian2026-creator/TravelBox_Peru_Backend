@@ -1382,8 +1382,9 @@ public class PaymentService {
             if (StringUtils.hasText(cardToken)) {
                 try {
                     saveCardToken(attempt.getReservation().getUser(), cardToken, clientAnswer);
-                } catch (Exception ignored) {
-                    // Non-critical: don't fail payment because of token save
+                } catch (Exception ex) {
+                    log.warn("Failed to save card token for intentId={} — non-critical, payment already confirmed",
+                            attempt.getId(), ex);
                 }
             }
 
@@ -1618,8 +1619,9 @@ public class PaymentService {
                 if (tsStr != null) {
                     try {
                         attempt.setQrSignatureTimestamp(Instant.parse(tsStr).toEpochMilli());
-                    } catch (Exception ignored) {
-                        // timestamp is ISO-8601, store epoch millis
+                    } catch (Exception ex) {
+                        log.warn("Failed to parse QR signature timestamp '{}' for intentId={}",
+                                tsStr, attempt.getId(), ex);
                     }
                 }
             }
