@@ -16,9 +16,9 @@ concurrency:
 
 env:
   AZURE_SUBSCRIPTION: "33815caa-4cfb-4a9e-b60a-8fee5caa2b08"
-  RESOURCE_GROUP: "travelbox-peru-rg"
-  WEBAPP_NAME: "travelbox-backend-prod"
-  KEY_VAULT_NAME: "kvtravelboxpe"
+  RESOURCE_GROUP: "travelbox-peru-bs-rg"
+  WEBAPP_NAME: "travelbox-backend-bs"
+  KEY_VAULT_NAME: "kvtravelboxpebs"
   JAVA_VERSION: "21"
   APP_ENV: "prod"
 
@@ -109,7 +109,7 @@ jobs:
             "APP_PAYMENTS_ALLOW_MOCK_CONFIRMATION" = "false"
             "APP_AUTH_EXPOSE_CODE_PREVIEW"         = "false"
             "AZURE_KEYVAULT_ENABLED"               = "true"
-            "AZURE_KEYVAULT_ENDPOINT"              = "https://kvtravelboxpe.vault.azure.net/"
+            "AZURE_KEYVAULT_ENDPOINT"              = "https://kvtravelboxpebs.vault.azure.net/"
           }
 
           $body = @{ properties = $props } | ConvertTo-Json -Depth 3
