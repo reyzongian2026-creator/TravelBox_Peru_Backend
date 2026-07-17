@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.reactive.resource.NoResourceFoundException;
 import org.springframework.web.bind.support.WebExchangeBindException;
+import org.springframework.web.server.MethodNotAllowedException;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
@@ -157,6 +158,22 @@ public class ReactiveGlobalExceptionHandler {
                         HttpStatus.NOT_FOUND,
                         "RESOURCE_NOT_FOUND",
                         "El recurso solicitado no existe.",
+                        exchange,
+                        List.of()
+                )));
+    }
+
+    @ExceptionHandler(MethodNotAllowedException.class)
+    public Mono<ResponseEntity<ApiErrorResponse>> handleMethodNotAllowed(
+            MethodNotAllowedException ex,
+            ServerWebExchange exchange
+    ) {
+        log.warn("Method not allowed at {}: {}", exchange.getRequest().getPath(), ex.getMessage());
+        return Mono.just(ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
+                .body(buildError(
+                        HttpStatus.METHOD_NOT_ALLOWED,
+                        "METHOD_NOT_ALLOWED",
+                        "El metodo HTTP no esta permitido para esta ruta.",
                         exchange,
                         List.of()
                 )));

@@ -25,7 +25,7 @@ public class ReferralController {
         this.reactiveBlockingExecutor = reactiveBlockingExecutor;
     }
 
-    @GetMapping("/my-code")
+    @GetMapping({"/my-code", "/me"})
     public Mono<ResponseEntity<Map<String, Object>>> getMyCode() {
         return securityUtils.currentUserOrThrowReactive()
                 .flatMap(user -> reactiveBlockingExecutor.call(
